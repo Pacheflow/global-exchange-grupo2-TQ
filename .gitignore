@@ -22,3 +22,13 @@ staticfiles/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# ==========================================
+# CONTEXTO PRIVADO DEL AGENTE
+# ==========================================
+
+.agent-context/
+.codex/
+
+# Instrucciones privadas del agente
+AGENTS.md
