@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{% static 'material/css/unpoly.min.css' %}">
   <link rel="stylesheet" href="{% static 'material/css/material.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'react/global-exchange-react.css' %}">
 </head>
 <body class="{% if request.session.kc_user %}authenticated{% else %}public{% endif %}">
   <a class="skip-link" href="#content">Saltar al contenido</a>
@@ -68,8 +69,10 @@
   {% else %}
     <footer class="site-footer"><span>Global Exchange</span><span>Casa de cambios · Paraguay</span></footer>
   {% endif %}
+  <div id="react-root" data-react-component="IntegrationProbe"></div>
   <script src="{% static 'material/js/unpoly.js' %}"></script>
   <script src="{% static 'material/js/material.js' %}"></script>
   <script src="{% static 'js/app.js' %}"></script>
+  <script type="module" src="{% static 'react/global-exchange-react.js' %}"></script>
 </body>
 </html>
