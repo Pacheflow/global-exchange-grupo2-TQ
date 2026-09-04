@@ -14,6 +14,27 @@
 <body class="{% if request.session.kc_user %}authenticated{% else %}public{% endif %}">
   <a class="skip-link" href="#content">Saltar al contenido</a>
 
+  <div
+    id="global-navbar"
+    data-react-component="Navbar"
+    data-react-prop-authenticated="{% if request.session.kc_user %}true{% else %}false{% endif %}"
+    data-react-prop-home-url="{% url 'usuarios:home' %}"
+    data-react-prop-rates-url="{% url 'usuarios:home' %}#tasas"
+    data-react-prop-converter-url="{% url 'usuarios:home' %}#cotizaciones"
+    data-react-prop-security-url="{% url 'usuarios:home' %}#servicios"
+    data-react-prop-login-url="{% url 'usuarios:login' %}"
+    data-react-prop-register-url="{% url 'usuarios:registro' %}"
+    data-react-prop-dashboard-url="{% url 'usuarios:dashboard' %}"
+    data-react-prop-logout-url="{% url 'usuarios:logout' %}"
+    {% if request.session.kc_user %}
+      data-react-prop-user-name="{% if request.session.kc_user.given_name %}{{ request.session.kc_user.given_name }}{% elif request.session.kc_user.name %}{{ request.session.kc_user.name }}{% else %}{{ request.session.kc_user.preferred_username }}{% endif %}"
+      data-react-prop-user-email="{{ request.session.kc_user.email|default:'' }}"
+      data-react-prop-role-label="{% if 'ADMINISTRADOR' in request.session.roles %}Administrador{% elif 'ANALISTA_CAMBIARIO' in request.session.roles %}Analista cambiario{% elif 'CAJERO' in request.session.roles %}Cajero{% elif 'USUARIO' in request.session.roles %}Usuario{% endif %}"
+      {% if request.session.selected_client %}data-react-prop-current-client="{{ request.session.selected_client.name }}"{% endif %}
+      {% if 'ADMINISTRADOR' in request.session.roles %}data-react-prop-admin-url="{% url 'usuarios:list' %}"{% endif %}
+    {% endif %}
+  ></div>
+
   {% if request.session.kc_user %}
     <div class="app-shell">
       <aside class="sidebar" id="app-menu">
@@ -40,7 +61,7 @@
       </header>
       <div class="app-main">
   {% else %}
-    <div class="public-header-wrap">
+    <div class="public-header-wrap legacy-public-navigation">
       <header class="site-header">
         <a class="logo" href="{% url 'usuarios:home' %}" aria-label="Global Exchange, inicio"><span class="logo-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Global Exchange</span></a>
         <button class="menu-toggle material-symbols" data-menu aria-label="Abrir navegación" aria-expanded="false" aria-controls="main-menu" title="Abrir navegación">menu</button>
@@ -69,7 +90,6 @@
   {% else %}
     <footer class="site-footer"><span>Global Exchange</span><span>Casa de cambios · Paraguay</span></footer>
   {% endif %}
-  <div id="react-root" data-react-component="IntegrationProbe"></div>
   <script src="{% static 'material/js/unpoly.js' %}"></script>
   <script src="{% static 'material/js/material.js' %}"></script>
   <script src="{% static 'js/app.js' %}"></script>

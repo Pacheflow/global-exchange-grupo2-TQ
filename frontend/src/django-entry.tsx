@@ -6,13 +6,26 @@ import { getRegisteredComponent } from "./registry";
 const islandSelector = "[data-react-component]";
 
 function parseProps(element: HTMLElement): Record<string, unknown> {
+  const attributeProps = Object.entries(element.dataset).reduce<
+    Record<string, string>
+  >((props, [key, value]) => {
+    const prefix = "reactProp";
+    if (key.startsWith(prefix) && value !== undefined) {
+      const propName = key.slice(prefix.length);
+      if (propName) {
+        props[`${propName[0].toLowerCase()}${propName.slice(1)}`] = value;
+      }
+    }
+    return props;
+  }, {});
+
   const propsSourceId = element.dataset.reactPropsId;
   const serializedProps = propsSourceId
     ? document.getElementById(propsSourceId)?.textContent
     : undefined;
 
   if (!serializedProps) {
-    return {};
+    return attributeProps;
   }
 
   const parsedProps: unknown = JSON.parse(serializedProps);
@@ -26,7 +39,10 @@ function parseProps(element: HTMLElement): Record<string, unknown> {
     );
   }
 
-  return parsedProps as Record<string, unknown>;
+  return {
+    ...(parsedProps as Record<string, unknown>),
+    ...attributeProps,
+  };
 }
 
 function mountReactIsland(element: HTMLElement): void {
