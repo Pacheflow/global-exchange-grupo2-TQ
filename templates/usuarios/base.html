@@ -19,9 +19,9 @@
     data-react-component="Navbar"
     data-react-prop-authenticated="{% if request.session.kc_user %}true{% else %}false{% endif %}"
     data-react-prop-home-url="{% url 'usuarios:home' %}"
-    data-react-prop-rates-url="{% url 'usuarios:home' %}#tasas"
-    data-react-prop-converter-url="{% url 'usuarios:home' %}#cotizaciones"
-    data-react-prop-security-url="{% url 'usuarios:home' %}#servicios"
+    data-react-prop-rates-url="{% url 'usuarios:home' %}#cotizaciones"
+    data-react-prop-converter-url="{% url 'usuarios:home' %}#conversor"
+    data-react-prop-security-url="{% url 'usuarios:home' %}#seguridad"
     data-react-prop-login-url="{% url 'usuarios:login' %}"
     data-react-prop-register-url="{% url 'usuarios:registro' %}"
     data-react-prop-dashboard-url="{% url 'usuarios:dashboard' %}"
@@ -88,7 +88,7 @@
       </div>
     </div>
   {% else %}
-    <footer class="site-footer"><span>Global Exchange</span><span>Casa de cambios · Paraguay</span></footer>
+    {% block public_footer %}<footer class="site-footer"><span>Global Exchange</span><span>Casa de cambios · Paraguay</span></footer>{% endblock %}
   {% endif %}
   <script src="{% static 'material/js/unpoly.js' %}"></script>
   <script src="{% static 'material/js/material.js' %}"></script>
