@@ -21,14 +21,21 @@
   position: fixed;
   inset: 0 0 auto;
   z-index: 1000;
-  min-height: 68px;
+  min-height: 64px;
   border-bottom: 1px solid var(--ge-nav-border);
   background: var(--ge-nav-bg);
   color: var(--ge-nav-text);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  font-family: Inter, Roboto, ui-sans-serif, system-ui, sans-serif;
+  font-family: "DM Sans Variable", "DM Sans", ui-sans-serif, system-ui, sans-serif;
   transition: box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.ge-navbar--landing {
+  border-bottom-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .ge-navbar--scrolled {
@@ -45,9 +52,20 @@
   font: inherit;
 }
 
+.ge-navbar a:focus-visible,
+.ge-navbar button:focus-visible {
+  outline: 2px solid #6b8aff;
+  outline-offset: 3px;
+}
+
+.ge-navbar a.up-current {
+  background-color: transparent;
+  color: inherit;
+}
+
 .ge-navbar__inner {
   width: min(1400px, calc(100% - 40px));
-  height: 68px;
+  height: 64px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -57,19 +75,16 @@
 .ge-navbar__brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   flex: 0 0 auto;
   border-radius: 8px;
 }
 
 .ge-navbar__brand-icon {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border: 1px solid rgb(107 138 255 / 35%);
-  border-radius: 50%;
-  background: linear-gradient(145deg, rgb(107 138 255 / 16%), transparent);
   color: var(--ge-nav-primary);
 }
 
@@ -79,7 +94,7 @@
 
 .ge-navbar__wordmark strong {
   display: block;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -105,7 +120,7 @@
 .ge-navbar__mobile-links a {
   border-radius: 7px;
   color: var(--ge-nav-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   transition: background-color 150ms ease, color 150ms ease;
 }
@@ -116,8 +131,24 @@
 
 .ge-navbar__links a:hover,
 .ge-navbar__links a:focus-visible,
+.ge-navbar__links a:active,
 .ge-navbar__mobile-links a:hover,
-.ge-navbar__mobile-links a:focus-visible {
+.ge-navbar__mobile-links a:focus-visible,
+.ge-navbar__mobile-links a:active {
+  background: rgb(107 138 255 / 12%);
+  color: var(--ge-nav-text);
+}
+
+.ge-navbar__links a.up-current,
+.ge-navbar__mobile-links a.up-current {
+  background: transparent;
+  color: var(--ge-nav-muted);
+}
+
+.ge-navbar__links a.is-active,
+.ge-navbar__mobile-links a.is-active,
+.ge-navbar__links a.is-active.up-current,
+.ge-navbar__mobile-links a.is-active.up-current {
   background: rgb(107 138 255 / 12%);
   color: var(--ge-nav-text);
 }
@@ -145,7 +176,7 @@
 .ge-navbar__dashboard-link,
 .ge-navbar__admin-link,
 .ge-navbar__login {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 12px;
   color: var(--ge-nav-muted) !important;
 }
@@ -160,8 +191,22 @@
   color: var(--ge-nav-text) !important;
 }
 
+.ge-navbar__dashboard-link:active,
+.ge-navbar__admin-link:active,
+.ge-navbar__login:active {
+  background: rgb(107 138 255 / 16%);
+  color: var(--ge-nav-text) !important;
+}
+
+.ge-navbar__dashboard-link.up-current,
+.ge-navbar__admin-link.up-current,
+.ge-navbar__login.up-current {
+  background: transparent;
+  color: var(--ge-nav-muted) !important;
+}
+
 .ge-navbar__register {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 15px;
   background: var(--ge-nav-primary-strong);
   box-shadow: 0 7px 20px rgb(59 91 255 / 25%);
@@ -172,6 +217,10 @@
 .ge-navbar__register:focus-visible {
   background: #5575ff;
 }
+
+.ge-navbar a.ge-navbar__register.up-current { background: var(--ge-nav-primary-strong); color: white; }
+
+.ge-navbar__register:active { background: #2f4ee8; transform: translateY(1px); }
 
 .ge-navbar__profile {
   position: relative;
@@ -309,10 +358,13 @@
 }
 
 .ge-navbar__profile-menu > a:hover,
-.ge-navbar__profile-menu > a:focus-visible {
+.ge-navbar__profile-menu > a:focus-visible,
+.ge-navbar__profile-menu > a:active {
   background: var(--ge-nav-surface-strong);
   color: var(--ge-nav-text);
 }
+
+.ge-navbar__profile-menu > a.up-current { background: transparent; color: var(--ge-nav-muted); }
 
 .ge-navbar__profile-menu .ge-navbar__logout,
 .ge-navbar__mobile-account .ge-navbar__logout {
@@ -337,7 +389,7 @@
 
 .ge-navbar__mobile-menu {
   width: min(100% - 24px, 440px);
-  max-height: calc(100vh - 84px);
+  max-height: calc(100vh - 80px);
   margin: 8px 12px 12px auto;
   padding: 12px;
   overflow-y: auto;
@@ -413,12 +465,12 @@
 }
 
 #global-navbar:not(:empty) ~ .app-shell {
-  padding-top: 68px;
+  padding-top: 64px;
 }
 
 #global-navbar:not(:empty) ~ .app-shell .sidebar {
-  top: 68px;
-  height: calc(100vh - 68px);
+  top: 64px;
+  height: calc(100vh - 64px);
 }
 
 #global-navbar:not(:empty) ~ .app-shell .mobile-app-header {

@@ -23,6 +23,7 @@ export interface NavbarProps {
 interface NavLink {
   href: string;
   label: string;
+  section: "inicio" | "cotizaciones" | "conversor" | "seguridad";
 }
 
 export function Navbar({
@@ -42,16 +43,26 @@ export function Navbar({
   userName,
 }: NavbarProps) {
   const isAuthenticated = authenticated === "true";
+  const isLandingPage =
+    typeof window !== "undefined" && window.location.pathname === "/";
+  const sectionFromHash = () => {
+    if (typeof window === "undefined") return "inicio";
+    const section = window.location.hash.replace("#", "");
+    return ["cotizaciones", "conversor", "seguridad"].includes(section)
+      ? section
+      : "inicio";
+  };
+  const [activeSection, setActiveSection] = useState(sectionFromHash);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navbarRef = useRef<HTMLElement>(null);
 
   const mainLinks: NavLink[] = [
-    { href: homeUrl, label: "Inicio" },
-    { href: ratesUrl, label: "Cotizaciones" },
-    { href: converterUrl, label: "Conversor" },
-    { href: securityUrl, label: "Seguridad" },
+    { href: homeUrl, label: "Inicio", section: "inicio" },
+    { href: ratesUrl, label: "Cotizaciones", section: "cotizaciones" },
+    { href: converterUrl, label: "Conversor", section: "conversor" },
+    { href: securityUrl, label: "Seguridad", section: "seguridad" },
   ];
 
   useEffect(() => {
@@ -60,6 +71,35 @@ export function Navbar({
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!isLandingPage) return;
+
+    let frame = 0;
+    const sections = ["inicio", "cotizaciones", "conversor", "seguridad"] as const;
+    const syncActiveSection = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const marker = window.scrollY + 96;
+        let current: typeof sections[number] = "inicio";
+        sections.forEach((section) => {
+          const element = document.getElementById(section);
+          if (element && element.offsetTop <= marker) current = section;
+        });
+        setActiveSection(current);
+      });
+    };
+
+    const handleHashChange = () => setActiveSection(sectionFromHash());
+    syncActiveSection();
+    window.addEventListener("scroll", syncActiveSection, { passive: true });
+    window.addEventListener("hashchange", handleHashChange);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", syncActiveSection);
+      window.removeEventListener("hashchange", handleHashChange);
+    };
+  }, [isLandingPage]);
 
   useEffect(() => {
     if (!mobileOpen && !profileOpen) {
@@ -98,7 +138,16 @@ export function Navbar({
   const renderMainLinks = (className: string) => (
     <div className={className}>
       {mainLinks.map((link) => (
-        <a key={link.label} href={link.href} onClick={closeMenus}>
+        <a
+          key={link.label}
+          href={link.href}
+          className={isLandingPage && activeSection === link.section ? "is-active" : undefined}
+          aria-current={isLandingPage && activeSection === link.section ? "location" : undefined}
+          onClick={() => {
+            if (isLandingPage) setActiveSection(link.section);
+            closeMenus();
+          }}
+        >
           {link.label}
         </a>
       ))}
@@ -108,7 +157,10 @@ export function Navbar({
   return (
     <nav
       ref={navbarRef}
-      className={`ge-navbar${scrolled ? " ge-navbar--scrolled" : ""}`}
+      {...{ "up-nav": "false" }}
+      className={`ge-navbar${scrolled ? " ge-navbar--scrolled" : ""}${
+        isLandingPage && !scrolled ? " ge-navbar--landing" : ""
+      }`}
       aria-label="Navegación principal"
     >
       <div className="ge-navbar__inner">

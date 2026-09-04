@@ -1,79 +1,70 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import "@fontsource-variable/dm-sans";
+import "@fontsource-variable/fraunces/wght.css";
+import "@fontsource-variable/fraunces/wght-italic.css";
+import "@fontsource-variable/jetbrains-mono";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
-import {
-  AVAILABLE_CURRENCIES,
-  DEMO_UPDATED_AT,
-  MARKET_RATES,
-  RATE_PERIODS,
-  type CurrencyCode,
-  type RatePeriod,
-} from "../data/landingData";
+import { AVAILABLE_CURRENCIES, DEMO_UPDATED_AT, MARKET_RATES, RATE_PERIODS, type CurrencyCode, type RatePeriod } from "../data/landingData";
+import { getRateDirection } from "../utils/rateDirection";
 import { AppIcon, type AppIconName } from "./icons/AppIcon";
 import { MarketBoard } from "./MarketBoard";
 import { Sparkline } from "./Sparkline";
 import "./landing.css";
 
-export interface LandingProps {
-  authenticated?: string;
-  primaryActionLabel?: string;
-  primaryActionUrl?: string;
-  loginUrl?: string;
-  registerUrl?: string;
-}
-
-interface FeatureItem {
-  icon: AppIconName;
-  title: string;
-  description: string;
-}
-
-const SECURITY_FEATURES: FeatureItem[] = [
-  { icon: "authentication", title: "Autenticación segura", description: "El acceso se protege mediante el flujo OIDC gestionado por Django y Keycloak." },
-  { icon: "roles", title: "Roles y permisos", description: "Cada opción se habilita con los roles que entrega el backend, sin permisos duplicados en React." },
-  { icon: "file-check", title: "Confirmación de operaciones", description: "La interfaz está preparada para incorporar confirmaciones explícitas cuando el módulo esté disponible." },
-  { icon: "activity", title: "Trazabilidad completa", description: "La experiencia visual contempla el seguimiento de acciones y comprobantes en futuras etapas." },
-];
-
-function Reveal({ children, className = "" }: { children: ReactNode; className?: string }) {
+function RevealSection({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const element = ref.current;
     if (!element || !("IntersectionObserver" in window)) {
-      element?.classList.add("is-visible");
+      element?.classList.add("visible");
       return;
     }
-    const showFallback = window.setTimeout(() => {
-      element.classList.add("is-visible");
-    }, 200);
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
-        element.classList.add("is-visible");
-        window.clearTimeout(showFallback);
+        element.classList.add("visible");
         observer.disconnect();
       }
-    }, { threshold: 0.02, rootMargin: "0px 0px 80px" });
+    }, { threshold: 0.1 });
     observer.observe(element);
-    return () => {
-      window.clearTimeout(showFallback);
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
-
-  return <div ref={ref} className={`ge-reveal ${className}`}>{children}</div>;
+  return <div ref={ref} className="reveal" style={style}>{children}</div>;
 }
 
-function formatMoney(value: number): string {
-  const absolute = Math.abs(value);
-  const maximumFractionDigits = absolute > 0 && absolute < 0.01
-    ? 6
-    : absolute < 100
-      ? 4
-      : 2;
-  return value.toLocaleString("es-PY", {
-    minimumFractionDigits: absolute > 0 && absolute < 0.01 ? 6 : 0,
-    maximumFractionDigits,
-  });
+function useAnimatedNumber(value: number, triggered: boolean, duration: number): number {
+  const [display, setDisplay] = useState(value);
+  const rafRef = useRef(0);
+  useEffect(() => {
+    cancelAnimationFrame(rafRef.current);
+    if (!triggered) {
+      setDisplay(value);
+      return;
+    }
+    const start = performance.now();
+    const animate = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      setDisplay(value * (1 - Math.pow(1 - progress, 2)));
+      if (progress < 1) rafRef.current = requestAnimationFrame(animate);
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [duration, triggered, value]);
+  return display;
+}
+
+function formatValue(value: number): string {
+  return value.toLocaleString("es-PY", { maximumFractionDigits: value < 100 ? 4 : 0 });
+}
+
+function AnimatedPrice({ value, triggered }: { value: number; triggered: boolean }) {
+  return <span className="ge-animated-price">{formatValue(useAnimatedNumber(value, triggered, 700))}</span>;
+}
+
+function AnimatedChange({ value, triggered }: { value: number; triggered: boolean }) {
+  const display = useAnimatedNumber(Math.abs(value), triggered, 900);
+  const direction = getRateDirection(value);
+  const prefix = direction === "up" ? "+" : direction === "down" ? "-" : "";
+  return <span className={`is-${direction}`}>{prefix}{display.toFixed(2)}%</span>;
 }
 
 function CurrencyConverter() {
@@ -83,9 +74,9 @@ function CurrencyConverter() {
   const [swapping, setSwapping] = useState(false);
   const fromCurrency = AVAILABLE_CURRENCIES.find((currency) => currency.code === from)!;
   const toCurrency = AVAILABLE_CURRENCIES.find((currency) => currency.code === to)!;
-  const numericAmount = Number.parseFloat(amount) || 0;
   const rate = fromCurrency.pygPerUnit / toCurrency.pygPerUnit;
-  const result = numericAmount * rate;
+  const result = (Number.parseFloat(amount) || 0) * rate;
+  const decimals = Math.abs(rate) < 0.01 ? 6 : 4;
 
   const swap = () => {
     setSwapping(true);
@@ -95,135 +86,114 @@ function CurrencyConverter() {
   };
 
   return (
-    <div className="ge-converter-card">
-      <div className="ge-converter-card__field">
+    <div className="ge-figma-card ge-figma-converter">
+      <div className="ge-figma-field">
         <label htmlFor="ge-converter-amount">Tú entregas</label>
-        <div>
-          <input
-            id="ge-converter-amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))}
-            aria-label="Monto a convertir"
-          />
-          <select value={from} onChange={(event) => setFrom(event.target.value as CurrencyCode)} aria-label="Moneda de origen">
-            {AVAILABLE_CURRENCIES.map((currency) => <option value={currency.code} key={currency.code}>{currency.code}</option>)}
-          </select>
-        </div>
+        <div><input id="ge-converter-amount" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} aria-label="Monto a convertir" /><select value={from} onChange={(event) => setFrom(event.target.value as CurrencyCode)} aria-label="Moneda de origen">{AVAILABLE_CURRENCIES.map((currency) => <option value={currency.code} key={currency.code}>{currency.code}</option>)}</select></div>
       </div>
-
-      <div className="ge-converter-card__swap-row">
-        <span />
-        <button className={swapping ? "is-swapping" : ""} type="button" onClick={swap} aria-label="Invertir monedas" title="Invertir monedas">
-          <AppIcon name="exchange" size={20} />
-        </button>
-        <span />
-      </div>
-
-      <div className="ge-converter-card__field ge-converter-card__field--result">
+      <div className="ge-figma-swap"><span /><button className={swapping ? "is-swapping" : ""} type="button" onClick={swap} title="Intercambiar monedas" aria-label="Intercambiar monedas"><AppIcon name="exchange" size={20} /></button><span /></div>
+      <div className="ge-figma-field ge-figma-field--result">
         <label>Recibes aproximadamente</label>
-        <div>
-          <output aria-live="polite">{formatMoney(result)}</output>
-          <select value={to} onChange={(event) => setTo(event.target.value as CurrencyCode)} aria-label="Moneda de destino">
-            {AVAILABLE_CURRENCIES.map((currency) => <option value={currency.code} key={currency.code}>{currency.code}</option>)}
-          </select>
-        </div>
+        <div><output aria-live="polite">{result.toLocaleString("es-PY", { maximumFractionDigits: result < 100 ? 4 : 0 })}</output><select value={to} onChange={(event) => setTo(event.target.value as CurrencyCode)} aria-label="Moneda de destino">{AVAILABLE_CURRENCIES.map((currency) => <option value={currency.code} key={currency.code}>{currency.code}</option>)}</select></div>
       </div>
-
-      <div className="ge-converter-card__rate">
-        <div><small>Tipo de cambio aplicado</small><strong>1 {from} = {formatMoney(rate)} {to}</strong></div>
-        <div><small>Última actualización</small><span>{DEMO_UPDATED_AT}</span></div>
-      </div>
-      <p className="ge-converter-card__note"><AppIcon name="info" size={16} /> Simulación gratuita · No genera transacciones ni compromisos.</p>
+      <div className="ge-figma-rate"><div><small>Tipo de cambio aplicado</small><strong>1 {from} = {rate.toLocaleString("es-PY", { minimumFractionDigits: rate < 0.01 ? 6 : 0, maximumFractionDigits: decimals })} {to}</strong></div><div><small>Última actualización</small><span>{DEMO_UPDATED_AT}</span></div></div>
+      <div className="ge-figma-simulation"><AppIcon name="info" size={15} /> Simulación gratuita · No genera ninguna transacción ni compromiso.</div>
     </div>
   );
 }
 
-export function Landing({
-  authenticated = "false",
-  primaryActionLabel,
-  primaryActionUrl = "/registro/",
-  loginUrl = "/login/",
-  registerUrl = "/registro/",
-}: LandingProps) {
-  const [period, setPeriod] = useState<RatePeriod>("Hoy");
-  const isAuthenticated = authenticated === "true";
-  const ctaLabel = primaryActionLabel || (isAuthenticated ? "Ir al dashboard" : "Crear una cuenta");
+const BENEFITS: { icon: AppIconName; title: string; description: string }[] = [
+  { icon: "chart", title: "Cotizaciones actualizadas", description: "Tasas del mercado actualizadas continuamente a lo largo del día." },
+  { icon: "security", title: "Operaciones seguras", description: "Autenticación robusta, control de acceso por roles y trazabilidad completa." },
+  { icon: "history", title: "Historial centralizado", description: "Accedé a todas tus transacciones, facturas y comprobantes en un solo lugar." },
+  { icon: "user", title: "Atención profesional", description: "Soporte especializado con conocimiento cambiario real." },
+  { icon: "sparkles", title: "Información clara", description: "Cada operación mostrará exactamente lo que recibirás antes de confirmarla." },
+  { icon: "globe", title: "Multi-moneda", description: "USD, EUR, BRL, ARS y PYG, con posibilidad de ampliar el catálogo." },
+];
+
+function scrollFromFooter(event: MouseEvent<HTMLAnchorElement>, sectionId: string) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  window.history.pushState(null, "", `#${sectionId}`);
+  window.scrollTo({
+    top: window.scrollY + section.getBoundingClientRect().top,
+    behavior: "smooth",
+  });
+}
+
+export function Landing() {
+  const [period, setPeriod] = useState<RatePeriod>("90D");
+  const ratesRef = useRef<HTMLDivElement>(null);
+  const [ratesVisible, setRatesVisible] = useState(false);
+
+  useEffect(() => {
+    const element = ratesRef.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setRatesVisible(true);
+        observer.disconnect();
+      }
+    }, { threshold: 0.15 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="ge-landing">
-      <section className="ge-hero" id="inicio">
-        <div className="ge-hero__texture" aria-hidden="true" />
-        <div className="ge-hero__content">
-          <div className="ge-hero__copy">
-            <span className="ge-hero__badge"><i aria-hidden="true" /> Cotizaciones en tiempo real</span>
-            <h1><span>Líderes en</span><strong>cambios</strong><span>en <em>Paraguay</em></span></h1>
-            <div className="ge-hero__rule" />
-            <p>Operaciones seguras y transparentes. Una experiencia de cambio de divisas diseñada para el mercado paraguayo.</p>
-            <div className="ge-hero__actions">
-              <a className="ge-landing-button ge-landing-button--primary" href="#cotizaciones">Ver cotizaciones</a>
-              <a className="ge-landing-button ge-landing-button--secondary" href="#conversor">Convertir moneda</a>
-            </div>
+    <div className="ge-figma-landing">
+      <section id="inicio" className="landing-hero">
+        <div className="landing-dot-grid" aria-hidden="true" />
+        <div className="landing-hero-content">
+          <div className="landing-hero-copy">
+            <div className="landing-badge animate-fade-up"><i /> Cotizaciones en tiempo real</div>
+            <h1 className="animate-fade-up delay-200 font-display"><span className="landing-hero-heading-line">Líderes en</span><span className="landing-hero-heading-line landing-hero-heading-strong">cambios</span><span className="landing-hero-heading-line landing-hero-country-line">en <em className="gradient-text landing-hero-country">Paraguay</em></span></h1>
+            <div className="landing-accent animate-fade-up delay-300" />
+            <p className="animate-fade-up delay-400">Operaciones seguras y transparentes. La plataforma de cambio de divisas más confiable del mercado paraguayo.</p>
+            <div className="landing-actions animate-fade-up delay-600"><a href="#cotizaciones" className="ge-btn-primary">Ver cotizaciones</a><a href="#conversor" className="ge-btn-outline">Convertir moneda</a></div>
           </div>
-          <div className="ge-hero__board"><MarketBoard /></div>
+          <div className="landing-hero-board animate-fade-in delay-300"><MarketBoard /></div>
         </div>
-        <a className="ge-hero__scroll" href="#cotizaciones" aria-label="Ir a cotizaciones del día"><AppIcon name="chevron-down" size={20} /></a>
+        <a href="#cotizaciones" aria-label="Ir a Cotizaciones del Día" className="landing-hero-chevron"><AppIcon name="chevron-down" size={14} /><i /></a>
       </section>
 
-      <section className="ge-landing-section" id="cotizaciones">
-        <Reveal>
-          <header className="ge-section-header ge-section-header--split">
-            <div><span>Mercado</span><h2>Cotizaciones del Día</h2><p>Valores de referencia con base en guaraní paraguayo. Datos demostrativos hasta integrar la API.</p></div>
-            <div className="ge-periods" aria-label="Período de cotizaciones">
-              {RATE_PERIODS.map((item) => <button type="button" key={item} className={period === item ? "is-active" : ""} onClick={() => setPeriod(item)}>{item}</button>)}
-            </div>
-          </header>
-          <div className="ge-rate-grid">
-            {MARKET_RATES.map((rate) => (
-              <article className="ge-rate-card" key={rate.code}>
-                <header><div><span>{rate.code}</span><small>{rate.name}</small></div><strong className={rate.change >= 0 ? "is-positive" : "is-negative"}>{rate.change >= 0 ? "+" : ""}{rate.change.toFixed(2)}%</strong></header>
-                <div className="ge-rate-card__chart"><Sparkline data={rate.series[period]} positive={rate.change >= 0} compact label={`Evolución ${rate.code} ${period}`} /></div>
-                <dl><div><dt>Compra</dt><dd>{formatMoney(rate.buy)}</dd></div><div><dt>Venta</dt><dd>{formatMoney(rate.sell)}</dd></div><div><dt>Actualizado</dt><dd>{rate.updated}</dd></div></dl>
-              </article>
-            ))}
-          </div>
-          <p className="ge-demo-note"><AppIcon name="info" size={15} /> Datos demo; la cotización final se confirmará al momento de cada operación.</p>
-        </Reveal>
+      <section id="cotizaciones" className="figma-section figma-section--base" ref={ratesRef}>
+        <RevealSection><div className="figma-content"><header className="figma-section-heading figma-section-heading--split"><div><span>Mercado</span><h2>Cotizaciones del Día</h2><p>Cotizaciones actualizadas en tiempo real. Base: Guaraní paraguayo (PYG).</p></div><div className="figma-filters">{RATE_PERIODS.map((item) => <button type="button" key={item} className={period === item ? "active" : ""} onClick={() => setPeriod(item)}>{item}</button>)}</div></header>
+          <div className="figma-rates-table-wrap"><table className="figma-rates-table"><thead><tr>{["Moneda", "Compra", "Venta", period, "Variación", "Actualización"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{MARKET_RATES.map((rate) => {
+            const direction = getRateDirection(rate.change);
+            const directionIcon = direction === "up" ? "arrow-up" : direction === "down" ? "arrow-down" : "equal";
+            const sparkTrend = direction === "flat" ? "neutral" : direction;
+            return <tr key={rate.code}><td><strong>{rate.code}</strong><small>{rate.name}</small></td><td><span><AppIcon className={`figma-rate-direction is-${direction}`} name={directionIcon} size={15} /><AnimatedPrice value={rate.buy} triggered={ratesVisible} /></span></td><td><span><AppIcon className={`figma-rate-direction is-${direction}`} name={directionIcon} size={15} /><AnimatedPrice value={rate.sell} triggered={ratesVisible} /></span></td><td><div className="figma-table-chart"><Sparkline data={rate.series[period]} trend={sparkTrend} width={180} height={32} fluid smoothDraw triggered={ratesVisible} label={`Evolución ${rate.code} ${period}`} /></div></td><td><AnimatedChange value={rate.change} triggered={ratesVisible} /></td><td><small>{rate.updated}</small></td></tr>;
+          })}</tbody></table></div>
+          <div className="figma-table-footer"><span>Datos demo · actualizados al {DEMO_UPDATED_AT}</span><span>Histórico · En desarrollo <AppIcon name="forward" size={14} /></span></div>
+        </div></RevealSection>
       </section>
 
-      <section className="ge-landing-section ge-landing-section--alternate" id="conversor">
-        <Reveal className="ge-converter-layout">
-          <div className="ge-converter-copy"><span className="ge-section-kicker">Herramienta pública</span><h2>Conversor de Monedas</h2><p>Simulá conversiones entre las divisas disponibles. La lógica demo está separada para sustituirse por tasas reales sin rehacer esta interfaz.</p>
-            <ul><li><AppIcon name="realtime" size={18} /> Preparado para tasas desde API</li><li><AppIcon name="globe" size={18} /> USD, EUR, BRL, ARS y PYG</li><li><AppIcon name="chart" size={18} /> Solo simulación; no genera transacciones</li></ul>
-          </div>
-          <CurrencyConverter />
-        </Reveal>
-      </section>
+      <section id="conversor" className="figma-section figma-section--alternate"><RevealSection><div className="figma-converter-layout"><div className="figma-copy"><span>Herramienta pública</span><h2>Conversor de Monedas</h2><p>Simula la conversión entre divisas usando las tasas actualizadas del mercado. Disponible para todos, sin necesidad de registro.</p><ul><li><AppIcon name="realtime" size={18} /> Tasas demo preparadas para conexión real</li><li><AppIcon name="globe" size={18} /> USD, EUR, BRL, ARS y PYG</li><li><AppIcon name="chart" size={18} /> Solo simulación — no genera transacciones</li></ul></div><CurrencyConverter /></div></RevealSection></section>
 
-      <section className="ge-landing-section" id="seguridad">
-        <Reveal className="ge-security-layout">
-          <div className="ge-security-copy"><span className="ge-section-kicker">Confianza</span><h2>Tu seguridad es nuestra prioridad</h2><p>La nueva interfaz conserva el modelo de seguridad del sistema: Django controla la sesión y los permisos; Keycloak gestiona la identidad.</p>
-            <div className="ge-security-list">{SECURITY_FEATURES.map((item) => <article key={item.title}><span><AppIcon name={item.icon} size={21} /></span><div><h3>{item.title}</h3><p>{item.description}</p></div></article>)}</div>
-          </div>
-          <aside className="ge-security-panel"><div className="ge-security-panel__icon"><AppIcon name="security" size={38} /></div><span>Arquitectura protegida</span><h3>Una sola fuente de identidad y permisos</h3><p>React representa las opciones que Django proporciona. No almacena tokens, no inventa roles y no reemplaza el flujo de Keycloak.</p><ul><li><AppIcon name="check" size={16} /> Sesión administrada por Django</li><li><AppIcon name="check" size={16} /> Identidad administrada por Keycloak</li><li><AppIcon name="check" size={16} /> Permisos definidos en backend</li></ul></aside>
-        </Reveal>
-      </section>
+      <section className="figma-section figma-section--base"><RevealSection><div className="figma-content"><header className="figma-section-heading figma-section-heading--center"><span>Proceso</span><h2>Cómo funciona Global Exchange</h2></header><div className="figma-process">{[
+        ["01", "Consulta la cotización", "Revisa las tasas del día para las divisas que necesitas."],
+        ["02", "Simula tu conversión", "Usa nuestro conversor para estimar cuánto recibirás antes de operar."],
+        ["03", "Confirma tu operación", "Elige el medio de pago y confirma cuando el módulo esté disponible."],
+        ["04", "Recibe la confirmación", "Accede al comprobante desde tu panel cuando esta función esté implementada."],
+      ].map(([number, title, description]) => <article key={number}><strong>{number}</strong><i /><h3>{title}</h3><p>{description}</p></article>)}</div></div></RevealSection></section>
 
-      <section className="ge-landing-section ge-landing-section--alternate" id="monedas">
-        <Reveal>
-          <header className="ge-section-header ge-section-header--center"><span>Catálogo</span><h2>Monedas disponibles</h2><p>Una vista preparada para consumir el catálogo real cuando el módulo correspondiente esté disponible.</p></header>
-          <div className="ge-currency-grid">{AVAILABLE_CURRENCIES.map((currency) => <article key={currency.code}><span>{currency.symbol}</span><strong>{currency.code}</strong><small>{currency.name}</small></article>)}<article className="ge-currency-card--future"><AppIcon name="plus" size={26} /><strong>Próximamente</strong><small>Más monedas</small></article></div>
-        </Reveal>
-      </section>
+      <section className="figma-section figma-section--alternate"><RevealSection><div className="figma-benefits"><div className="figma-copy"><span>Ventajas</span><h2>Por qué elegir Global Exchange</h2><i /><p>Una experiencia cambiaria paraguaya respaldada por acceso seguro e información clara.</p></div><div className="figma-benefits-grid">{BENEFITS.map((benefit) => <article key={benefit.title}><AppIcon name={benefit.icon} size={24} /><h3>{benefit.title}</h3><p>{benefit.description}</p></article>)}</div></div></RevealSection></section>
 
-      <section className="ge-landing-cta">
-        <Reveal><span>Global Exchange</span><h2>Tu próxima operación comienza con información clara.</h2><p>Consultá el mercado, simulá una conversión y accedé a tu espacio seguro cuando estés listo.</p><div><a className="ge-landing-button ge-landing-button--primary" href={primaryActionUrl}>{ctaLabel}<AppIcon name="forward" size={17} /></a>{!isAuthenticated ? <a className="ge-landing-button ge-landing-button--secondary" href={loginUrl}>Ya tengo una cuenta</a> : null}</div></Reveal>
-      </section>
+      <section id="seguridad" className="figma-section figma-section--base"><RevealSection><div className="figma-security"><div className="figma-copy"><span>Confianza</span><h2>Tu seguridad es nuestra prioridad</h2><p>Cada acceso a Global Exchange conserva las capas de seguridad y autorización del sistema real.</p><div className="figma-security-list">{[
+        ["authentication" as AppIconName, "Autenticación segura", "Identidad administrada mediante Django y Keycloak."],
+        ["roles" as AppIconName, "Roles y permisos", "Cada usuario accede únicamente a las funciones correspondientes a su rol."],
+        ["file-check" as AppIconName, "Confirmación de operaciones", "Interfaz prevista para confirmaciones explícitas cuando el módulo esté disponible."],
+        ["activity" as AppIconName, "Trazabilidad completa", "Interfaz prevista para el historial auditado de acciones."],
+      ].map(([icon, title, description]) => <article key={title}><span><AppIcon name={icon as AppIconName} size={20} /></span><div><h3>{title}</h3><p>{description}</p></div></article>)}</div></div><div className="ge-figma-card figma-system-status"><i /><div><span>Estado del sistema</span>{[
+        ["Autenticación", "Operativo", true], ["Roles y permisos", "Operativo", true], ["API de tasas", "En desarrollo", false], ["Procesamiento de órdenes", "En desarrollo", false], ["Facturación electrónica", "En desarrollo", false], ["Notificaciones", "En desarrollo", false],
+      ].map(([label, status, ready]) => <div className="figma-status-row" key={String(label)}><span>{label}</span><strong className={ready ? "ready" : "pending"}><i />{status}</strong></div>)}</div></div></div></RevealSection></section>
 
-      <footer className="ge-landing-footer">
-        <div className="ge-landing-footer__grid"><div className="ge-landing-footer__brand"><AppIcon name="globe" size={27} /><strong>GLOBAL EXCHANGE</strong><p>Casa de cambios en Paraguay. Información transparente y acceso protegido.</p></div><nav aria-label="Navegación del pie"><strong>Navegación</strong><a href="#inicio">Inicio</a><a href="#cotizaciones">Cotizaciones</a><a href="#conversor">Conversor</a><a href="#seguridad">Seguridad</a></nav><div><strong>Plataforma</strong><a href={isAuthenticated ? primaryActionUrl : loginUrl}>{isAuthenticated ? "Dashboard" : "Iniciar sesión"}</a><a href={registerUrl}>Registrarse</a><span>Operaciones · En desarrollo</span></div><div><strong>Ubicación</strong><span>Asunción, Paraguay</span><span>Atención digital</span></div></div>
-        <div className="ge-landing-footer__bottom"><span>© 2026 Global Exchange. Todos los derechos reservados.</span><span>Datos de mercado demostrativos</span></div>
-      </footer>
+      <section className="figma-section figma-section--alternate figma-currencies"><RevealSection><div className="figma-content"><header className="figma-section-heading figma-section-heading--center"><span>Catálogo</span><h2>Monedas disponibles</h2></header><div className="figma-currency-list">{AVAILABLE_CURRENCIES.map((currency) => <article className="ge-figma-card" key={currency.code}><AppIcon name="currency" size={32} /><strong>{currency.code}</strong><small>{currency.name.split(" ").slice(0, 2).join(" ")}</small></article>)}<article className="ge-figma-card future"><AppIcon name="plus" size={32} /><strong>Próximamente</strong><small>Más monedas</small></article></div></div></RevealSection></section>
+
+      <footer className="figma-footer"><div className="figma-footer-grid"><div><div className="figma-footer-brand"><AppIcon name="globe" size={24} /><strong>GLOBAL EXCHANGE</strong></div><p>Casa de cambios líder en Paraguay. Cotizaciones transparentes y operaciones seguras.</p></div><nav {...{ "up-nav": "false" }} aria-label="Navegación del pie"><strong>Navegación</strong><a {...{ "up-follow": "false" }} href="#inicio" onClick={(event) => scrollFromFooter(event, "inicio")}>Inicio</a><a {...{ "up-follow": "false" }} href="#cotizaciones" onClick={(event) => scrollFromFooter(event, "cotizaciones")}>Cotizaciones</a><a {...{ "up-follow": "false" }} href="#conversor" onClick={(event) => scrollFromFooter(event, "conversor")}>Conversor</a><a {...{ "up-follow": "false" }} href="#seguridad" onClick={(event) => scrollFromFooter(event, "seguridad")}>Seguridad</a></nav><div><strong>Legal</strong><span>Términos de uso · En desarrollo</span><span>Privacidad · En desarrollo</span></div><div><strong>Contacto</strong><span>Asunción, Paraguay</span><span>info@globalexchange.com.py</span></div></div><div className="figma-footer-bottom"><span>© 2026 Global Exchange. Todos los derechos reservados.</span><span>Asunción, Paraguay</span></div></footer>
     </div>
   );
 }
