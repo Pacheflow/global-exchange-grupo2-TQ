@@ -1,50 +1,21 @@
 {% extends 'usuarios/base.html' %}
-{% block title %}Global Exchange · Conversor y cotizaciones{% endblock %}
+{% block title %}Global Exchange · Cambios en Paraguay{% endblock %}
 {% block content %}
-<section class="exchange-hero" id="cotizaciones">
-  <div class="exchange-hero-inner">
-    <span class="hero-badge"><span class="material-symbols" aria-hidden="true">currency_exchange</span>Casa de cambios en Paraguay</span>
-    <h1>Conversor de divisas</h1>
-    <p>Consultá valores de referencia de forma rápida, clara y segura.</p>
-
-    <div class="converter-card">
-      <form class="converter-grid" data-converter>
-        <label class="currency-field">
-          <span>De</span>
-          <div><input type="number" min="0" step="0.01" value="1" data-converter-amount aria-label="Importe a convertir"><select data-converter-from aria-label="Moneda de origen"><option value="USD">USD · Dólar estadounidense</option><option value="EUR">EUR · Euro</option><option value="BRL">BRL · Real brasileño</option><option value="PYG">PYG · Guaraní paraguayo</option></select></div>
-        </label>
-        <button class="swap-currencies material-symbols" type="button" data-converter-swap aria-label="Intercambiar monedas" title="Intercambiar monedas">swap_horiz</button>
-        <label class="currency-field">
-          <span>A</span>
-          <div><output data-converter-result>7.360</output><select data-converter-to aria-label="Moneda de destino"><option value="PYG">PYG · Guaraní paraguayo</option><option value="USD">USD · Dólar estadounidense</option><option value="EUR">EUR · Euro</option><option value="BRL">BRL · Real brasileño</option></select></div>
-        </label>
-      </form>
-      <div class="converter-summary">
-        <div><strong data-converter-rate>1 USD = 7.360 PYG</strong><span>Conversión informativa basada en nuestras tasas de referencia.</span></div>
-        <a class="button button-public-primary button-large" href="{% url 'usuarios:login' %}"><span class="material-symbols" aria-hidden="true">login</span>Iniciar para operar</a>
-      </div>
-    </div>
-    <p class="converter-disclaimer"><span class="material-symbols" aria-hidden="true">info</span>Los valores son informativos. La cotización final se confirma al momento de la operación.</p>
-  </div>
-</section>
-
-<section class="rates-section public-section" id="tasas">
-  <div class="public-section-heading"><span class="section-label">Mercado</span><h2>Cotizaciones de referencia</h2><p>Compra y venta de las principales monedas operadas por Global Exchange.</p></div>
-  <div class="rates-grid">
-    <article><span class="currency-avatar">US</span><div><strong>Dólar estadounidense</strong><small>USD</small></div><dl><div><dt>Compra</dt><dd>7.280</dd></div><div><dt>Venta</dt><dd>7.360</dd></div></dl></article>
-    <article><span class="currency-avatar">EU</span><div><strong>Euro</strong><small>EUR</small></div><dl><div><dt>Compra</dt><dd>8.540</dd></div><div><dt>Venta</dt><dd>8.680</dd></div></dl></article>
-    <article><span class="currency-avatar">BR</span><div><strong>Real brasileño</strong><small>BRL</small></div><dl><div><dt>Compra</dt><dd>1.320</dd></div><div><dt>Venta</dt><dd>1.370</dd></div></dl></article>
-  </div>
-</section>
-
-<section class="public-section services-section" id="servicios">
-  <div class="public-section-heading"><span class="section-label">Servicios</span><h2>Una experiencia simple y segura</h2></div>
-  <div class="service-grid">
-    <article><span class="material-symbols" aria-hidden="true">currency_exchange</span><h3>Cambio de divisas</h3><p>Consultá cotizaciones claras para las principales monedas de la región.</p></article>
-    <article><span class="material-symbols" aria-hidden="true">support_agent</span><h3>Atención personalizada</h3><p>Gestionamos cada solicitud con acompañamiento y trazabilidad.</p></article>
-    <article><span class="material-symbols" aria-hidden="true">verified_user</span><h3>Acceso protegido</h3><p>La identidad y los permisos se administran mediante autenticación segura.</p></article>
-  </div>
-</section>
-
-<section class="about-section" id="nosotros"><div><span class="section-label">Global Exchange</span><h2>Una casa de cambios diseñada para operar con claridad.</h2></div><p>Centralizamos usuarios, clientes y operaciones en un entorno confiable. Las funcionalidades transaccionales están disponibles únicamente después de iniciar sesión.</p></section>
+<div
+  id="global-landing"
+  data-react-component="Landing"
+  data-react-prop-authenticated="{% if request.session.kc_user %}true{% else %}false{% endif %}"
+  data-react-prop-primary-action-url="{% if request.session.kc_user %}{% url 'usuarios:dashboard' %}{% else %}{% url 'usuarios:registro' %}{% endif %}"
+  data-react-prop-primary-action-label="{% if request.session.kc_user %}Ir al dashboard{% else %}Crear una cuenta{% endif %}"
+  data-react-prop-login-url="{% url 'usuarios:login' %}"
+  data-react-prop-register-url="{% url 'usuarios:registro' %}"
+></div>
+<noscript>
+  <section class="public-section">
+    <h1>Global Exchange</h1>
+    <p>Para utilizar la interfaz pública es necesario habilitar JavaScript.</p>
+    <a class="button button-public-primary" href="{% url 'usuarios:login' %}">Iniciar sesión</a>
+  </section>
+</noscript>
 {% endblock %}
+{% block public_footer %}{% endblock %}
