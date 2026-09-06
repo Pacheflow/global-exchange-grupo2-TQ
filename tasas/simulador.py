@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -78,6 +79,30 @@ def _buscar_tasa(moneda_origen, moneda_destino):
 
     if tasa_inversa:
         return Decimal("1") / tasa_inversa.valor, tasa_inversa.fecha_hora_fuente
+
+    moneda_base = Moneda.objects.filter(
+        codigo=settings.TASAS_BASE_CURRENCY,
+        estado="ACTIVA",
+    ).first()
+    if moneda_base:
+        def tasa_desde_base(moneda):
+            if moneda.pk == moneda_base.pk:
+                return Decimal("1"), ahora
+            tasa = TasaReferencia.objects.filter(
+                moneda_base=moneda_base,
+                moneda_cotizada=moneda,
+                vigente_hasta__gte=ahora,
+            ).first()
+            if not tasa:
+                return None
+            return tasa.valor, tasa.fecha_hora_fuente
+
+        origen_desde_base = tasa_desde_base(moneda_origen)
+        destino_desde_base = tasa_desde_base(moneda_destino)
+        if origen_desde_base and destino_desde_base:
+            valor_origen, fecha_origen = origen_desde_base
+            valor_destino, fecha_destino = destino_desde_base
+            return valor_destino / valor_origen, min(fecha_origen, fecha_destino)
 
     raise ValidationError(
         {"tasa": "No existe una tasa disponible para la conversión seleccionada."}

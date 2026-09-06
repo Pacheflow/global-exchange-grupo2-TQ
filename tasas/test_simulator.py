@@ -13,6 +13,7 @@ from .simulador import simular_conversion
 
 class SimuladorConversionTests(TestCase):
     def setUp(self):
+        Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(
             codigo="USD", nombre="Dólar estadounidense", simbolo="$", estado="ACTIVA"
         )
@@ -70,6 +71,26 @@ class SimuladorConversionTests(TestCase):
         )
         self.assertEqual(resultado.resultado, Decimal("1.0000000000"))
         self.assertEqual(resultado.tipo_tasa, "REFERENCIA")
+
+    def test_simulacion_valida_con_tasa_cruzada(self):
+        TasaReferencia.objects.create(
+            moneda_base=self.usd,
+            moneda_cotizada=self.eur,
+            valor=Decimal("0.875"),
+            fuente="Proveedor de prueba",
+            fecha_hora_fuente=self.fecha,
+            vigente_hasta=self.fecha + timedelta(hours=1),
+            consulta=self.consulta,
+        )
+
+        resultado = simular_conversion(
+            moneda_origen_id=self.pyg.id,
+            moneda_destino_id=self.eur.id,
+            monto="7000",
+        )
+
+        self.assertEqual(resultado.tasa, Decimal("0.000125"))
+        self.assertEqual(resultado.resultado, Decimal("0.8750000000"))
 
     def test_rechaza_monto_cero(self):
         response = self.client.post(
