@@ -118,6 +118,7 @@ class ProveedorTasasTests(TestCase):
 @override_settings(TASAS_BASE_CURRENCY="USD", TASAS_VALIDITY_SECONDS=86400)
 class ServicioTasasTests(TestCase):
     def setUp(self):
+        Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(codigo="USD", nombre="Dólar", simbolo="$")
         self.eur = Moneda.objects.create(codigo="EUR", nombre="Euro", simbolo="€")
 
@@ -186,6 +187,7 @@ class ServicioTasasTests(TestCase):
 
 class EndpointTasasTests(TestCase):
     def setUp(self):
+        Moneda.objects.all().delete()
         self.url = reverse("tasas:consultar")
 
     def autenticar(self):
