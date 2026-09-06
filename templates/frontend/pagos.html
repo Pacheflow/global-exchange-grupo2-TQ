@@ -1,0 +1,239 @@
+{% extends 'usuarios/base.html' %}
+{% block title %}Medios de pago · Global Exchange{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Medios de pago del cliente</h1>
+        <p>Frontend de referencia · datos simulados (HU-37)</p>
+      </div>
+      <div class="ge-page-header-actions">
+        <button type="button" class="ge-btn-primary ge-btn-sm" data-ge-pagos-new>+ Nuevo medio de pago</button>
+      </div>
+    </div>
+
+    <div id="ge-pagos-list">
+      <div class="ge-header-with-search">
+        <div class="ge-search">
+          <span class="ge-search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="ge-pagos-search" class="ge-input" placeholder="Buscar cliente o medio..." aria-label="Buscar cliente o medio">
+        </div>
+      </div>
+      <div class="ge-card ge-table-wrap">
+        <div class="ge-error-banner" id="ge-pagos-error" hidden></div>
+        <table class="ge-table">
+          <thead>
+            <tr><th>Cliente</th><th>Entidad</th><th>Tipo</th><th>Cuenta</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr>
+          </thead>
+          <tbody id="ge-pagos-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="ge-pagos-form" hidden>
+      <div class="ge-back-row">
+        <button type="button" class="ge-btn-ghost" data-ge-pagos-back>← Volver</button>
+        <h1 class="ge-title-h2" id="ge-pagos-form-title">Nuevo medio de pago</h1>
+      </div>
+      <div class="ge-card ge-card--pad32" style="max-width: 620px">
+        <form id="ge-pagos-form-element" novalidate>
+          <div class="ge-field">
+            <label for="ge-pagos-client">Cliente asociado</label>
+            <select id="ge-pagos-client" required></select>
+          </div>
+          <div class="ge-form-grid">
+            <div class="ge-field">
+              <label for="ge-pagos-type">Tipo de medio</label>
+              <select id="ge-pagos-type" required>
+                <option value="Cuenta bancaria">Cuenta bancaria</option>
+                <option value="Billetera electrónica">Billetera electrónica</option>
+                <option value="Efectivo / Caja">Efectivo / Caja</option>
+              </select>
+            </div>
+            <div class="ge-field">
+              <label for="ge-pagos-name">Entidad</label>
+              <input id="ge-pagos-name" required placeholder="Ej: Banco Itaú">
+            </div>
+          </div>
+          <div class="ge-field">
+            <label for="ge-pagos-account">Número de cuenta / teléfono</label>
+            <input id="ge-pagos-account" required>
+          </div>
+          <div class="ge-field">
+            <label class="ge-check-field" for="ge-pagos-active">
+              <input id="ge-pagos-active" type="checkbox" checked>
+              <span>Medio activo para cobros y pagos</span>
+            </label>
+          </div>
+          <div class="ge-error-banner" id="ge-pagos-form-error" hidden></div>
+          <div class="ge-form-actions">
+            <button type="button" class="ge-btn-outline" data-ge-pagos-back>Cancelar</button>
+            <button type="submit" class="ge-btn-primary">Guardar medio de pago</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="ge-modal-backdrop" id="ge-modal-pagos" role="dialog" aria-modal="true" aria-labelledby="ge-modal-pagos-title">
+      <div class="ge-card ge-card--pad32" style="max-width: 420px; background: var(--surface)">
+        <h3 class="ge-title-h2" id="ge-modal-pagos-title">Desactivar medio de pago</h3>
+        <p style="margin-top: 8px">¿Estás seguro que deseas desactivar el medio de pago <strong id="ge-pagos-target">—</strong>? Podrás reactivarlo en cualquier momento.</p>
+        <div class="ge-modal-actions">
+          <button type="button" class="ge-btn-outline" data-ge-pagos-cancel>Cancelar</button>
+          <button type="button" class="ge-btn-primary" data-ge-pagos-confirm>Desactivar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var source = (window.GEData.payments || []).slice();
+  var items = source.map(function (p) { return Object.assign({}, p); });
+  var clients = (window.GEData.clients || []);
+  var nextId = items.reduce(function (max, p) { return Math.max(max, p.id || 0); }, 0) + 1;
+  var editingId = null;
+  var targetId = null;
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+    });
+  }
+
+  function showError(targetId2, message) {
+    var box = document.getElementById(targetId2);
+    box.textContent = message;
+    box.hidden = false;
+  }
+
+  function clearError(targetId2) {
+    document.getElementById(targetId2).hidden = true;
+  }
+
+  function byId(id) {
+    return items.find(function (p) { return p.id === id; });
+  }
+
+  function render() {
+    var query = (document.getElementById('ge-pagos-search').value || '').toLowerCase();
+    clearError('ge-pagos-error');
+    var visible = items.filter(function (p) {
+      return !query || p.client.toLowerCase().indexOf(query) !== -1 || p.name.toLowerCase().indexOf(query) !== -1 || p.type.toLowerCase().indexOf(query) !== -1;
+    });
+
+    if (!visible.length) {
+      document.getElementById('ge-pagos-error').hidden = false;
+      document.getElementById('ge-pagos-error').textContent = items.length
+        ? 'Sin resultados para la búsqueda actual.'
+        : 'No hay medios de pago registrados. Creá el primero con "+ Nuevo medio de pago".';
+    }
+
+    var body = document.getElementById('ge-pagos-body');
+    body.innerHTML = visible.map(function (p) {
+      var isActive = p.status === 'Activo';
+      var action = isActive
+        ? '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-pagos-disable="' + p.id + '">Desactivar</button>'
+        : '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-pagos-enable="' + p.id + '">Activar</button>';
+      return '<tr>' +
+        '<td><strong class="strong">' + esc(p.client) + '</strong></td>' +
+        '<td>' + esc(p.name) + '</td>' +
+        '<td><span class="ge-pill">' + esc(p.type) + '</span></td>' +
+        '<td><span class="mono">' + esc(p.account) + '</span></td>' +
+        '<td><span class="ge-badge ' + (isActive ? 'ge-badge--success' : 'ge-badge--neutral') + '">' + (isActive ? 'Activo' : 'Inactivo') + '</span></td>' +
+        '<td><div class="ge-actions-row"><button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-pagos-edit="' + p.id + '">Editar</button>' + action + '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function fillClientSelect(value) {
+    var select = document.getElementById('ge-pagos-client');
+    select.innerHTML = '<option value="" disabled>Seleccionar cliente...</option>' + clients.map(function (c) {
+      return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
+    }).join('');
+    if (value) select.value = value;
+  }
+
+  function openForm(id) {
+    var isNew = id == null;
+    editingId = isNew ? null : id;
+    clearError('ge-pagos-form-error');
+    document.getElementById('ge-pagos-list').hidden = true;
+    document.getElementById('ge-pagos-form').hidden = false;
+    document.getElementById('ge-pagos-form-title').textContent = isNew ? 'Nuevo medio de pago' : 'Editar medio de pago';
+    var item = isNew ? null : byId(id);
+    fillClientSelect(isNew ? '' : item.client);
+    document.getElementById('ge-pagos-type').value = isNew ? 'Cuenta bancaria' : item.type;
+    document.getElementById('ge-pagos-name').value = isNew ? '' : item.name;
+    document.getElementById('ge-pagos-account').value = isNew ? '' : item.account;
+    document.getElementById('ge-pagos-active').checked = isNew ? true : item.status === 'Activo';
+  }
+
+  function backToList() {
+    document.getElementById('ge-pagos-list').hidden = false;
+    document.getElementById('ge-pagos-form').hidden = true;
+    editingId = null;
+  }
+
+  document.body.addEventListener('click', function (event) {
+    var el = event.target;
+    if (el.hasAttribute('data-ge-pagos-new')) { openForm(null); return; }
+    if (el.hasAttribute('data-ge-pagos-back')) { backToList(); return; }
+    if (el.hasAttribute('data-ge-pagos-edit')) { openForm(Number(el.getAttribute('data-ge-pagos-edit'))); return; }
+    if (el.hasAttribute('data-ge-pagos-disable')) {
+      targetId = Number(el.getAttribute('data-ge-pagos-disable'));
+      document.getElementById('ge-pagos-target').textContent = byId(targetId).name;
+      window.GEApp.openModal('ge-modal-pagos');
+      return;
+    }
+    if (el.hasAttribute('data-ge-pagos-enable')) { byId(Number(el.getAttribute('data-ge-pagos-enable'))).status = 'Activo'; render(); return; }
+    if (el.hasAttribute('data-ge-pagos-cancel')) { window.GEApp.closeModal('ge-modal-pagos'); return; }
+    if (el.hasAttribute('data-ge-pagos-confirm')) {
+      if (targetId != null) { byId(targetId).status = 'Inactivo'; }
+      targetId = null;
+      window.GEApp.closeModal('ge-modal-pagos');
+      render();
+      window.GEApp.toast('Medio de pago desactivado.');
+    }
+  });
+
+  document.getElementById('ge-pagos-search').addEventListener('input', render);
+
+  document.getElementById('ge-pagos-form-element').addEventListener('submit', function (event) {
+    event.preventDefault();
+    clearError('ge-pagos-form-error');
+    var client = document.getElementById('ge-pagos-client').value;
+    var type = document.getElementById('ge-pagos-type').value;
+    var name = document.getElementById('ge-pagos-name').value.trim();
+    var account = document.getElementById('ge-pagos-account').value.trim();
+    var isActive = document.getElementById('ge-pagos-active').checked;
+
+    if (!client) { showError('ge-pagos-form-error', 'Seleccioná un cliente asociado.'); return; }
+    if (!name) { showError('ge-pagos-form-error', 'La entidad es obligatoria.'); return; }
+    if (!account) { showError('ge-pagos-form-error', 'El número de cuenta o teléfono es obligatorio.'); return; }
+
+    if (editingId == null) {
+      items.push({ id: nextId, name: name, type: type, account: account, client: client, status: isActive ? 'Activo' : 'Inactivo' });
+      nextId += 1;
+    } else {
+      var item = byId(editingId);
+      item.client = client;
+      item.type = type;
+      item.name = name;
+      item.account = account;
+      item.status = isActive ? 'Activo' : 'Inactivo';
+    }
+
+    editingId = null;
+    backToList();
+    render();
+    window.GEApp.toast('Medio de pago guardado exitosamente.');
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

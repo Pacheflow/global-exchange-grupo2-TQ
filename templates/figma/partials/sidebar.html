@@ -1,0 +1,62 @@
+{% load static %}
+<aside class="ge-figma-sidebar" aria-label="Navegación de la aplicación">
+  <div class="ge-figma-sidebar-user">
+    <span class="ge-figma-avatar" aria-hidden="true">{{ kc_initial }}</span>
+    <div class="ge-figma-user-copy">
+      <div class="ge-figma-user-name">{{ kc_display_name }}</div>
+      <div class="ge-figma-user-role">{{ rol_label }}</div>
+    </div>
+  </div>
+
+  <nav class="ge-figma-nav">
+    {% if rol == 'usuario' %}
+      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">◈</span><span class="ge-figma-nav-label">Resumen</span></a>
+      <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">⇄</span><span class="ge-figma-nav-label">Operaciones</span></a>
+      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">↕</span><span class="ge-figma-nav-label">Transacciones</span></a>
+      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💳</span><span class="ge-figma-nav-label">Pagos</span></a>
+      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">📊</span><span class="ge-figma-nav-label">Tasas</span></a>
+      <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💱</span><span class="ge-figma-nav-label">Monedas</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🏢</span><span class="ge-figma-nav-label">Mi cliente</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🔔</span><span class="ge-figma-nav-label">Notificaciones</span><span class="ge-figma-nav-badge">2</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">⚙</span><span class="ge-figma-nav-label">Configuración</span></a>
+
+    {% elif rol == 'administrador' %}
+      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">◈</span><span class="ge-figma-nav-label">Dashboard</span></a>
+      <a href="{% url 'usuarios:list' %}" {% if request.resolver_match.url_name == 'list' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">👥</span><span class="ge-figma-nav-label">Usuarios</span></a>
+      <a href="{% url 'consultar_clientes' %}" {% if request.resolver_match.url_name == 'consultar_clientes' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">🏢</span><span class="ge-figma-nav-label">Clientes</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🔗</span><span class="ge-figma-nav-label">Asociaciones</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🎭</span><span class="ge-figma-nav-label">Roles / Permisos</span></a>
+      <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💱</span><span class="ge-figma-nav-label">Divisas</span></a>
+      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">📊</span><span class="ge-figma-nav-label">Tasas</span></a>
+      <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💳</span><span class="ge-figma-nav-label">Medios de pago</span></a>
+      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">🗄</span><span class="ge-figma-nav-label">Cajas</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">💰</span><span class="ge-figma-nav-label">Ganancias</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">📋</span><span class="ge-figma-nav-label">Reportes</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🔔</span><span class="ge-figma-nav-label">Notificaciones</span><span class="ge-figma-nav-badge">3</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">⚙</span><span class="ge-figma-nav-label">Configuración</span></a>
+
+    {% elif rol == 'analista' %}
+      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">◈</span><span class="ge-figma-nav-label">Resumen</span></a>
+      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">📊</span><span class="ge-figma-nav-label">Tasas</span></a>
+      <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">📈</span><span class="ge-figma-nav-label">Histórico</span></a>
+      <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💱</span><span class="ge-figma-nav-label">Monedas</span></a>
+      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💳</span><span class="ge-figma-nav-label">Medios de pago</span></a>
+      <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">⇄</span><span class="ge-figma-nav-label">Conversor</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🔔</span><span class="ge-figma-nav-label">Notificaciones</span><span class="ge-figma-nav-badge">1</span></a>
+
+    {% elif rol == 'cajero' %}
+      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">◈</span><span class="ge-figma-nav-label">Resumen</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">🗄</span><span class="ge-figma-nav-label">Mi caja</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">💼</span><span class="ge-figma-nav-label">Saldos</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">↕</span><span class="ge-figma-nav-label">Movimientos</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">⇄</span><span class="ge-figma-nav-label">Transferencias</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">⚖</span><span class="ge-figma-nav-label">Arqueo</span></a>
+      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-figma-nav-icon" aria-hidden="true">📋</span><span class="ge-figma-nav-label">Historial</span></a>
+      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">📊</span><span class="ge-figma-nav-label">Tasas</span></a>
+      <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">💱</span><span class="ge-figma-nav-label">Monedas</span></a>
+      <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}><span class="ge-figma-nav-icon" aria-hidden="true">⇄</span><span class="ge-figma-nav-label">Conversor</span></a>
+    {% endif %}
+  </nav>
+
+  <div class="ge-figma-sidebar-foot">GLOBAL EXCHANGE · v1.0</div>
+</aside>

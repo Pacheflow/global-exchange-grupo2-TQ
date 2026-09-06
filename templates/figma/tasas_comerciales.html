@@ -1,0 +1,55 @@
+{% extends 'figma/base.html' %}
+{% block title %}Cotizaciones y Tasas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-figma-main-pad">
+    <div class="ge-figma-section-head">
+      <h2 class="ge-figma-h2">Cotizaciones y Tasas</h2>
+      <div class="ge-figma-section-actions">
+        <div class="ge-search-box">
+          <span aria-hidden="true">🔍</span>
+          <input type="text" class="ge-input" placeholder="Buscar divisa..." style="width:200px;font-size:12px;padding:8px 12px 8px 30px">
+        </div>
+        <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">Actualizar tasa</button>
+      </div>
+    </div>
+
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead>
+          <tr><th>Moneda</th><th>Compra</th><th>Venta</th><th>Tendencia</th><th>Última act.</th><th>Acciones</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="ge-mono-cell"><span style="font-size:18px">🇺🇸</span><strong class="ge-mono">USD</strong></div></td>
+            <td class="ge-mono">7.480</td><td class="ge-mono">7.560</td>
+            <td><span class="ge-trend-up">↑ 0.42%</span></td>
+            <td class="ge-figma-note">hace 2 min</td>
+            <td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Historial</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="ge-mono-cell"><span style="font-size:18px">🇪🇺</span><strong class="ge-mono">EUR</strong></div></td>
+            <td class="ge-mono">8.120</td><td class="ge-mono">8.210</td>
+            <td><span class="ge-trend-down">↓ 0.18%</span></td>
+            <td class="ge-figma-note">hace 3 min</td>
+            <td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Historial</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="ge-mono-cell"><span style="font-size:18px">🇧🇷</span><strong class="ge-mono">BRL</strong></div></td>
+            <td class="ge-mono">1.340</td><td class="ge-mono">1.380</td>
+            <td><span class="ge-trend-up">↑ 1.15%</span></td>
+            <td class="ge-figma-note">hace 5 min</td>
+            <td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Historial</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="ge-mono-cell"><span style="font-size:18px">🇦🇷</span><strong class="ge-mono">ARS</strong></div></td>
+            <td class="ge-mono">7.4</td><td class="ge-mono">7.8</td>
+            <td><span class="ge-trend-down">↓ 2.30%</span></td>
+            <td class="ge-figma-note">hace 8 min</td>
+            <td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Historial</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% load static %}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Global Exchange{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'material/fonts/roboto/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'material/fonts/material-symbols/index.css' %}">
+  <link rel="stylesheet" href="{% static 'material/css/unpoly.min.css' %}">
+  <link rel="stylesheet" href="{% static 'material/css/material.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+  <link rel="stylesheet" href="{% static 'css/ge-app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/frontend-figma.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="authenticated">
+  <a class="skip-link" href="#content">Saltar al contenido</a>
+
+  <div id="global-navbar">
+    {% include 'components/navbar.html' %}
+  </div>
+
+  <div class="ge-app">
+    {% block figma_shell %}
+    <div class="ge-figma-body">
+      {% block sidebar %}{% endblock %}
+      <main id="content" class="ge-figma-main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    {% endblock %}
+  </div>
+
+  {% if messages %}<div class="messages" role="status">{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  <script src="{% static 'material/js/unpoly.js' %}"></script>
+  <script src="{% static 'material/js/material.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/navbar.js' %}"></script>
+  <script src="{% static 'js/ge-data.js' %}"></script>
+  <script src="{% static 'js/ge-app.js' %}"></script>
+  <script src="{% static 'js/frontend-figma.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

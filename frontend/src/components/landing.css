@@ -66,7 +66,7 @@
 .ge-btn-outline { border: 1.5px solid rgb(59 91 255 / 40%); color: #6b8aff !important; background: transparent; }
 .ge-btn-outline:hover, .ge-btn-outline:focus-visible, .ge-btn-outline.up-current { border-color: rgb(107 138 255 / 68%); background: var(--primary-muted); color: #93acff !important; }
 .ge-btn-outline:active { border-color: #6b8aff; background: rgb(59 91 255 / 22%); transform: translateY(1px); }
-.landing-hero-board { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: flex-start; }
+.landing-hero-board { width: 100%; min-width: 0; aspect-ratio: 2 / 1; display: flex; align-items: center; justify-content: flex-start; }
 .landing-hero-chevron { width: fit-content; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 2; opacity: .85; color: rgb(59 91 255 / 55%); }
 .landing-hero-chevron:hover, .landing-hero-chevron:focus-visible, .landing-hero-chevron:active, .landing-hero-chevron.up-current { background: transparent; color: #6b8aff; }
 .landing-hero-chevron i { width: 1px; height: 24px; background: linear-gradient(to bottom, rgb(59 91 255 / 45%), transparent); }
@@ -237,11 +237,12 @@
 @media (max-width: 560px) {
   .landing-hero { padding: 96px 16px 22px; }
   .landing-hero-content { padding-block: 18px; }
-  .landing-hero-copy { text-align: center; }
+  .landing-hero-copy { max-width: 100%; overflow: hidden; text-align: center; }
   .landing-badge, .landing-accent { margin-inline: auto; }
-  .landing-hero h1 { font-size: clamp(48px, 15vw, 64px); line-height: .92; }
+  .landing-hero h1 { font-size: clamp(44px, 13vw, 56px); line-height: .94; }
   .landing-hero-heading-line { margin-inline: auto; }
-  .landing-hero-copy > p { font-size: 15px; }
+  .landing-hero-country-line { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .landing-hero-copy > p { width: 100%; max-width: 320px; margin-inline: auto; font-size: 15px; }
   .landing-actions { display: grid; justify-content: center; }
   .ge-market-board { padding: 18px 14px; }
   .ge-market-board__pair > strong { font-size: 34px; }
@@ -264,6 +265,11 @@
   .figma-currency-list { gap: 12px; }.figma-currency-list article { min-width: calc(50% - 6px); padding-inline: 12px; }
   .figma-footer-grid { grid-template-columns: 1fr; gap: 30px; }.figma-footer-bottom { align-items: flex-start; flex-direction: column; }
 }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes drawPath { from { stroke-dashoffset: 800; } to { stroke-dashoffset: 0; } }
+@keyframes pulseRing { 0% { opacity: .8; transform: scale(.6); transform-origin: center; } 100% { opacity: 0; transform: scale(1.5); transform-origin: center; } }
 @media (prefers-reduced-motion: reduce) {
   .ge-figma-landing *, .reveal { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
 }

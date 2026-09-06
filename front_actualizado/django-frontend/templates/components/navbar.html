@@ -1,0 +1,127 @@
+<nav id="navbar" style="
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
+">
+  <div style="max-width: 1400px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; height: 64px; gap: 8px;">
+    <!-- Logo -->
+    <a href="/" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); flex-shrink: 0;">
+      <div style="color: var(--primary);">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.5" />
+          <ellipse cx="14" cy="14" rx="5.5" ry="12" stroke="currentColor" stroke-width="1.5" />
+          <line x1="2" y1="14" x2="26" y2="14" stroke="currentColor" stroke-width="1.5" />
+          <line x1="4" y1="8.5" x2="24" y2="8.5" stroke="currentColor" stroke-width="1" stroke-opacity="0.6" />
+          <line x1="4" y1="19.5" x2="24" y2="19.5" stroke="currentColor" stroke-width="1" stroke-opacity="0.6" />
+        </svg>
+      </div>
+      <div style="line-height: 1;">
+        <span style="font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; letter-spacing: -0.02em;">
+          GLOBAL
+        </span>
+        <span style="font-family: 'DM Sans', sans-serif; font-weight: 300; font-size: 12px; color: var(--text-2); display: block; letter-spacing: 0.12em;">
+          EXCHANGE
+        </span>
+      </div>
+    </a>
+
+    <!-- Public nav links -->
+    <div style="display: flex; align-items: center; gap: 2px; margin-left: 32px;">
+      <a href="/#inicio" class="ge-btn-ghost" style="font-size: 14px;">Inicio</a>
+      <a href="/#cotizaciones" class="ge-btn-ghost" style="font-size: 14px;">Cotizaciones</a>
+      <a href="/#conversor" class="ge-btn-ghost" style="font-size: 14px;">Conversor</a>
+      <a href="/#seguridad" class="ge-btn-ghost" style="font-size: 14px;">Seguridad</a>
+    </div>
+
+    <div style="flex: 1;"></div>
+
+    <!-- Theme toggle -->
+    <button id="theme-toggle" class="ge-btn-ghost" style="padding: 7px 10px; color: var(--text-2);" title="Cambiar tema">
+      <svg id="theme-icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+      <svg id="theme-icon-sun" style="display: none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+    </button>
+
+    {% if user.is_authenticated %}
+    <!-- Notifications -->
+    <button class="ge-btn-ghost" style="padding: 7px 10px; color: var(--text-2);">
+      <div style="position: relative;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        <span style="position: absolute; top: -4px; right: -4px; background: var(--primary); color: #fff; border-radius: 999px; font-size: 9px; font-weight: 700; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">2</span>
+      </div>
+    </button>
+
+    <!-- User Dropdown -->
+    <div style="position: relative;" id="user-dropdown-container">
+      <button id="user-dropdown-btn" style="
+        display: flex; align-items: center; gap: 8px;
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: 8px; padding: 6px 12px 6px 8px;
+        cursor: pointer; color: var(--text);
+        font-family: 'DM Sans', sans-serif; font-size: 13px;
+      ">
+        <div style="
+          width: 28px; height: 28px; border-radius: 50%;
+          background: var(--primary); color: #fff;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 700; flex-shrink: 0;
+        ">
+          {{ user.username|slice:":1"|upper }}
+        </div>
+        <div style="line-height: 1.2; text-align: left;">
+          <div style="font-weight: 600;">{{ user.username }}</div>
+          <div style="font-size: 10px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em;">
+            USUARIO
+          </div>
+        </div>
+        <span style="color: var(--text-3); font-size: 10px;">▾</span>
+      </button>
+
+      <!-- Dropdown Menu -->
+      <div id="user-dropdown-menu" class="ge-card" style="
+        display: none;
+        position: absolute; top: 44px; right: 0; min-width: 240px;
+        padding: 8px; z-index: 200; box-shadow: var(--shadow-lg);
+      ">
+        <div style="padding: 8px 12px 12px; border-bottom: 1px solid var(--border);">
+          <div style="font-weight: 600; font-size: 14px; color: var(--text);">{{ user.username }}</div>
+          <div style="font-size: 12px; color: var(--text-2); margin-top: 2px;">{{ user.email }}</div>
+        </div>
+        <div style="padding-top: 6px;">
+          <a href="/dashboard" class="ge-btn-ghost" style="display: block; width: 100%; text-align: left; border-radius: 6px; font-size: 13px;">Mi panel</a>
+          <a href="/settings" class="ge-btn-ghost" style="display: block; width: 100%; text-align: left; border-radius: 6px; font-size: 13px;">Configuración</a>
+          <div style="border-top: 1px solid var(--border); margin-top: 4px; padding-top: 4px;">
+            <form action="{% url 'logout' %}" method="post" style="margin:0;">
+              {% csrf_token %}
+              <button type="submit" class="ge-btn-ghost" style="width: 100%; text-align: left; color: var(--danger); font-size: 13px;">
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <a href="/login" class="ge-btn-primary" style="font-size: 13px; padding: 8px 18px;">
+      Iniciar sesión
+    </a>
+    {% endif %}
+  </div>
+</nav>

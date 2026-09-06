@@ -1,0 +1,167 @@
+{% extends 'usuarios/base.html' %}
+{% block title %}Simulador · Global Exchange{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Simulador de conversión</h1>
+        <p>Frontend de referencia · la tasa es simulada y se obtiene vía adaptador de servicios (HU-19)</p>
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; max-width: 560px">
+      <div class="ge-card ge-converter-card">
+        <div class="ge-converter-field">
+          <label for="ge-sim-amount">Tú entregas</label>
+          <div>
+            <input id="ge-sim-amount" inputmode="decimal" placeholder="0" aria-label="Monto a convertir">
+            <select id="ge-sim-from" aria-label="Moneda de origen"></select>
+          </div>
+        </div>
+        <div class="ge-converter-swap">
+          <span></span>
+          <button type="button" id="ge-sim-swap" title="Intercambiar monedas" aria-label="Intercambiar monedas">⇄</button>
+          <span></span>
+        </div>
+        <div class="ge-converter-field">
+          <label>Recibes aproximadamente</label>
+          <div>
+            <output id="ge-sim-result" aria-live="polite">—</output>
+            <select id="ge-sim-to" aria-label="Moneda de destino"></select>
+          </div>
+        </div>
+        <div class="ge-error-banner" id="ge-sim-error" hidden role="alert"></div>
+        <div class="ge-converter-rate">
+          <div>
+            <small>Tipo de cambio aplicado</small>
+            <strong id="ge-sim-rate">—</strong>
+          </div>
+          <div style="text-align:right">
+            <small>Última actualización</small>
+            <span id="ge-sim-updated">—</span>
+          </div>
+        </div>
+        <div class="ge-converter-note">
+          <span aria-hidden="true">ℹ️</span>
+          <span>Simulación gratuita · No genera ninguna transacción ni compromiso.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var currencies = (window.GEData.currencies || []);
+  var fromEl = document.getElementById('ge-sim-from');
+  var toEl = document.getElementById('ge-sim-to');
+  var amountEl = document.getElementById('ge-sim-amount');
+  var resultEl = document.getElementById('ge-sim-result');
+  var rateEl = document.getElementById('ge-sim-rate');
+  var updatedEl = document.getElementById('ge-sim-updated');
+  var errorEl = document.getElementById('ge-sim-error');
+  var swapEl = document.getElementById('ge-sim-swap');
+  var from = 'PYG';
+  var to = 'BRL';
+  var requestId = 0;
+
+  function fillSelect(select, selected) {
+    select.innerHTML = currencies.map(function (c) {
+      return '<option value="' + c.code + '" ' + (c.code === selected ? 'selected' : '') + '>' + c.code + '</option>';
+    }).join('');
+  }
+
+  function clearError() {
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+  }
+
+  function formatRate(rate) {
+    var small = Math.abs(rate) < 0.01;
+    return rate.toLocaleString('es-PY', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: small ? 6 : 4
+    });
+  }
+
+  function setRunning(running) {
+    resultEl.textContent = running ? 'Calculando…' : '—';
+    rateEl.textContent = running ? 'Consultando tasa…' : '—';
+    amountEl.setAttribute('aria-busy', String(running));
+  }
+
+  function update() {
+    var id = ++requestId;
+    clearError();
+    var raw = amountEl.value.trim();
+
+    if (raw === '') {
+      showError('Ingresá un monto para convertir.');
+      setRunning(false);
+      rateEl.textContent = '—';
+      return;
+    }
+
+    var amount = parseFloat(raw);
+    if (isNaN(amount) || amount <= 0) {
+      showError('El monto debe ser un número mayor que cero.');
+      setRunning(false);
+      return;
+    }
+
+    var api = window.GEServices && window.GEServices.consultaConversion;
+    if (!api) {
+      showError('El servicio de conversión no está disponible en este momento.');
+      setRunning(false);
+      return;
+    }
+
+    setRunning(true);
+    api({ monto: amount, monedaOrigen: from, monedaDestino: to }).then(function (data) {
+      if (id !== requestId) return;
+      resultEl.textContent = window.GEApp.formatValue(data.resultado);
+      rateEl.textContent = '1 ' + data.monedaOrigen + ' = ' + formatRate(data.tasa) + ' ' + data.monedaDestino;
+      updatedEl.textContent = data.actualizadoEn || '—';
+    }).catch(function (err) {
+      if (id !== requestId) return;
+      setRunning(false);
+      if (err && err.message === 'tasa_inexistente') {
+        showError('No hay una tasa disponible para ' + from + ' → ' + to + ' en este momento.');
+      } else {
+        showError('No se pudo consultar la tasa. Intentá nuevamente.');
+      }
+    });
+  }
+
+  function showError(message) {
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+  }
+
+  fillSelect(fromEl, from);
+  fillSelect(toEl, to);
+
+  fromEl.addEventListener('change', function () { from = this.value; update(); });
+  toEl.addEventListener('change', function () { to = this.value; update(); });
+  amountEl.addEventListener('input', function () {
+    amountEl.value = amountEl.value.replace(/[^0-9.]/g, '');
+    update();
+  });
+
+  swapEl.addEventListener('click', function () {
+    var prev = from;
+    from = to;
+    to = prev;
+    fromEl.value = from;
+    toEl.value = to;
+    swapEl.classList.add('is-swapping');
+    update();
+    window.setTimeout(function () { swapEl.classList.remove('is-swapping'); }, 320);
+  });
+
+  update();
+})();
+</script>
+{% endblock %}

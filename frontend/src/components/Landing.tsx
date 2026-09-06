@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type 
 import { AVAILABLE_CURRENCIES, DEMO_UPDATED_AT, MARKET_RATES, RATE_PERIODS, type CurrencyCode, type RatePeriod } from "../data/landingData";
 import { getRateDirection } from "../utils/rateDirection";
 import { AppIcon, type AppIconName } from "./icons/AppIcon";
-import { MarketBoard } from "./MarketBoard";
+import MarketBoard from "./MarketBoard";
 import { Sparkline } from "./Sparkline";
 import "./landing.css";
 
@@ -154,7 +154,7 @@ export function Landing() {
             <p className="animate-fade-up delay-400">Operaciones seguras y transparentes. La plataforma de cambio de divisas más confiable del mercado paraguayo.</p>
             <div className="landing-actions animate-fade-up delay-600"><a href="#cotizaciones" className="ge-btn-primary">Ver cotizaciones</a><a href="#conversor" className="ge-btn-outline">Convertir moneda</a></div>
           </div>
-          <div className="landing-hero-board animate-fade-in delay-300"><MarketBoard /></div>
+          <div className="landing-hero-board animate-fade-in delay-300"><MarketBoard variant="hero" animate /></div>
         </div>
         <a href="#cotizaciones" aria-label="Ir a Cotizaciones del Día" className="landing-hero-chevron"><AppIcon name="chevron-down" size={14} /><i /></a>
       </section>

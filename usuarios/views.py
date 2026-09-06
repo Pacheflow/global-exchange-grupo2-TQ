@@ -294,6 +294,14 @@ def logout(request):
     return redirect(f"{endpoint}?{urlencode(params)}")
 
 
+DASHBOARD_POR_ROL = {
+    "ADMINISTRADOR": "figma/dashboard_administrador.html",
+    "ANALISTA_CAMBIARIO": "figma/dashboard_analista.html",
+    "CAJERO": "figma/dashboard_cajero.html",
+    "USUARIO": "figma/dashboard_usuario.html",
+}
+
+
 @requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
 @require_GET
 def dashboard(request):
@@ -304,7 +312,12 @@ def dashboard(request):
         or profile.get("preferred_username")
         or "Usuario"
     )
-    return render(request, "usuarios/dashboard.html", {"display_name": display_name})
+    roles = set(request.session.get("roles", []))
+    template = next(
+        (DASHBOARD_POR_ROL[rol] for rol in DASHBOARD_POR_ROL if rol in roles),
+        "figma/dashboard_usuario.html",
+    )
+    return render(request, template, {"display_name": display_name})
 
 
 @requiere_roles_web("ADMINISTRADOR")
@@ -450,3 +463,36 @@ def asignar_rol(request):
         },
         status=200,
     )
+
+
+ROLES_PANEL = ("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+
+
+@requiere_roles_web(*ROLES_PANEL)
+@require_GET
+def monedas(request):
+    return render(request, "figma/monedas.html")
+
+
+@requiere_roles_web(*ROLES_PANEL)
+@require_GET
+def tasas(request):
+    return render(request, "figma/tasas.html")
+
+
+@requiere_roles_web("ADMINISTRADOR", "ANALISTA_CAMBIARIO")
+@require_GET
+def tasas_comerciales(request):
+    return render(request, "figma/tasas_comerciales.html")
+
+
+@requiere_roles_web(*ROLES_PANEL)
+@require_GET
+def simulador(request):
+    return render(request, "figma/simulador.html")
+
+
+@requiere_roles_web(*ROLES_PANEL)
+@require_GET
+def pagos(request):
+    return render(request, "figma/pagos.html")

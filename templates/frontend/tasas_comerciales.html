@@ -1,0 +1,246 @@
+{% extends 'usuarios/base.html' %}
+{% block title %}Tasas comerciales · Global Exchange{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Cotizaciones y Tasas</h1>
+        <p>Frontend de referencia · datos simulados (HU-21)</p>
+      </div>
+      <div class="ge-page-header-actions">
+        <button type="button" class="ge-btn-primary ge-btn-sm" data-ge-tasas-comerciales-new>Actualizar tasa comercial</button>
+      </div>
+    </div>
+
+    <section id="ge-referencia">
+      <h2 class="ge-title-h2">Tasa de referencia (externa)</h2>
+      <p class="ge-section-note">Detalle del mercado provisto por una fuente externa. No se edita desde la casa de cambios.</p>
+      <div class="ge-card ge-table-wrap">
+        <table class="ge-table">
+          <thead>
+            <tr><th>Moneda</th><th>Compra (ref.)</th><th>Venta (ref.)</th><th>Fuente</th><th>Actualización</th></tr>
+          </thead>
+          <tbody id="ge-external-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ge-comerciales">
+      <h2 class="ge-title-h2">Tasa comercial</h2>
+      <p class="ge-section-note">Cotizaciones propias de la casa de cambios aplicadas a las operaciones.</p>
+      <div class="ge-card ge-table-wrap">
+        <div class="ge-error-banner" id="ge-tasas-comerciales-error" hidden></div>
+        <table class="ge-table">
+          <thead>
+            <tr><th>Moneda</th><th>Compra</th><th>Venta</th><th>Tendencia</th><th>Última act.</th><th><span class="sr-only">Acciones</span></th></tr>
+          </thead>
+          <tbody id="ge-tasas-comerciales-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="ge-tasas-comerciales-form" hidden>
+      <div class="ge-back-row">
+        <button type="button" class="ge-btn-ghost" data-ge-tasas-comerciales-back>← Volver</button>
+        <h1 class="ge-title-h2">Actualizar cotización comercial</h1>
+      </div>
+      <div class="ge-card ge-card--pad32" style="max-width: 620px">
+        <form id="ge-tasas-comerciales-form-element" novalidate>
+          <div class="ge-field">
+            <label for="ge-tasas-comerciales-code">Divisa</label>
+            <select id="ge-tasas-comerciales-code" required></select>
+          </div>
+          <div class="ge-form-grid">
+            <div class="ge-field">
+              <label for="ge-tasas-comerciales-buy">Precio compra (PYG)</label>
+              <input id="ge-tasas-comerciales-buy" type="number" step="0.01" min="0" required>
+            </div>
+            <div class="ge-field">
+              <label for="ge-tasas-comerciales-sell">Precio venta (PYG)</label>
+              <input id="ge-tasas-comerciales-sell" type="number" step="0.01" min="0" required>
+            </div>
+          </div>
+          <div class="ge-error-banner" id="ge-tasas-comerciales-form-error" hidden></div>
+          <div class="ge-form-actions">
+            <button type="button" class="ge-btn-outline" data-ge-tasas-comerciales-back>Cancelar</button>
+            <button type="submit" class="ge-btn-primary">Confirmar actualización</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="ge-modal-backdrop" id="ge-modal-historial" role="dialog" aria-modal="true" aria-labelledby="ge-modal-historial-title">
+      <div class="ge-card ge-card--pad32 ge-modal-wide" style="background: var(--surface)">
+        <div class="ge-back-row" style="margin-bottom: 8px">
+          <button type="button" class="ge-btn-ghost" data-ge-historial-close>← Volver</button>
+          <h3 class="ge-title-h2" id="ge-modal-historial-title">Historial de tasas</h3>
+        </div>
+        <p style="font-size: 13px; color: var(--text-2)">Evolución de compra y venta del <span id="ge-historial-code" class="mono">—</span> (simulado)</p>
+        <div id="ge-historial-spark" style="margin: 20px 0"></div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 8px">
+          <div>
+            <div class="ge-note-label">Compra actual</div>
+            <strong id="ge-historial-buy" class="mono">—</strong>
+          </div>
+          <div>
+            <div class="ge-note-label">Venta actual</div>
+            <strong id="ge-historial-sell" class="mono">—</strong>
+          </div>
+        </div>
+        <div class="ge-modal-actions">
+          <button type="button" class="ge-btn-outline" data-ge-historial-close>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var items = (window.GEData.currencies || []).filter(function (c) { return c.code !== 'PYG'; }).map(function (c) { return Object.assign({}, c); });
+  var external = (window.GEData.externalRates || []).slice();
+  var editingCode = null;
+  var currentCode = null;
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+    });
+  }
+
+  function showError(targetId, message) {
+    var box = document.getElementById(targetId);
+    box.textContent = message;
+    box.hidden = false;
+  }
+
+  function clearError(targetId) {
+    document.getElementById(targetId).hidden = true;
+  }
+
+  function byCode(code) {
+    return items.find(function (c) { return c.code === code; });
+  }
+
+  function trendMark(item) {
+    var arrow = item.trend === 'up' ? '↑' : item.trend === 'down' ? '↓' : '=';
+    var cls = item.trend === 'up' ? 'ge-trend-up' : item.trend === 'down' ? 'ge-trend-down' : 'ge-trend-flat';
+    return '<span class="' + cls + '" style="font-weight:700;font-size:12px">' + arrow + ' ' + Math.abs(item.change == null ? 0 : item.change).toFixed(1) + '%</span>';
+  }
+
+  function renderExternal() {
+    document.getElementById('ge-external-body').innerHTML = external.map(function (row) {
+      return '<tr>' +
+        '<td><span class="mono">' + esc(row.code) + '</span></td>' +
+        '<td><span class="mono muted">' + window.GEApp.formatValue(row.buy) + ' Gs</span></td>' +
+        '<td><span class="mono muted">' + window.GEApp.formatValue(row.sell) + ' Gs</span></td>' +
+        '<td><span class="muted">' + esc(row.source) + '</span></td>' +
+        '<td><span class="muted">' + esc(row.updated) + '</span></td>' +
+      '</tr>';
+    }).join('') || '<tr><td colspan="5" class="no-data">No hay tasa de referencia disponible.</td></tr>';
+  }
+
+  function render() {
+    clearError('ge-tasas-comerciales-error');
+    var body = document.getElementById('ge-tasas-comerciales-body');
+    body.innerHTML = items.map(function (item) {
+      return '<tr>' +
+        '<td><div style="display:flex;align-items:center;gap:10px"><span class="ge-currency-flag ge-currency-flag--sm">' + item.flag + '</span><span class="mono">' + item.code + '</span></div></td>' +
+        '<td><span class="mono">' + window.GEApp.formatValue(item.buy) + '</span></td>' +
+        '<td><span class="mono">' + window.GEApp.formatValue(item.sell) + '</span></td>' +
+        '<td>' + trendMark(item) + '</td>' +
+        '<td><span class="muted" style="font-size:12px">' + item.updated + '</span></td>' +
+        '<td><div class="ge-actions-row">' +
+          '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-tasas-comerciales-edit="' + esc(item.code) + '">Editar</button>' +
+          '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-tasas-comerciales-historial="' + esc(item.code) + '">Historial</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('') || '<tr><td colspan="6" class="no-data">No hay cotizaciones comerciales.</td></tr>';
+  }
+
+  function fillSelect() {
+    var select = document.getElementById('ge-tasas-comerciales-code');
+    select.innerHTML = items.map(function (item) {
+      return '<option value="' + esc(item.code) + '">' + item.code + ' - ' + esc(item.name) + '</option>';
+    }).join('');
+  }
+
+  function openForm(code) {
+    editingCode = code == null ? null : code;
+    var item = code == null ? items[0] : byCode(code);
+    clearError('ge-tasas-comerciales-form-error');
+    document.getElementById('ge-referencia').hidden = true;
+    document.getElementById('ge-comerciales').hidden = true;
+    document.getElementById('ge-tasas-comerciales-form').hidden = false;
+    fillSelect();
+    document.getElementById('ge-tasas-comerciales-code').value = item.code;
+    document.getElementById('ge-tasas-comerciales-buy').value = item.buy;
+    document.getElementById('ge-tasas-comerciales-sell').value = item.sell;
+  }
+
+  function backToList() {
+    document.getElementById('ge-referencia').hidden = false;
+    document.getElementById('ge-comerciales').hidden = false;
+    document.getElementById('ge-tasas-comerciales-form').hidden = true;
+    editingCode = null;
+  }
+
+  function openHistorial(code) {
+    var item = byCode(code);
+    currentCode = code;
+    var series = item.sparkData || [];
+    var trend = item.trend === 'up' || item.change > 0 ? 'up' : item.trend === 'down' || item.change < 0 ? 'down' : 'neutral';
+    document.getElementById('ge-historial-code').textContent = code;
+    document.getElementById('ge-historial-buy').textContent = window.GEApp.formatValue(item.buy) + ' Gs';
+    document.getElementById('ge-historial-sell').textContent = window.GEApp.formatValue(item.sell) + ' Gs';
+    document.getElementById('ge-historial-spark').innerHTML = window.GEApp.sparkline(series, trend, 560, 90);
+    window.GEApp.openModal('ge-modal-historial');
+  }
+
+  document.body.addEventListener('click', function (event) {
+    var el = event.target;
+    if (el.hasAttribute('data-ge-tasas-comerciales-new')) { openForm(null); return; }
+    if (el.hasAttribute('data-ge-tasas-comerciales-back')) { backToList(); return; }
+    if (el.hasAttribute('data-ge-tasas-comerciales-edit')) { openForm(el.getAttribute('data-ge-tasas-comerciales-edit')); return; }
+    if (el.hasAttribute('data-ge-tasas-comerciales-historial')) { openHistorial(el.getAttribute('data-ge-tasas-comerciales-historial')); return; }
+    if (el.hasAttribute('data-ge-historial-close')) { window.GEApp.closeModal('ge-modal-historial'); return; }
+  });
+
+  document.getElementById('ge-tasas-comerciales-form-element').addEventListener('submit', function (event) {
+    event.preventDefault();
+    clearError('ge-tasas-comerciales-form-error');
+    var code = document.getElementById('ge-tasas-comerciales-code').value;
+    var buy = parseFloat(document.getElementById('ge-tasas-comerciales-buy').value);
+    var sell = parseFloat(document.getElementById('ge-tasas-comerciales-sell').value);
+
+    if (!code) { showError('ge-tasas-comerciales-form-error', 'Seleccioná una divisa.'); return; }
+    if (isNaN(buy) || buy <= 0) { showError('ge-tasas-comerciales-form-error', 'El precio de compra debe ser mayor que cero.'); return; }
+    if (isNaN(sell) || sell <= 0) { showError('ge-tasas-comerciales-form-error', 'El precio de venta debe ser mayor que cero.'); return; }
+    if (sell <= buy) { showError('ge-tasas-comerciales-form-error', 'El precio de venta debe ser mayor que el de compra.'); return; }
+
+    var item = byCode(code);
+    var oldBuy = item.buy;
+    item.buy = buy;
+    item.sell = sell;
+    item.updated = 'hace 1 min';
+    item.change = oldBuy ? ((buy - oldBuy) / oldBuy) * 100 : 0;
+    item.trend = item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'neutral';
+    if (item.sparkData && item.sparkData.length) {
+      var copy = item.sparkData.slice();
+      copy.push(buy);
+      item.sparkData = copy.slice(-18);
+    }
+
+    editingCode = null;
+    backToList();
+    render();
+    window.GEApp.toast('Tasa comercial actualizada exitosamente.');
+  });
+
+  renderExternal();
+  render();
+})();
+</script>
+{% endblock %}

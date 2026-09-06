@@ -1,0 +1,76 @@
+{% extends 'usuarios/base.html' %}
+{% block title %}Inicio · Global Exchange{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Hola, {{ display_name }}</h1>
+        <p>Atendé las operaciones de divisas y administrá el trabajo de tu caja.</p>
+      </div>
+      <div class="ge-page-header-actions">
+        <a class="ge-btn-primary" href="{% url 'consultar_clientes' %}">
+          {% if selected_client %}Cambiar cliente{% else %}Seleccionar cliente{% endif %}
+        </a>
+      </div>
+    </div>
+
+    <div class="ge-kpi-grid" style="margin-top: 24px">
+      <article class="ge-card ge-kpi">
+        <span class="ge-kpi-icon">👤</span>
+        <div>
+          <span class="ge-kpi-label">Usuario</span>
+          <span class="ge-kpi-value">{{ kc_display_name }}</span>
+          <span class="ge-kpi-sub">{{ kc_email|default:'Cuenta activa' }}</span>
+        </div>
+      </article>
+      <article class="ge-card ge-kpi">
+        <span class="ge-kpi-icon">🛡️</span>
+        <div>
+          <span class="ge-kpi-label">Rol activo</span>
+          <span class="ge-kpi-value">Cajero</span>
+          <span class="ge-kpi-sub">Operación de cambio y medios de pago</span>
+        </div>
+      </article>
+      <article class="ge-card ge-kpi">
+        <span class="ge-kpi-icon">🏢</span>
+        <div>
+          <span class="ge-kpi-label">Cliente activo</span>
+          <span class="ge-kpi-value">{% if selected_client %}{{ selected_client.name|truncatechars:18 }}{% else %}Sin seleccionar{% endif %}</span>
+          <span class="ge-kpi-sub">{% if selected_client %}Contexto de trabajo en sesión{% else %}Seleccioná un cliente para operar{% endif %}</span>
+        </div>
+      </article>
+    </div>
+
+    {% include 'frontend/partials/currency_grid.html' %}
+
+    <div class="ge-page-title" style="margin-top: 40px">
+      <span class="ge-note-label">Accesos</span>
+      <h1 style="margin-top: 6px">Acciones rápidas</h1>
+    </div>
+    <div class="ge-quick-actions-grid">
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:simulador' %}">
+        <span class="ge-quick-icon" aria-hidden="true">💱</span>
+        <span><strong>Conversor de divisas</strong><small>Calcular y confirmar operaciones de cambio</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:pagos' %}">
+        <span class="ge-quick-icon" aria-hidden="true">💳</span>
+        <span><strong>Medios de pago</strong><small>Consultar los métodos disponibles</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
+        <span class="ge-quick-icon" aria-hidden="true">🏢</span>
+        <span><strong>Gestionar clientes</strong><small>Consultar y seleccionar el contexto de trabajo</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:tasas' %}">
+        <span class="ge-quick-icon" aria-hidden="true">📈</span>
+        <span><strong>Cotizaciones</strong><small>Consultar compra y venta actuales</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:monedas' %}">
+        <span class="ge-quick-icon" aria-hidden="true">🪙</span>
+        <span><strong>Monedas</strong><small>Consultar las monedas disponibles</small></span>
+      </a>
+    </div>
+    <div class="ge-warning-banner" style="margin-top: 24px">Las operaciones de caja, cierres y control de caja están en desarrollo en el backend.</div>
+  </div>
+</div>
+{% endblock %}

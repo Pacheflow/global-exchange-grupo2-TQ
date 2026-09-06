@@ -18,4 +18,10 @@ urlpatterns = [
     path("clientes/seleccionar/", views.clientes, name="clients"),
     path("perfil/", views.perfil_usuario, name="perfil_usuario"),
     path("acceso-administrador/", views.acceso_administrador, name="acceso_administrador"),
-    path("asignar-rol/", views.asignar_rol, name="asignar_rol"),]
+    path("asignar-rol/", views.asignar_rol, name="asignar_rol"),
+    path("monedas/", views.monedas, name="monedas"),
+    path("tasas/", views.tasas, name="tasas"),
+    path("tasas-comerciales/", views.tasas_comerciales, name="tasas_comerciales"),
+    path("simulador/", views.simulador, name="simulador"),
+    path("pagos/", views.pagos, name="pagos"),
+]

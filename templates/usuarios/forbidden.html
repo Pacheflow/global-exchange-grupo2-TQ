@@ -1,3 +1,14 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Acceso restringido · Global Exchange{% endblock %}
-{% block content %}<section class="workspace"><div class="empty-state surface"><span class="material-symbols" aria-hidden="true">lock</span><h1>Acceso restringido</h1><p>Tu rol actual no permite realizar esta operación.</p><p>Roles habilitados: {{ required_roles|join:', ' }}.</p><a class="button button-dark" href="{% url 'usuarios:dashboard' %}">Volver al panel</a></div></section>{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-card ge-empty">
+      <strong>Acceso restringido</strong>
+      <p>Tu rol actual no permite realizar esta operación.</p>
+      <p>Roles habilitados: {{ required_roles|join:', ' }}.</p>
+      <a class="ge-btn-outline" style="margin-top: 12px" href="{% url 'usuarios:dashboard' %}">Volver al panel</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

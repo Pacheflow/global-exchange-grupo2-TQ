@@ -1,0 +1,75 @@
+{% extends 'figma/base.html' %}
+{% block title %}Cotizaciones actuales · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-figma-main-pad">
+    <div class="ge-figma-section-head">
+      <h2 class="ge-figma-h2">Cotizaciones actuales</h2>
+      <div class="ge-switch">
+        <button type="button" class="is-active">Hoy</button>
+        <button type="button">7D</button>
+        <button type="button">30D</button>
+        <button type="button">90D</button>
+        <button type="button">1A</button>
+      </div>
+    </div>
+
+    <div class="ge-quote-cards">
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-quote-head">
+          <div class="ge-quote-id"><span style="font-size:24px">🇺🇸</span><div><strong class="ge-mono">USD</strong><span class="ge-figma-note">Dólar estadounidense</span></div></div>
+          <div class="ge-quote-change"><small>VARIACIÓN</small><strong class="ge-trend-up">+0.42%</strong></div>
+        </div>
+        <div class="ge-quote-rates">
+          <div><small>COMPRA</small><strong class="ge-mono">7.480</strong></div>
+          <div class="ge-quote-divider"></div>
+          <div><small>VENTA</small><strong class="ge-mono">7.560</strong></div>
+        </div>
+        <div style="margin-bottom:16px"><span data-spark="7310,7340,7280,7360,7400,7380,7420,7460,7480" data-trend="up" data-w="300" data-h="60"></span></div>
+        <div class="ge-figma-note" style="text-align:center">Última actualización: hace 2 min</div>
+      </article>
+
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-quote-head">
+          <div class="ge-quote-id"><span style="font-size:24px">🇪🇺</span><div><strong class="ge-mono">EUR</strong><span class="ge-figma-note">Euro</span></div></div>
+          <div class="ge-quote-change"><small>VARIACIÓN</small><strong class="ge-trend-down">-0.18%</strong></div>
+        </div>
+        <div class="ge-quote-rates">
+          <div><small>COMPRA</small><strong class="ge-mono">8.120</strong></div>
+          <div class="ge-quote-divider"></div>
+          <div><small>VENTA</small><strong class="ge-mono">8.210</strong></div>
+        </div>
+        <div style="margin-bottom:16px"><span data-spark="8220,8180,8160,8200,8170,8140,8130,8125,8120" data-trend="down" data-w="300" data-h="60"></span></div>
+        <div class="ge-figma-note" style="text-align:center">Última actualización: hace 3 min</div>
+      </article>
+
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-quote-head">
+          <div class="ge-quote-id"><span style="font-size:24px">🇧🇷</span><div><strong class="ge-mono">BRL</strong><span class="ge-figma-note">Real brasileño</span></div></div>
+          <div class="ge-quote-change"><small>VARIACIÓN</small><strong class="ge-trend-up">+1.15%</strong></div>
+        </div>
+        <div class="ge-quote-rates">
+          <div><small>COMPRA</small><strong class="ge-mono">1.340</strong></div>
+          <div class="ge-quote-divider"></div>
+          <div><small>VENTA</small><strong class="ge-mono">1.380</strong></div>
+        </div>
+        <div style="margin-bottom:16px"><span data-spark="1280,1295,1310,1320,1305,1325,1335,1338,1340" data-trend="up" data-w="300" data-h="60"></span></div>
+        <div class="ge-figma-note" style="text-align:center">Última actualización: hace 5 min</div>
+      </article>
+
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-quote-head">
+          <div class="ge-quote-id"><span style="font-size:24px">🇦🇷</span><div><strong class="ge-mono">ARS</strong><span class="ge-figma-note">Peso argentino</span></div></div>
+          <div class="ge-quote-change"><small>VARIACIÓN</small><strong class="ge-trend-down">-2.30%</strong></div>
+        </div>
+        <div class="ge-quote-rates">
+          <div><small>COMPRA</small><strong class="ge-mono">7.4</strong></div>
+          <div class="ge-quote-divider"></div>
+          <div><small>VENTA</small><strong class="ge-mono">7.8</strong></div>
+        </div>
+        <div style="margin-bottom:16px"><span data-spark="8.2,8.0,7.9,7.85,7.80,7.75,7.65,7.55,7.4" data-trend="down" data-w="300" data-h="60"></span></div>
+        <div class="ge-figma-note" style="text-align:center">Última actualización: hace 8 min</div>
+      </article>
+    </div>
+  </div>
+{% endblock %}

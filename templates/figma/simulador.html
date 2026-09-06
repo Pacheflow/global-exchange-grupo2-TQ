@@ -1,0 +1,69 @@
+{% extends 'figma/base.html' %}
+{% block title %}Conversor de divisas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-figma-main-pad">
+    <div style="max-width:860px">
+      <div class="ge-inline-banner">
+        <span aria-hidden="true">⚡</span>
+        <div>
+          <strong>Conversor de Monedas</strong>
+          <p>Simula la conversión entre divisas usando las tasas actualizadas del mercado.</p>
+        </div>
+      </div>
+
+      <article class="ge-card" style="padding:32px" data-converter>
+        <!-- From -->
+        <div style="margin-bottom:8px">
+          <label class="ge-figma-field-label" for="sim-origen" style="letter-spacing:0.12em">TÚ ENTREGAS</label>
+          <div style="display:flex;gap:10px">
+            <input id="sim-origen" type="text" inputmode="decimal" class="ge-input" data-conv-monto placeholder="0"
+              style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;padding:14px 18px;flex:1">
+            <select data-conv-origen class="ge-input" style="width:auto;padding-right:36px;font-weight:700;cursor:pointer;flex-shrink:0;font-size:15px">
+              <option value="PYG">🇵🇾 PYG</option>
+              <option value="USD" selected>🇺🇸 USD</option>
+              <option value="EUR">🇪🇺 EUR</option>
+              <option value="BRL">🇧🇷 BRL</option>
+              <option value="ARS">🇦🇷 ARS</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Swap -->
+        <div class="ge-sim-swap">
+          <span class="ge-sim-line"></span>
+          <button type="button" class="ge-sim-swap-btn" data-conv-swap title="Intercambiar monedas" aria-label="Intercambiar monedas">⇄</button>
+          <span class="ge-sim-line"></span>
+        </div>
+
+        <!-- To -->
+        <div style="margin-bottom:24px">
+          <label class="ge-figma-field-label" for="sim-destino" style="letter-spacing:0.12em">RECIBES APROXIMADAMENTE</label>
+          <div style="display:flex;gap:10px">
+            <div class="ge-input" data-conv-resultado style="flex:1;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;padding:14px 18px;background:var(--bg-alt);cursor:default;color:var(--primary);display:flex;align-items:center">0</div>
+            <select data-conv-destino class="ge-input" style="width:auto;padding-right:36px;font-weight:700;cursor:pointer;flex-shrink:0;font-size:15px">
+              <option value="PYG" selected>🇵🇾 PYG</option>
+              <option value="USD">🇺🇸 USD</option>
+              <option value="EUR">🇪🇺 EUR</option>
+              <option value="BRL">🇧🇷 BRL</option>
+              <option value="ARS">🇦🇷 ARS</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Rate info -->
+        <div class="ge-op-summary" style="margin-bottom:16px">
+          <div class="ge-sim-rate">
+            <div><small>Tipo de cambio aplicado</small><strong data-conv-tasa class="ge-mono">1 PYG = —</strong></div>
+            <div style="text-align:right"><small>Última actualización</small><span>31/08/2026 · 10:24</span></div>
+          </div>
+        </div>
+
+        <div class="ge-inline-banner ge-inline-banner--primary">
+          <span aria-hidden="true">ℹ</span>
+          <span>Simulación gratuita · No genera ninguna transacción ni compromiso.</span>
+        </div>
+      </article>
+    </div>
+  </div>
+{% endblock %}

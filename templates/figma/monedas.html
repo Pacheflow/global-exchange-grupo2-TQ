@@ -1,0 +1,32 @@
+{% extends 'figma/base.html' %}
+{% block title %}Gestión de divisas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-figma-main-pad">
+    <div class="ge-figma-section-head">
+      <h2 class="ge-figma-h2">Gestión de divisas</h2>
+      <div class="ge-btn-row">
+        <div class="ge-search-box">
+          <span aria-hidden="true">🔍</span>
+          <input type="text" class="ge-input" placeholder="Buscar divisa..." style="width:200px;font-size:12px;padding:8px 12px 8px 30px">
+        </div>
+        <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">+ Nueva divisa</button>
+      </div>
+    </div>
+
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead>
+          <tr><th></th><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody>
+          <tr><td style="font-size:22px">🇺🇸</td><td><span class="ge-mono" style="font-weight:700">USD</span></td><td>Dólar estadounidense</td><td class="ge-mono">$</td><td><span class="ge-state-dot ge-state-dot--on"><i></i>Activa</span></td><td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost ge-btn-ghost--danger" style="font-size:11px;padding:3px 8px">Desactivar</button></div></td></tr>
+          <tr><td style="font-size:22px">🇪🇺</td><td><span class="ge-mono" style="font-weight:700">EUR</span></td><td>Euro</td><td class="ge-mono">€</td><td><span class="ge-state-dot ge-state-dot--on"><i></i>Activa</span></td><td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost ge-btn-ghost--danger" style="font-size:11px;padding:3px 8px">Desactivar</button></div></td></tr>
+          <tr><td style="font-size:22px">🇧🇷</td><td><span class="ge-mono" style="font-weight:700">BRL</span></td><td>Real brasileño</td><td class="ge-mono">R$</td><td><span class="ge-state-dot ge-state-dot--on"><i></i>Activa</span></td><td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost ge-btn-ghost--danger" style="font-size:11px;padding:3px 8px">Desactivar</button></div></td></tr>
+          <tr><td style="font-size:22px">🇦🇷</td><td><span class="ge-mono" style="font-weight:700">ARS</span></td><td>Peso argentino</td><td class="ge-mono">A$</td><td><span class="ge-state-dot ge-state-dot--on"><i></i>Activa</span></td><td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost ge-btn-ghost--danger" style="font-size:11px;padding:3px 8px">Desactivar</button></div></td></tr>
+          <tr><td style="font-size:22px">🇵🇾</td><td><span class="ge-mono" style="font-weight:700">PYG</span></td><td>Guaraní paraguayo</td><td class="ge-mono">₲</td><td><span class="ge-state-dot ge-state-dot--on"><i></i>Activa</span></td><td><div class="ge-btn-row"><button class="ge-btn-ghost" style="font-size:11px;padding:3px 8px">Editar</button><button class="ge-btn-ghost ge-btn-ghost--danger" style="font-size:11px;padding:3px 8px">Desactivar</button></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends 'usuarios/base.html' %}
+{% block title %}Inicio · Global Exchange{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Hola, {{ display_name }}</h1>
+        <p>Administrá usuarios, clientes, tasas y la configuración del sistema.</p>
+      </div>
+      <div class="ge-page-header-actions">
+        <a class="ge-btn-primary" href="{% url 'consultar_clientes' %}">
+          {% if selected_client %}Cambiar cliente{% else %}Seleccionar cliente{% endif %}
+        </a>
+      </div>
+    </div>
+
+    <div class="ge-kpi-grid" style="margin-top: 24px">
+      <article class="ge-card ge-kpi">
+        <span class="ge-kpi-icon">👤</span>
+        <div>
+          <span class="ge-kpi-label">Usuario</span>
+          <span class="ge-kpi-value">{{ kc_display_name }}</span>
+          <span class="ge-kpi-sub">{{ kc_email|default:'Cuenta activa' }}</span>
+        </div>
+      </article>
+      <article class="ge-card ge-kpi">
+        <span class="ge-kpi-icon">🛡️</span>
+        <div>
+          <span class="ge-kpi-label">Rol activo</span>
+          <span class="ge-kpi-value">Administrador</span>
+          <span class="ge-kpi-sub">Gestión de usuarios, clientes y tasas</span>
+        </div>
+      </article>
+      <article class="ge-card ge-kpi">
+        <span class="ge-kpi-icon">🏢</span>
+        <div>
+          <span class="ge-kpi-label">Cliente activo</span>
+          <span class="ge-kpi-value">{% if selected_client %}{{ selected_client.name|truncatechars:18 }}{% else %}Sin seleccionar{% endif %}</span>
+          <span class="ge-kpi-sub">{% if selected_client %}Contexto de trabajo en sesión{% else %}Seleccioná un cliente para operar{% endif %}</span>
+        </div>
+      </article>
+    </div>
+
+    {% include 'frontend/partials/currency_grid.html' %}
+
+    <div class="ge-page-title" style="margin-top: 40px">
+      <span class="ge-note-label">Accesos</span>
+      <h1 style="margin-top: 6px">Acciones rápidas</h1>
+    </div>
+    <div class="ge-quick-actions-grid">
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:list' %}">
+        <span class="ge-quick-icon" aria-hidden="true">👥</span>
+        <span><strong>Gestionar usuarios</strong><small>Crear, editar, asignar roles y dar de baja</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
+        <span class="ge-quick-icon" aria-hidden="true">🏢</span>
+        <span><strong>Gestionar clientes</strong><small>Registrar, editar y seleccionar el contexto</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:tasas_comerciales' %}">
+        <span class="ge-quick-icon" aria-hidden="true">⚙️</span>
+        <span><strong>Tasas comerciales</strong><small>Definir compra y venta de la casa</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:monedas' %}">
+        <span class="ge-quick-icon" aria-hidden="true">🪙</span>
+        <span><strong>Monedas</strong><small>Habilitar y administrar monedas del sistema</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:pagos' %}">
+        <span class="ge-quick-icon" aria-hidden="true">💳</span>
+        <span><strong>Medios de pago</strong><small>Administrar los métodos disponibles</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:simulador' %}">
+        <span class="ge-quick-icon" aria-hidden="true">💱</span>
+        <span><strong>Conversor de divisas</strong><small>Simular conversiones de referencia</small></span>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

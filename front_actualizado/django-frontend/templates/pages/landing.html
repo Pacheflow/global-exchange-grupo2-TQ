@@ -1,0 +1,679 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="min-height: 100vh; background: var(--bg);">
+  <!-- ── Hero ── -->
+  <section id="inicio" style="
+    min-height: 100vh;
+    background: radial-gradient(ellipse at 60% 50%, #0D1E4A 0%, #060B1E 65%);
+    display: grid;
+    grid-template-columns: 42fr 58fr;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    padding-top: 64px;
+  ">
+    <!-- dot-grid texture -->
+    <div style="
+      position: absolute; inset: 0; opacity: 0.035;
+      background-image: radial-gradient(circle, #3B5BFF 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+    "></div>
+
+    <!-- Left: Text -->
+    <div style="padding: clamp(40px,6vw,80px) clamp(24px,4vw,64px) clamp(40px,6vw,80px) clamp(32px,6vw,88px); z-index: 2;">
+      <!-- Pill badge -->
+      <div class="animate-fade-up" style="
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(59, 91, 255, 0.12);
+        border: 1px solid rgba(59, 91, 255, 0.28);
+        border-radius: 999px; padding: 5px 14px;
+        font-size: 11px; font-weight: 700; color: #6B8AFF;
+        letter-spacing: 0.12em; margin-bottom: 36px;
+        font-family: 'DM Sans', sans-serif; text-transform: uppercase;
+      ">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: #3B5BFF; display: inline-block; flex-shrink: 0;"></span>
+        Cotizaciones en tiempo real
+      </div>
+
+      <!-- Headline -->
+      <h1 class="animate-fade-up delay-200 font-display" style="
+        font-size: clamp(38px, 4.8vw, 68px);
+        font-weight: 300;
+        color: #E8F2FF;
+        line-height: 1.06;
+        letter-spacing: -0.035em;
+        margin-bottom: 0;
+      ">
+        Líderes en<br />
+        <span style="font-weight: 700;">cambios</span><br />
+        en <span class="gradient-text" style="font-style: italic;">Paraguay</span>
+      </h1>
+
+      <!-- Divider accent -->
+      <div class="animate-fade-up delay-300" style="
+        width: 48px; height: 2px;
+        background: linear-gradient(90deg, #3B5BFF, transparent);
+        margin: 24px 0;
+      "></div>
+
+      <p class="animate-fade-up delay-400" style="
+        font-size: 16px;
+        line-height: 1.75;
+        color: #4E6E9A;
+        max-width: 400px;
+        font-family: 'DM Sans', sans-serif;
+      ">
+        Operaciones seguras y transparentes. La plataforma de cambio de
+        divisas más confiable del mercado paraguayo.
+      </p>
+
+      <!-- CTAs -->
+      <div class="animate-fade-up delay-600" style="display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap;">
+        <a href="#cotizaciones" class="ge-btn-primary" style="font-size: 14px;">
+          Ver cotizaciones
+        </a>
+        <a href="#conversor" class="ge-btn-outline" style="font-size: 14px; border-color: rgba(59,91,255,0.4); color: #6B8AFF;">
+          Convertir moneda
+        </a>
+      </div>
+
+      <!-- Live stat badges -->
+      <div class="animate-fade-up delay-800" style="display: flex; gap: 12px; margin-top: 52px; flex-wrap: wrap;">
+        <div style="
+          background: rgba(11, 18, 40, 0.85);
+          border: 1px solid rgba(59, 91, 255, 0.2);
+          border-radius: 10px; padding: 10px 16px; backdrop-filter: blur(8px);
+        ">
+          <div style="font-size: 10px; color: #3F5C8A; letter-spacing: 0.08em; font-family: 'DM Sans'; text-transform: uppercase;">USD / PYG · Compra</div>
+          <div style="font-size: 20px; font-family: 'JetBrains Mono'; font-weight: 700; color: #C8DEFF; margin-top: 3px;">7.480</div>
+          <div style="font-size: 11px; color: #22C55E; margin-top: 3px; font-family: 'DM Sans'; font-weight: 600;">↑ +0.42%</div>
+        </div>
+        <div style="
+          background: rgba(11, 18, 40, 0.85);
+          border: 1px solid rgba(59, 91, 255, 0.2);
+          border-radius: 10px; padding: 10px 16px; backdrop-filter: blur(8px);
+        ">
+          <div style="font-size: 10px; color: #3F5C8A; letter-spacing: 0.08em; font-family: 'DM Sans'; text-transform: uppercase;">EUR / PYG · Compra</div>
+          <div style="font-size: 20px; font-family: 'JetBrains Mono'; font-weight: 700; color: #C8DEFF; margin-top: 3px;">8.120</div>
+          <div style="font-size: 11px; color: #F87171; margin-top: 3px; font-family: 'DM Sans'; font-weight: 600;">↓ -0.18%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: World Map placeholder -->
+    <div class="animate-fade-in delay-300" style="
+      position: relative; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px 24px 40px 0;
+    ">
+      <div style="
+        width: 100%;
+        max-width: 680px;
+        aspect-ratio: 1000 / 500;
+        position: relative;
+        background-image: radial-gradient(circle, rgba(59, 91, 255, 0.2) 1px, transparent 1px);
+        background-size: 20px 20px;
+        border-radius: 20px;
+      ">
+        <div style="position:absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #3B5BFF; font-family: 'DM Sans'; font-size: 14px; opacity: 0.5;">
+            [World Map Interactive Component]
+        </div>
+      </div>
+    </div>
+
+    <!-- Scroll indicator -->
+    <div style="position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%); text-align: center;">
+      <div style="font-size: 10px; color: #1E3060; letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">SCROLL</div>
+      <div style="width: 1px; height: 28px; background: linear-gradient(to bottom, #2A4070, transparent); margin: 0 auto;"></div>
+    </div>
+  </section>
+
+  <!-- ── Cotizaciones del Día ── -->
+  <section id="cotizaciones" style="padding: clamp(64px,8vw,96px) clamp(24px,6vw,80px); background: var(--bg);">
+    <div class="reveal">
+      <div style="max-width: 1100px; margin: 0 auto;">
+        <!-- Header row -->
+        <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 48px; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">
+              MERCADO
+            </div>
+            <h2 class="font-display" style="font-size: clamp(28px, 3vw, 42px); font-weight: 500; color: var(--text); line-height: 1.1; letter-spacing: -0.02em;">
+              Cotizaciones del Día
+            </h2>
+            <p style="margin-top: 10px; font-size: 15px; color: var(--text-2); font-family: 'DM Sans';">
+              Cotizaciones actualizadas en tiempo real. Base: Guaraní paraguayo (PYG).
+            </p>
+          </div>
+          <!-- Filter tabs -->
+          <div style="display: flex; gap: 4px; background: var(--surface-2); border-radius: 8px; padding: 4px; border: 1px solid var(--border);">
+            <button style="padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; font-family: 'DM Sans'; background: transparent; color: var(--text-2); transition: all 0.15s;">Hoy</button>
+            <button style="padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; font-family: 'DM Sans'; background: transparent; color: var(--text-2); transition: all 0.15s;">7D</button>
+            <button style="padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; font-family: 'DM Sans'; background: transparent; color: var(--text-2); transition: all 0.15s;">30D</button>
+            <button style="padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; font-family: 'DM Sans'; background: var(--primary); color: #fff; transition: all 0.15s;">90D</button>
+            <button style="padding: 5px 14px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; font-family: 'DM Sans'; background: transparent; color: var(--text-2); transition: all 0.15s;">1A</button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="ge-card" style="overflow: hidden;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--border);">
+                <th style="padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.08em; font-family: 'DM Sans';">Moneda</th>
+                <th style="padding: 14px 20px; text-align: right; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.08em; font-family: 'DM Sans';">Compra</th>
+                <th style="padding: 14px 20px; text-align: right; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.08em; font-family: 'DM Sans';">Venta</th>
+                <th style="padding: 14px 20px; text-align: right; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.08em; font-family: 'DM Sans';">90D</th>
+                <th style="padding: 14px 20px; text-align: right; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.08em; font-family: 'DM Sans';">Variación</th>
+                <th style="padding: 14px 20px; text-align: right; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.08em; font-family: 'DM Sans';">Actualización</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- USD Row -->
+              <tr class="table-row-hover" style="border-bottom: 1px solid var(--border-subtle);">
+                <td style="padding: 18px 20px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 22px; line-height: 1;">🇺🇸</span>
+                    <div>
+                      <div style="font-weight: 700; color: var(--text); font-family: 'JetBrains Mono'; font-size: 14px;">USD</div>
+                      <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans'; margin-top: 1px;">Dólar Estadounidense</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">7.480</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">7.550</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="color: var(--text-2); font-family: 'JetBrains Mono'; font-size: 12px;">[ Gráfico ]</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 600; color: var(--success);">+0.42%</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-size: 12px; color: var(--text-3); font-family: 'DM Sans';">hace 5 min</span>
+                </td>
+              </tr>
+              <!-- EUR Row -->
+              <tr class="table-row-hover" style="border-bottom: 1px solid var(--border-subtle);">
+                <td style="padding: 18px 20px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 22px; line-height: 1;">🇪🇺</span>
+                    <div>
+                      <div style="font-weight: 700; color: var(--text); font-family: 'JetBrains Mono'; font-size: 14px;">EUR</div>
+                      <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans'; margin-top: 1px;">Euro</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">8.120</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">8.250</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="color: var(--text-2); font-family: 'JetBrains Mono'; font-size: 12px;">[ Gráfico ]</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 600; color: var(--danger);">-0.18%</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-size: 12px; color: var(--text-3); font-family: 'DM Sans';">hace 12 min</span>
+                </td>
+              </tr>
+              <!-- BRL Row -->
+              <tr class="table-row-hover" style="border-bottom: 1px solid var(--border-subtle);">
+                <td style="padding: 18px 20px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 22px; line-height: 1;">🇧🇷</span>
+                    <div>
+                      <div style="font-weight: 700; color: var(--text); font-family: 'JetBrains Mono'; font-size: 14px;">BRL</div>
+                      <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans'; margin-top: 1px;">Real Brasileño</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">1.510</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">1.540</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="color: var(--text-2); font-family: 'JetBrains Mono'; font-size: 12px;">[ Gráfico ]</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 600; color: var(--success);">+0.10%</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-size: 12px; color: var(--text-3); font-family: 'DM Sans';">hace 2 min</span>
+                </td>
+              </tr>
+              <!-- ARS Row -->
+              <tr class="table-row-hover" style="border-bottom: none;">
+                <td style="padding: 18px 20px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 22px; line-height: 1;">🇦🇷</span>
+                    <div>
+                      <div style="font-weight: 700; color: var(--text); font-family: 'JetBrains Mono'; font-size: 14px;">ARS</div>
+                      <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans'; margin-top: 1px;">Peso Argentino</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">7,60</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 15px; font-weight: 500; color: var(--text);">8,20</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="color: var(--text-2); font-family: 'JetBrains Mono'; font-size: 12px;">[ Gráfico ]</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 600; color: var(--danger);">-1.20%</span>
+                </td>
+                <td style="padding: 18px 20px; text-align: right;">
+                  <span style="font-size: 12px; color: var(--text-3); font-family: 'DM Sans';">hace 30 min</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span style="font-size: 12px; color: var(--text-3); font-family: 'DM Sans';">
+            Datos actualizados al 31/08/2026 · 10:24 h
+          </span>
+          <a href="#" class="ge-btn-ghost" style="font-size: 13px;">Ver histórico →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Conversor ── -->
+  <section id="conversor" style="padding: clamp(64px,8vw,96px) clamp(24px,6vw,80px); background: var(--bg-alt);">
+    <div class="reveal">
+      <div style="max-width: 1140px; margin: 0 auto; display: grid; grid-template-columns: 35fr 65fr; gap: clamp(32px,5vw,80px); align-items: center;">
+        <!-- Left: description -->
+        <div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">
+            HERRAMIENTA PÚBLICA
+          </div>
+          <h2 class="font-display" style="font-size: clamp(28px, 3vw, 42px); font-weight: 500; color: var(--text); line-height: 1.1; letter-spacing: -0.02em;">
+            Conversor de Monedas
+          </h2>
+          <p style="margin-top: 12px; font-size: 15px; line-height: 1.75; color: var(--text-2); font-family: 'DM Sans';">
+            Simula la conversión entre divisas usando las tasas actualizadas
+            del mercado. Disponible para todos, sin necesidad de registro.
+          </p>
+          <div style="margin-top: 28px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; align-items: center; gap: 12px; font-family: 'DM Sans'; font-size: 14px; color: var(--text-2);">
+              <span style="font-size: 16px; width: 24px; text-align: center;">⚡</span>
+              Tasas actualizadas en tiempo real
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; font-family: 'DM Sans'; font-size: 14px; color: var(--text-2);">
+              <span style="font-size: 16px; width: 24px; text-align: center;">🔓</span>
+              Acceso libre, sin inicio de sesión
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; font-family: 'DM Sans'; font-size: 14px; color: var(--text-2);">
+              <span style="font-size: 16px; width: 24px; text-align: center;">🌎</span>
+              USD, EUR, BRL, ARS y PYG
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; font-family: 'DM Sans'; font-size: 14px; color: var(--text-2);">
+              <span style="font-size: 16px; width: 24px; text-align: center;">📊</span>
+              Solo simulación — no genera transacciones
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Converter widget -->
+        <div class="ge-card" style="padding: 32px;">
+          <!-- From -->
+          <div style="margin-bottom: 8px;">
+            <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.12em; margin-bottom: 10px; font-family: 'DM Sans';">
+              TÚ ENTREGAS
+            </label>
+            <div style="display: flex; gap: 10px;">
+              <input
+                type="text"
+                inputmode="decimal"
+                id="conv-amount"
+                value="1000"
+                class="ge-input"
+                style="font-family: 'JetBrains Mono'; font-size: 26px; font-weight: 600; padding: 14px 18px; flex: 1;"
+                placeholder="0"
+              />
+              <select
+                id="conv-from"
+                class="ge-input"
+                style="width: auto; padding-right: 36px; font-weight: 700; cursor: pointer; flex-shrink: 0; font-size: 15px;"
+              >
+                <option value="USD" selected>🇺🇸 USD</option>
+                <option value="EUR">🇪🇺 EUR</option>
+                <option value="BRL">🇧🇷 BRL</option>
+                <option value="ARS">🇦🇷 ARS</option>
+                <option value="PYG">🇵🇾 PYG</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Swap button -->
+          <div style="display: flex; align-items: center; gap: 14px; margin: 20px 0;">
+            <div style="flex: 1; height: 1px; background: var(--border);"></div>
+            <button
+              id="conv-swap"
+              style="
+                width: 44px; height: 44px; border-radius: 50%;
+                background: var(--primary); border: none;
+                display: flex; align-items: center; justify-content: center;
+                cursor: pointer; color: #fff; font-size: 18px;
+                transition: transform 0.32s ease, box-shadow 0.2s;
+                flex-shrink: 0;
+                box-shadow: 0 2px 12px rgba(59,91,255,0.25);
+              "
+              title="Intercambiar monedas"
+            >
+              ⇄
+            </button>
+            <div style="flex: 1; height: 1px; background: var(--border);"></div>
+          </div>
+
+          <!-- To -->
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.12em; margin-bottom: 10px; font-family: 'DM Sans';">
+              RECIBES APROXIMADAMENTE
+            </label>
+            <div style="display: flex; gap: 10px;">
+              <div id="conv-result" class="ge-input" style="
+                flex: 1; font-family: 'JetBrains Mono'; font-size: 26px; font-weight: 600;
+                padding: 14px 18px; background: var(--bg-alt); cursor: default;
+                color: var(--primary); display: flex; align-items: center;
+              ">
+                7.480.000
+              </div>
+              <select
+                id="conv-to"
+                class="ge-input"
+                style="width: auto; padding-right: 36px; font-weight: 700; cursor: pointer; flex-shrink: 0; font-size: 15px;"
+              >
+                <option value="USD">🇺🇸 USD</option>
+                <option value="EUR">🇪🇺 EUR</option>
+                <option value="BRL">🇧🇷 BRL</option>
+                <option value="ARS">🇦🇷 ARS</option>
+                <option value="PYG" selected>🇵🇾 PYG</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Rate info -->
+          <div style="
+            background: var(--surface-2); border-radius: 10px; padding: 14px 18px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+          ">
+            <div>
+              <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Tipo de cambio aplicado</div>
+              <div id="conv-rate" style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono'; margin-top: 3px;">
+                1 USD = 7.480 PYG
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Última actualización</div>
+              <div style="font-size: 12px; color: var(--text-2); font-family: 'DM Sans'; margin-top: 3px;">31/08/2026 · 10:24</div>
+            </div>
+          </div>
+
+          <!-- Simulation note -->
+          <div style="
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 14px; border-radius: 8px;
+            background: rgba(59,91,255,0.08); border: 1px solid rgba(59,91,255,0.15);
+            font-size: 12px; color: var(--primary); font-family: 'DM Sans';
+          ">
+            <span style="opacity: 0.7;">ℹ</span>
+            Simulación gratuita · No genera ninguna transacción ni compromiso.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Cómo funciona ── -->
+  <section style="padding: clamp(64px,8vw,96px) clamp(24px,6vw,80px); background: var(--bg);">
+    <div class="reveal">
+      <div style="max-width: 1100px; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 64px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">
+            PROCESO
+          </div>
+          <h2 class="font-display" style="font-size: clamp(28px, 3vw, 42px); font-weight: 500; color: var(--text); letter-spacing: -0.02em;">
+            Cómo funciona Global Exchange
+          </h2>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;">
+          <div style="position: relative;">
+            <div style="font-size: clamp(36px, 4vw, 52px); font-family: 'Fraunces', serif; font-weight: 700; color: var(--primary); opacity: 0.15; line-height: 1; margin-bottom: 16px; letter-spacing: -0.04em;">01</div>
+            <div style="width: 40px; height: 2px; background: var(--primary); margin-bottom: 16px; opacity: 0.6;"></div>
+            <h3 style="font-size: 16px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 10px;">Consulta la cotización</h3>
+            <p style="font-size: 14px; line-height: 1.65; color: var(--text-2); font-family: 'DM Sans';">Revisa las tasas del día actualizadas en tiempo real para las divisas que necesitas.</p>
+          </div>
+          <div style="position: relative;">
+            <div style="font-size: clamp(36px, 4vw, 52px); font-family: 'Fraunces', serif; font-weight: 700; color: var(--primary); opacity: 0.15; line-height: 1; margin-bottom: 16px; letter-spacing: -0.04em;">02</div>
+            <div style="width: 40px; height: 2px; background: var(--primary); margin-bottom: 16px; opacity: 0.6;"></div>
+            <h3 style="font-size: 16px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 10px;">Simula tu conversión</h3>
+            <p style="font-size: 14px; line-height: 1.65; color: var(--text-2); font-family: 'DM Sans';">Usa nuestro conversor para estimar cuánto recibirás antes de confirmar cualquier operación.</p>
+          </div>
+          <div style="position: relative;">
+            <div style="font-size: clamp(36px, 4vw, 52px); font-family: 'Fraunces', serif; font-weight: 700; color: var(--primary); opacity: 0.15; line-height: 1; margin-bottom: 16px; letter-spacing: -0.04em;">03</div>
+            <div style="width: 40px; height: 2px; background: var(--primary); margin-bottom: 16px; opacity: 0.6;"></div>
+            <h3 style="font-size: 16px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 10px;">Confirma tu operación</h3>
+            <p style="font-size: 14px; line-height: 1.65; color: var(--text-2); font-family: 'DM Sans';">Elige el medio de pago, revisa el resumen y confirma la operación con un solo clic.</p>
+          </div>
+          <div style="position: relative;">
+            <div style="font-size: clamp(36px, 4vw, 52px); font-family: 'Fraunces', serif; font-weight: 700; color: var(--primary); opacity: 0.15; line-height: 1; margin-bottom: 16px; letter-spacing: -0.04em;">04</div>
+            <div style="width: 40px; height: 2px; background: var(--primary); margin-bottom: 16px; opacity: 0.6;"></div>
+            <h3 style="font-size: 16px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 10px;">Recibe la confirmación</h3>
+            <p style="font-size: 14px; line-height: 1.65; color: var(--text-2); font-family: 'DM Sans';">Recibe la confirmación de la operación y accede al comprobante desde tu panel.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Beneficios ── -->
+  <section style="padding: clamp(64px,8vw,96px) clamp(24px,6vw,80px); background: var(--bg-alt);">
+    <div class="reveal">
+      <div style="max-width: 1100px; margin: 0 auto;">
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 80px; align-items: start;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">
+              VENTAJAS
+            </div>
+            <h2 class="font-display" style="font-size: clamp(28px, 3vw, 42px); font-weight: 500; color: var(--text); line-height: 1.1; letter-spacing: -0.02em;">
+              Por qué elegir Global Exchange
+            </h2>
+            <div style="width: 40px; height: 2px; background: var(--primary); margin: 24px 0;"></div>
+            <p style="font-size: 14px; line-height: 1.7; color: var(--text-2); font-family: 'DM Sans';">
+              Décadas de experiencia en el mercado cambiario paraguayo, respaldadas por tecnología de vanguardia.
+            </p>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border);">
+            <div style="background: var(--surface); padding: 28px 24px;">
+              <div style="font-size: 24px; margin-bottom: 12px;">📊</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 6px;">Cotizaciones actualizadas</div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Tasas del mercado actualizadas continuamente a lo largo del día.</div>
+            </div>
+            <div style="background: var(--surface); padding: 28px 24px;">
+              <div style="font-size: 24px; margin-bottom: 12px;">🔐</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 6px;">Operaciones seguras</div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Autenticación robusta, control de acceso por roles y trazabilidad completa.</div>
+            </div>
+            <div style="background: var(--surface); padding: 28px 24px;">
+              <div style="font-size: 24px; margin-bottom: 12px;">📋</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 6px;">Historial centralizado</div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Accede a todas tus transacciones, facturas y comprobantes en un solo lugar.</div>
+            </div>
+            <div style="background: var(--surface); padding: 28px 24px;">
+              <div style="font-size: 24px; margin-bottom: 12px;">👤</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 6px;">Atención profesional</div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Soporte especializado con conocimiento cambiario real.</div>
+            </div>
+            <div style="background: var(--surface); padding: 28px 24px;">
+              <div style="font-size: 24px; margin-bottom: 12px;">💡</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 6px;">Información clara</div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Sin comisiones ocultas. Cada operación muestra exactamente lo que recibirás.</div>
+            </div>
+            <div style="background: var(--surface); padding: 28px 24px;">
+              <div style="font-size: 24px; margin-bottom: 12px;">🌐</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 6px;">Multi-moneda</div>
+              <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">USD, EUR, BRL, ARS, PYG — con posibilidad de ampliar el catálogo.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Seguridad ── -->
+  <section id="seguridad" style="padding: clamp(64px,8vw,96px) clamp(24px,6vw,80px); background: var(--bg);">
+    <div class="reveal">
+      <div style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;">
+        <div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">
+            CONFIANZA
+          </div>
+          <h2 class="font-display" style="font-size: clamp(28px, 3vw, 42px); font-weight: 500; color: var(--text); line-height: 1.1; letter-spacing: -0.02em;">
+            Tu seguridad es nuestra prioridad
+          </h2>
+          <p style="margin-top: 16px; font-size: 15px; line-height: 1.7; color: var(--text-2); font-family: 'DM Sans';">
+            Cada operación en Global Exchange está respaldada por múltiples capas de seguridad
+            y un sistema de trazabilidad completo.
+          </p>
+          <div style="margin-top: 36px; display: flex; flex-direction: column; gap: 24px;">
+            <div style="display: flex; gap: 16px;">
+              <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-muted); border: 1px solid rgba(59,91,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">🔑</div>
+              <div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 4px;">Autenticación segura</div>
+                <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Sistema de identidad robusto con verificación en múltiples pasos.</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 16px;">
+              <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-muted); border: 1px solid rgba(59,91,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">🎭</div>
+              <div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 4px;">Roles y permisos</div>
+                <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Cada usuario accede únicamente a las funciones correspondientes a su rol.</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 16px;">
+              <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-muted); border: 1px solid rgba(59,91,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">✅</div>
+              <div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 4px;">Confirmación de operaciones</div>
+                <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Ninguna operación se registra sin una confirmación explícita del usuario.</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 16px;">
+              <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-muted); border: 1px solid rgba(59,91,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">📝</div>
+              <div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'DM Sans'; margin-bottom: 4px;">Trazabilidad completa</div>
+                <div style="font-size: 13px; line-height: 1.6; color: var(--text-2); font-family: 'DM Sans';">Historial auditado de cada acción realizada en el sistema.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ge-card" style="padding: 32px; position: relative; overflow: hidden;">
+          <div style="position: absolute; top: -40px; right: -40px; width: 180px; height: 180px; border-radius: 50%; background: var(--primary-muted); opacity: 0.5;"></div>
+          <div style="position: relative;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-3); letter-spacing: 0.1em; font-family: 'DM Sans'; margin-bottom: 20px;">
+              ESTADO DEL SISTEMA
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);">
+              <span style="font-size: 13px; color: var(--text-2); font-family: 'DM Sans';">Autenticación</span>
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--success); font-family: 'DM Sans';">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block;"></span>
+                Operativo
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);">
+              <span style="font-size: 13px; color: var(--text-2); font-family: 'DM Sans';">API de tasas</span>
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--success); font-family: 'DM Sans';">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block;"></span>
+                Operativo
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);">
+              <span style="font-size: 13px; color: var(--text-2); font-family: 'DM Sans';">Procesamiento de órdenes</span>
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--success); font-family: 'DM Sans';">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block;"></span>
+                Operativo
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);">
+              <span style="font-size: 13px; color: var(--text-2); font-family: 'DM Sans';">Facturación electrónica</span>
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--success); font-family: 'DM Sans';">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block;"></span>
+                Operativo
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);">
+              <span style="font-size: 13px; color: var(--text-2); font-family: 'DM Sans';">Notificaciones</span>
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--success); font-family: 'DM Sans';">
+                <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block;"></span>
+                Operativo
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Monedas disponibles ── -->
+  <section style="padding: clamp(56px,7vw,80px) clamp(24px,6vw,80px); background: var(--bg-alt);">
+    <div class="reveal">
+      <div style="max-width: 1100px; margin: 0 auto; text-align: center;">
+        <div style="font-size: 11px; font-weight: 700; color: var(--primary); letter-spacing: 0.12em; font-family: 'DM Sans'; margin-bottom: 8px;">
+          CATÁLOGO
+        </div>
+        <h2 class="font-display" style="font-size: clamp(24px, 2.5vw, 36px); font-weight: 500; color: var(--text); letter-spacing: -0.02em; margin-bottom: 48px;">
+          Monedas disponibles
+        </h2>
+        <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+          <div class="ge-card" style="padding: 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 130px;">
+            <span style="font-size: 32px;">🇺🇸</span>
+            <div style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 15px; color: var(--text);">USD</div>
+            <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Dólar Estadounidense</div>
+          </div>
+          <div class="ge-card" style="padding: 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 130px;">
+            <span style="font-size: 32px;">🇪🇺</span>
+            <div style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 15px; color: var(--text);">EUR</div>
+            <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Euro</div>
+          </div>
+          <div class="ge-card" style="padding: 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 130px;">
+            <span style="font-size: 32px;">🇧🇷</span>
+            <div style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 15px; color: var(--text);">BRL</div>
+            <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Real Brasileño</div>
+          </div>
+          <div class="ge-card" style="padding: 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 130px;">
+            <span style="font-size: 32px;">🇦🇷</span>
+            <div style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 15px; color: var(--text);">ARS</div>
+            <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Peso Argentino</div>
+          </div>
+          <div class="ge-card" style="padding: 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 130px;">
+            <span style="font-size: 32px;">🇵🇾</span>
+            <div style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 15px; color: var(--text);">PYG</div>
+            <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Guaraní</div>
+          </div>
+          <div class="ge-card" style="padding: 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 130px; border: 1px dashed var(--border);">
+            <span style="font-size: 32px; opacity: 0.4;">+</span>
+            <div style="font-family: 'DM Sans'; font-weight: 600; font-size: 13px; color: var(--text-3);">Próximamente</div>
+            <div style="font-size: 11px; color: var(--text-3); font-family: 'DM Sans';">Más monedas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

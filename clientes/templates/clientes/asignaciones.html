@@ -1,12 +1,43 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Usuarios de {{ cliente.nombre_razon_social }} · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace"><div class="content-narrow">
-  <header class="workspace-header workspace-header-stacked"><div class="page-intro"><a class="back-link" href="{% url 'consultar_clientes' %}">← Volver a clientes</a><h1>Usuarios asignados</h1><p>Definí quiénes pueden trabajar con {{ cliente.nombre_razon_social }} y con qué alcance.</p></div></header>
-  {% if api_error %}<div class="message error inline-message">{{ api_error }}</div>{% endif %}
-  <div class="assignment-layout">
-    <div class="form-surface"><h2>Asignar usuario</h2><form class="clean-form" method="post">{% csrf_token %}{% include 'clientes/partials/form_fields.html' with form=form %}<button class="button button-dark button-block" type="submit"><span class="material-symbols" aria-hidden="true">person_add</span>Guardar asignación</button></form></div>
-    <div class="assignment-list surface"><div><h2>Accesos vigentes</h2><span>{{ asignaciones|length }}</span></div>{% for asignacion in asignaciones %}<article><span class="material-symbols" aria-hidden="true">account_circle</span><span><strong>{{ asignacion.username }}</strong><small>{{ asignacion.get_rol_en_cliente_display }}</small></span><form method="post" action="{% url 'quitar_asignacion_cliente' cliente.id asignacion.id %}" data-confirm="¿Quitar este usuario del cliente?">{% csrf_token %}<button class="table-action danger" type="submit" aria-label="Quitar asignación" title="Quitar asignación" data-tooltip="Quitar asignación"><span class="material-symbols" aria-hidden="true">person_remove</span></button></form></article>{% empty %}<p class="no-assignments">Este cliente todavía no tiene usuarios asignados.</p>{% endfor %}</div>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-back-row">
+      <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">← Volver a clientes</a>
+      <h1 class="ge-title-h2">Usuarios asignados</h1>
+    </div>
+    <p style="font-size: 13px; color: var(--text-2); margin: -16px 0 24px 68px">Definí quiénes pueden trabajar con {{ cliente.nombre_razon_social }} y con qué alcance.</p>
+    {% if api_error %}<div class="ge-error-banner">{{ api_error }}</div>{% endif %}
+    <div class="ge-grid-2">
+      <div class="ge-card ge-card--pad24">
+        <div class="ge-card-title" style="margin-bottom: 16px">Asignar usuario</div>
+        <form method="post" novalidate>{% csrf_token %}
+          {% include 'clientes/partials/form_fields.html' with form=form %}
+          <button class="ge-btn-primary" type="submit" style="width: 100%">Guardar asignación</button>
+        </form>
+      </div>
+      <div class="ge-card ge-card--pad24">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px">
+          <div class="ge-card-title">Accesos vigentes</div>
+          <span class="ge-pill">{{ asignaciones|length }}</span>
+        </div>
+        {% for asignacion in asignaciones %}
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle)">
+          <span class="ge-avatar ge-avatar--sm">{{ asignacion.username|first|upper }}</span>
+          <div style="flex: 1">
+            <strong style="color: var(--text); font-size: 14px; display: block">{{ asignacion.username }}</strong>
+            <small style="color: var(--text-3); font-size: 12px">{{ asignacion.get_rol_en_cliente_display }}</small>
+          </div>
+          <form method="post" action="{% url 'quitar_asignacion_cliente' cliente.id asignacion.id %}" data-confirm="¿Quitar este usuario del cliente?">{% csrf_token %}
+            <button class="ge-btn-ghost ge-btn-ghost--danger ge-btn-xs" type="submit">Quitar</button>
+          </form>
+        </div>
+        {% empty %}
+        <p style="color: var(--text-3); font-size: 13px; padding: 16px 0">Este cliente todavía no tiene usuarios asignados.</p>
+        {% endfor %}
+      </div>
+    </div>
   </div>
-</div></section>
+</div>
 {% endblock %}
