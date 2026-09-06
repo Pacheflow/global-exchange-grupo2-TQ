@@ -19,6 +19,11 @@ class MonedaBackendTests(TestCase):
     Pruebas de Backend para HU-36 - Configurar Monedas.
     """
 
+    def setUp(self):
+        # Los casos CRUD necesitan un catálogo vacío; la migración de datos
+        # iniciales se valida por separado en MonedasInicialesTests.
+        Moneda.objects.all().delete()
+
     def autenticar(self, roles=None):
         """
         Crea una sesión OIDC válida para las pruebas.
@@ -420,4 +425,20 @@ class MonedaBackendTests(TestCase):
         self.assertEqual(
             response.json()["error"],
             "No fue posible actualizar la moneda.",
+        )
+
+
+class MonedasInicialesTests(TestCase):
+    """Comprueba el catálogo mínimo instalado por la migración de datos."""
+
+    def test_migracion_carga_las_cinco_monedas_activas(self):
+        self.assertEqual(
+            set(Moneda.objects.values_list("codigo", "estado")),
+            {
+                ("USD", "ACTIVA"),
+                ("PYG", "ACTIVA"),
+                ("BRL", "ACTIVA"),
+                ("EUR", "ACTIVA"),
+                ("ARS", "ACTIVA"),
+            },
         )
