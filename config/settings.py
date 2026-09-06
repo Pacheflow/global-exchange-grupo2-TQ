@@ -9,17 +9,32 @@ https://docs.djangoproject.com/en/6.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
+
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
+
 load_dotenv()
 
-DJANGO_ENVIRONMENT = os.getenv("DJANGO_ENVIRONMENT", "development").lower()
+DJANGO_ENVIRONMENT = os.getenv(
+    "DJANGO_ENVIRONMENT",
+    "development",
+).lower()
+
+
+# ------------------------------------------------------------------
+# Keycloak / OIDC
+# ------------------------------------------------------------------
 
 KEYCLOAK_PUBLIC_URL = os.getenv(
     "KEYCLOAK_PUBLIC_URL",
-    os.getenv("KEYCLOAK_SERVER_URL", "http://localhost:8080"),
+    os.getenv(
+        "KEYCLOAK_SERVER_URL",
+        "http://localhost:8080",
+    ),
 ).rstrip("/")
 
 # Alias temporal para conservar compatibilidad con configuraciones existentes.
@@ -41,10 +56,13 @@ KEYCLOAK_CLIENT_ID = os.getenv(
 )
 
 KEYCLOAK_ADMIN_CLIENT_ID = os.getenv(
-    "KEYCLOAK_ADMIN_CLIENT_ID", "global-exchange-admin-api"
+    "KEYCLOAK_ADMIN_CLIENT_ID",
+    "global-exchange-admin-api",
 )
+
 KEYCLOAK_ADMIN_CLIENT_SECRET = os.getenv(
-    "KEYCLOAK_ADMIN_CLIENT_SECRET", "global-exchange-admin-dev-secret"
+    "KEYCLOAK_ADMIN_CLIENT_SECRET",
+    "global-exchange-admin-dev-secret",
 )
 
 KEYCLOAK_EXPECTED_ISSUER = os.getenv(
@@ -62,78 +80,169 @@ OIDC_CALLBACK_URL = os.getenv(
     f"{BACKEND_PUBLIC_URL}/callback/",
 )
 
-# Destinos fijos y opcionales para el frontend separado. Mientras estén vacíos,
-# el callback responde JSON y nunca acepta destinos arbitrarios del navegador.
-FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
-OIDC_LOGIN_SUCCESS_URL = os.getenv("OIDC_LOGIN_SUCCESS_URL", "")
-OIDC_REGISTRATION_SUCCESS_URL = os.getenv("OIDC_REGISTRATION_SUCCESS_URL", "")
-OIDC_ERROR_URL = os.getenv("OIDC_ERROR_URL", "")
-OIDC_FLOW_MAX_AGE_SECONDS = int(os.getenv("OIDC_FLOW_MAX_AGE_SECONDS", "600"))
+# Destinos fijos y opcionales para el frontend separado.
+# Mientras estén vacíos, el callback responde JSON y nunca
+# acepta destinos arbitrarios del navegador.
+FRONTEND_BASE_URL = os.getenv(
+    "FRONTEND_BASE_URL",
+    "http://localhost:3000",
+).rstrip("/")
 
-# Proveedor externo de tasas de referencia (HU-17). La URL debe conservar el
-# marcador ``__BASE__``, reemplazado por el código de la moneda base configurada.
+OIDC_LOGIN_SUCCESS_URL = os.getenv(
+    "OIDC_LOGIN_SUCCESS_URL",
+    "",
+)
+
+OIDC_REGISTRATION_SUCCESS_URL = os.getenv(
+    "OIDC_REGISTRATION_SUCCESS_URL",
+    "",
+)
+
+OIDC_ERROR_URL = os.getenv(
+    "OIDC_ERROR_URL",
+    "",
+)
+
+OIDC_FLOW_MAX_AGE_SECONDS = int(
+    os.getenv(
+        "OIDC_FLOW_MAX_AGE_SECONDS",
+        "600",
+    )
+)
+
+
+# ------------------------------------------------------------------
+# HU-17 - Proveedor externo de tasas de referencia
+# ------------------------------------------------------------------
+
+# La URL debe conservar el marcador __BASE__,
+# reemplazado por el código de la moneda base configurada.
 TASAS_PROVIDER_URL = os.getenv(
     "TASAS_PROVIDER_URL",
     "https://open.er-api.com/v6/latest/__BASE__",
 )
-TASAS_PROVIDER_API_KEY = os.getenv("TASAS_PROVIDER_API_KEY", "")
-TASAS_PROVIDER_TIMEOUT = float(os.getenv("TASAS_PROVIDER_TIMEOUT", "5"))
-TASAS_PROVIDER_NAME = os.getenv("TASAS_PROVIDER_NAME", "ExchangeRate-API")
-TASAS_BASE_CURRENCY = os.getenv("TASAS_BASE_CURRENCY", "USD").strip().upper()
-TASAS_VALIDITY_SECONDS = int(os.getenv("TASAS_VALIDITY_SECONDS", "86400"))
 
-# Cookies de sesión preparadas para un frontend separado. Los valores seguros
-# para HTTPS pueden activarse por entorno sin habilitar CORS en esta etapa.
-SESSION_COOKIE_HTTPONLY = os.getenv("SESSION_COOKIE_HTTPONLY", "true").lower() in {
+TASAS_PROVIDER_API_KEY = os.getenv(
+    "TASAS_PROVIDER_API_KEY",
+    "",
+)
+
+TASAS_PROVIDER_TIMEOUT = float(
+    os.getenv(
+        "TASAS_PROVIDER_TIMEOUT",
+        "5",
+    )
+)
+
+TASAS_PROVIDER_NAME = os.getenv(
+    "TASAS_PROVIDER_NAME",
+    "ExchangeRate-API",
+)
+
+TASAS_BASE_CURRENCY = os.getenv(
+    "TASAS_BASE_CURRENCY",
+    "USD",
+).strip().upper()
+
+TASAS_VALIDITY_SECONDS = int(
+    os.getenv(
+        "TASAS_VALIDITY_SECONDS",
+        "86400",
+    )
+)
+
+
+# ------------------------------------------------------------------
+# Sesión / Cookies
+# ------------------------------------------------------------------
+
+SESSION_COOKIE_HTTPONLY = os.getenv(
+    "SESSION_COOKIE_HTTPONLY",
+    "true",
+).lower() in {
     "1",
     "true",
     "yes",
 }
-SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() in {
-    "1",
-    "true",
-    "yes",
-}
-SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
-CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "false").lower() in {
+
+SESSION_COOKIE_SECURE = os.getenv(
+    "SESSION_COOKIE_SECURE",
+    "false",
+).lower() in {
     "1",
     "true",
     "yes",
 }
 
-from pathlib import Path
+SESSION_COOKIE_SAMESITE = os.getenv(
+    "SESSION_COOKIE_SAMESITE",
+    "Lax",
+)
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+CSRF_COOKIE_SECURE = os.getenv(
+    "CSRF_COOKIE_SECURE",
+    "false",
+).lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
+# ------------------------------------------------------------------
+# Paths
+# ------------------------------------------------------------------
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+# ------------------------------------------------------------------
+# Seguridad
+# ------------------------------------------------------------------
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-dev-only-change-me")
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-dev-only-change-me",
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes"}
+DEBUG = os.getenv(
+    "DJANGO_DEBUG",
+    "true",
+).lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv(
-    "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1"
-).split(",") if host.strip()]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "DJANGO_ALLOWED_HOSTS",
+        "localhost,127.0.0.1",
+    ).split(",")
+    if host.strip()
+]
 
 if DJANGO_ENVIRONMENT == "production":
     if SECRET_KEY == "django-dev-only-change-me":
         raise ImproperlyConfigured(
             "DJANGO_SECRET_KEY debe configurarse para produccion."
         )
+
     if DEBUG:
-        raise ImproperlyConfigured("DJANGO_DEBUG debe ser false en produccion.")
+        raise ImproperlyConfigured(
+            "DJANGO_DEBUG debe ser false en produccion."
+        )
+
     if not ALLOWED_HOSTS:
         raise ImproperlyConfigured(
             "DJANGO_ALLOWED_HOSTS debe configurarse para produccion."
         )
 
 
-# Application definition
+# ------------------------------------------------------------------
+# Aplicaciones
+# ------------------------------------------------------------------
 
 INSTALLED_APPS = [
     "material",
@@ -151,38 +260,53 @@ INSTALLED_APPS = [
     "metodos_pago",
 ]
 
+
+# ------------------------------------------------------------------
+# Middleware
+# ------------------------------------------------------------------
+
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'config.urls'
+
+ROOT_URLCONF = "config.urls"
+
+
+# ------------------------------------------------------------------
+# Templates
+# ------------------------------------------------------------------
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / "templates"],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [
+            BASE_DIR / "templates"
+        ],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'config.wsgi.application'
+
+WSGI_APPLICATION = "config.wsgi.application"
 
 
-# Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
+# ------------------------------------------------------------------
+# Base de datos
+# ------------------------------------------------------------------
 
 DATABASES = {
     "default": {
@@ -196,98 +320,174 @@ DATABASES = {
 }
 
 
-# Password validation
-# https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
+# ------------------------------------------------------------------
+# Validación de contraseñas
+# ------------------------------------------------------------------
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "MinimumLengthValidator"
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "CommonPasswordValidator"
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "NumericPasswordValidator"
+        ),
     },
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/6.1/topics/i18n/
+# ------------------------------------------------------------------
+# Internacionalización
+# ------------------------------------------------------------------
 
-LANGUAGE_CODE = 'es'
+LANGUAGE_CODE = "es"
 
-TIME_ZONE = 'America/Asuncion'
+TIME_ZONE = "America/Asuncion"
 
 USE_I18N = True
 
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.1/howto/static-files/
+# ------------------------------------------------------------------
+# Archivos estáticos
+# ------------------------------------------------------------------
 
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_URL = "static/"
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static"
+]
+
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+
 if DJANGO_ENVIRONMENT == "production":
-    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+    MIDDLEWARE.insert(
+        1,
+        "whitenoise.middleware.WhiteNoiseMiddleware",
+    )
+
     STORAGES = {
         "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "BACKEND": (
+                "django.core.files.storage."
+                "FileSystemStorage"
+            ),
         },
         "staticfiles": {
             "BACKEND": (
-                "whitenoise.storage.CompressedManifestStaticFilesStorage"
+                "whitenoise.storage."
+                "CompressedManifestStaticFilesStorage"
             ),
         },
     }
+
     CSRF_TRUSTED_ORIGINS = [
         origin.strip()
-        for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+        for origin in os.getenv(
+            "DJANGO_CSRF_TRUSTED_ORIGINS",
+            "",
+        ).split(",")
         if origin.strip()
     ]
+
     SECURE_SSL_REDIRECT = os.getenv(
-        "DJANGO_SECURE_SSL_REDIRECT", "false"
-    ).lower() in {"1", "true", "yes"}
-    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "0"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
-    SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
+        "DJANGO_SECURE_SSL_REDIRECT",
+        "false",
+    ).lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+    SECURE_HSTS_SECONDS = int(
+        os.getenv(
+            "DJANGO_SECURE_HSTS_SECONDS",
+            "0",
+        )
+    )
+
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = (
+        SECURE_HSTS_SECONDS > 0
+    )
+
+    SECURE_HSTS_PRELOAD = (
+        SECURE_HSTS_SECONDS > 0
+    )
+
     SECURE_CONTENT_TYPE_NOSNIFF = True
+
     SECURE_REFERRER_POLICY = "same-origin"
+
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,
         "handlers": {
-            "console": {"class": "logging.StreamHandler"},
+            "console": {
+                "class": "logging.StreamHandler"
+            },
         },
         "root": {
-            "handlers": ["console"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "handlers": [
+                "console"
+            ],
+            "level": os.getenv(
+                "DJANGO_LOG_LEVEL",
+                "INFO",
+            ),
         },
     }
 
 
+# ------------------------------------------------------------------
 # Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+# ------------------------------------------------------------------
 
 MAILERS = {
-    'default': {
-        'BACKEND': (
-            'django.core.mail.backends.smtp.EmailBackend'
+    "default": {
+        "BACKEND": (
+            "django.core.mail.backends.smtp.EmailBackend"
             if DJANGO_ENVIRONMENT == "production"
-            else 'django.core.mail.backends.console.EmailBackend'
+            else "django.core.mail.backends.console.EmailBackend"
         ),
-        'OPTIONS': (
+        "OPTIONS": (
             {
-                'host': os.getenv("EMAIL_HOST", "mailpit"),
-                'port': int(os.getenv("EMAIL_PORT", "1025")),
-                'use_tls': os.getenv("EMAIL_USE_TLS", "false").lower()
-                in {"1", "true", "yes"},
+                "host": os.getenv(
+                    "EMAIL_HOST",
+                    "mailpit",
+                ),
+                "port": int(
+                    os.getenv(
+                        "EMAIL_PORT",
+                        "1025",
+                    )
+                ),
+                "use_tls": os.getenv(
+                    "EMAIL_USE_TLS",
+                    "false",
+                ).lower()
+                in {
+                    "1",
+                    "true",
+                    "yes",
+                },
             }
             if DJANGO_ENVIRONMENT == "production"
             else {}
@@ -295,7 +495,9 @@ MAILERS = {
     },
 }
 
+
 if DJANGO_ENVIRONMENT == "production":
     DEFAULT_FROM_EMAIL = os.getenv(
-        "DEFAULT_FROM_EMAIL", "noreply@globalexchange.local"
+        "DEFAULT_FROM_EMAIL",
+        "noreply@globalexchange.local",
     )
