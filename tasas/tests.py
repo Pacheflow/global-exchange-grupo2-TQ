@@ -19,6 +19,7 @@ class TasaComercialTests(TestCase):
     """Pruebas de HU-21 - Administrar tasas comerciales."""
 
     def setUp(self):
+        Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(
             codigo="USD",
             nombre="Dólar estadounidense",
