@@ -10,7 +10,7 @@
 
 **Sprint:** 2 — Hito 4
 
-**Rama:** `feature/hu-17-consultar-visualizar-tasas`
+**Integración:** backend selectivo sobre `frontend-integration`
 
 **Tecnologías:** Django 6.1, PostgreSQL 17, Requests, Docker y unittest/mock
 
@@ -40,7 +40,7 @@ No forma parte de HU-17 la edición de tasas comerciales. Esa responsabilidad co
 ## 3. Arquitectura y flujo técnico
 
 ```text
-GET /tasas/
+GET /api/tasas/
   -> autenticación OIDC
   -> servicio consultar_tasas_referencia
   -> catálogo de monedas activas (HU-36)
@@ -70,8 +70,9 @@ tasas/
 |-- views.py                     Contrato HTTP/JSON
 |-- urls.py                      Ruta pública del módulo
 |-- admin.py                     Inspección administrativa
-|-- tests.py                     Pruebas con mocks e integración
-`-- migrations/0001_initial.py   Esquema PostgreSQL
+|-- test_reference_rates.py      Pruebas HU-17 con mocks e integración
+|-- test_simulator.py            Pruebas HU-19 del simulador
+`-- migrations/0001_initial.py        Esquema (ConsultaProveedorTasas, TasaReferencia)
 ```
 
 ### 3.2 Responsabilidad de cada capa
@@ -143,7 +144,7 @@ No se deben versionar credenciales reales. Deben declararse en `.env`.
 ### 7.1 Solicitud
 
 ```http
-GET /tasas/
+GET /api/tasas/
 Cookie: sessionid=...
 ```
 
@@ -231,15 +232,16 @@ docker compose exec web python manage.py test tasas
 
 Las pruebas usan mocks y no dependen de Internet. Cubren normalización, éxito, timeout, HTTP inválido, JSON inválido/incompleto, valores inválidos, persistencia, actualización, fallback, ausencia de datos, moneda base inactiva, catálogo vacío, autenticación y respuesta del endpoint.
 
-Resultados obtenidos durante la implementación:
+Resultados obtenidos durante la integración selectiva:
 
 | Verificación | Resultado |
 |---|---|
 | Pruebas específicas de HU-17 | 16 aprobadas |
-| Regresión completa del proyecto | 127 aprobadas |
+| Pruebas completas del módulo `tasas` | 39 aprobadas |
+| Regresión completa del proyecto | 197 aprobadas y 2 fallos ajenos a `tasas`, en módulos protegidos preexistentes |
 | `manage.py check` | Sin observaciones |
 | `makemigrations --check --dry-run` | Sin cambios pendientes |
-| Consulta real ExchangeRate-API | Exitosa para EUR, PYG y BRL con base USD |
+| Consulta real ExchangeRate-API | No ejecutada durante la integración; los tests usan mocks |
 
 ## 11. Migración y ejecución
 
@@ -247,7 +249,7 @@ Resultados obtenidos durante la implementación:
 docker compose exec web python manage.py migrate
 ```
 
-La migración incorporada es `tasas/migrations/0001_initial.py`.
+El esquema de HU-17 está incorporado en `tasas/migrations/0001_initial.py` (modelos `ConsultaProveedorTasas` y `TasaReferencia`); `tasas/migrations/0002_tasacomercial.py` cubre el modelo de HU-21.
 
 ## 12. Dependencias y condiciones operativas
 
@@ -271,4 +273,4 @@ Si estas condiciones no se cumplen, el servicio informa el estado correspondient
 
 ## 14. Estado final
 
-El backend correspondiente a Guillermo para HU-17 se encuentra implementado, migrado, documentado y cubierto por pruebas. El contrato está disponible para que el frontend asignado a Axel reemplace las tasas constantes por información real del endpoint.
+El backend correspondiente a Guillermo para HU-17 se encuentra implementado, documentado y cubierto por pruebas. La migración incremental está generada y validada, pendiente de aplicación en la base de desarrollo. El contrato está disponible para que el frontend asignado a Axel reemplace las tasas constantes por información real del endpoint.

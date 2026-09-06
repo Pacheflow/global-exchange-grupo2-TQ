@@ -1,0 +1,55 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Roles y permisos · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad">
+    <div class="ge-frontend-section-head">
+      <div>
+        <span class="ge-frontend-eyebrow">Administración de acceso</span>
+        <h2 class="ge-frontend-h2">Roles / Permisos</h2>
+        <p class="ge-frontend-subtitle">Roles de negocio reconocidos por Global Exchange.</p>
+      </div>
+      <span class="ge-keycloak-chip"><i aria-hidden="true"></i>Gestionado por Keycloak</span>
+    </div>
+
+    {% if api_error %}
+      <div class="ge-error-banner ge-roles-alert" role="alert">
+        <span aria-hidden="true">!</span>
+        <div><strong>No se pudo verificar Keycloak en este momento.</strong><small>{{ api_error }} Los roles definidos por el sistema se muestran como referencia.</small></div>
+      </div>
+    {% endif %}
+
+    <div class="ge-card ge-roles-source">
+      <div class="ge-card-head">
+        <span class="ge-card-title">Fuente de identidad y autorización</span>
+        <span class="ge-count-summary">{{ roles_sistema|length }} roles</span>
+      </div>
+      <p>Los roles se administran en el realm de Keycloak. Global Exchange los obtiene desde la sesión autenticada y valida cada acceso también en el backend. Esta pantalla es informativa y no reemplaza la consola de Keycloak.</p>
+    </div>
+
+    <div class="ge-roles-grid" aria-label="Roles del sistema">
+      {% for role in roles_sistema %}
+        <article class="ge-card ge-role-card">
+          <div class="ge-role-card-head">
+            <span class="ge-role-symbol" aria-hidden="true">{% include 'components/icon.html' with name='roles' size=19 %}</span>
+            {% if api_error %}
+              <span class="ge-role-state ge-role-state--unknown"><i></i>Sin verificar</span>
+            {% elif role.configurado %}
+              <span class="ge-role-state ge-role-state--ready"><i></i>Disponible en Keycloak</span>
+            {% else %}
+              <span class="ge-role-state ge-role-state--missing"><i></i>No detectado</span>
+            {% endif %}
+          </div>
+          <h3>{{ role.codigo }}</h3>
+          <span class="ge-role-name">{{ role.nombre }}</span>
+          <p>{{ role.descripcion }}</p>
+        </article>
+      {% endfor %}
+    </div>
+
+    <div class="ge-roles-note">
+      <strong>Alcance actual</strong>
+      <p>La aplicación utiliza roles de realm. Los permisos granulares, policies y scopes permanecen pendientes y no se simulan desde esta interfaz.</p>
+    </div>
+  </div>
+{% endblock %}

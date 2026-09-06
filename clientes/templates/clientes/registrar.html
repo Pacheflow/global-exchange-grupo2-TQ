@@ -1,11 +1,22 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Nuevo cliente · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace"><div class="content-narrow">
-  <header class="workspace-header workspace-header-stacked"><div class="page-intro"><a class="back-link" href="{% url 'consultar_clientes' %}">← Volver a clientes</a><h1>Nuevo cliente</h1><p>Registrá una persona física o jurídica para comenzar a operar.</p></div></header>
-  <div class="form-surface"><form class="clean-form" method="post" novalidate>{% csrf_token %}
-    {% include 'clientes/partials/form_fields.html' %}
-    <div class="form-buttons"><a class="button button-quiet" href="{% url 'consultar_clientes' %}">Cancelar</a><button class="button button-dark" type="submit"><span class="material-symbols" aria-hidden="true">save</span>Registrar cliente</button></div>
-  </form></div>
-</div></section>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-back-row">
+      <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">← Volver a clientes</a>
+      <h1 class="ge-title-h2">Nuevo cliente</h1>
+    </div>
+    <p style="font-size: 13px; color: var(--text-2); margin: -16px 0 24px 68px">Registrá una persona física o jurídica para comenzar a operar.</p>
+    <div class="ge-card ge-card--pad32" style="max-width: 640px">
+      <form method="post" novalidate>{% csrf_token %}
+        {% include 'clientes/partials/form_fields.html' %}
+        <div class="ge-form-actions">
+          <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">Cancelar</a>
+          <button class="ge-btn-primary" type="submit">Registrar cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

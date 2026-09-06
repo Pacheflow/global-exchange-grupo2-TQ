@@ -1,0 +1,63 @@
+<div class="ge-page-title">
+  <span class="ge-note-label">Mercado</span>
+  <h1 style="margin-top: 6px">Cuentas de monedas</h1>
+</div>
+<div class="ge-currencies-grid">
+  <article class="ge-card ge-currency-card">
+    <div class="ge-currency-head">
+      <div class="ge-currency-id">
+        <span class="ge-currency-flag">US</span>
+        <div><div class="ge-currency-code">USD</div><div class="ge-currency-name">Dólar estadounidense</div></div>
+      </div>
+    </div>
+    <div class="ge-buy-sell">
+      <div><span class="ge-note-label">Compra</span><strong>7.280</strong></div>
+      <div class="ge-divider"></div>
+      <div><span class="ge-note-label">Venta</span><strong>7.360</strong></div>
+    </div>
+    <div class="ge-currency-footer">Valores de referencia</div>
+  </article>
+  <article class="ge-card ge-currency-card">
+    <div class="ge-currency-head">
+      <div class="ge-currency-id">
+        <span class="ge-currency-flag">EU</span>
+        <div><div class="ge-currency-code">EUR</div><div class="ge-currency-name">Euro</div></div>
+      </div>
+    </div>
+    <div class="ge-buy-sell">
+      <div><span class="ge-note-label">Compra</span><strong>8.540</strong></div>
+      <div class="ge-divider"></div>
+      <div><span class="ge-note-label">Venta</span><strong>8.680</strong></div>
+    </div>
+    <div class="ge-currency-footer">Valores de referencia</div>
+  </article>
+  <article class="ge-card ge-currency-card">
+    <div class="ge-currency-head">
+      <div class="ge-currency-id">
+        <span class="ge-currency-flag">BR</span>
+        <div><div class="ge-currency-code">BRL</div><div class="ge-currency-name">Real brasileño</div></div>
+      </div>
+    </div>
+    <div class="ge-buy-sell">
+      <div><span class="ge-note-label">Compra</span><strong>1.320</strong></div>
+      <div class="ge-divider"></div>
+      <div><span class="ge-note-label">Venta</span><strong>1.370</strong></div>
+    </div>
+    <div class="ge-currency-footer">Valores de referencia</div>
+  </article>
+  <article class="ge-card ge-currency-card">
+    <div class="ge-currency-head">
+      <div class="ge-currency-id">
+        <span class="ge-currency-flag">PY</span>
+        <div><div class="ge-currency-code">PYG</div><div class="ge-currency-name">Moneda base</div></div>
+      </div>
+    </div>
+    <div class="ge-buy-sell">
+      <div><span class="ge-note-label">Cliente</span><strong>{% if selected_client %}Activo{% else %}Sin seleccionar{% endif %}</strong></div>
+      <div class="ge-divider"></div>
+      <div><span class="ge-note-label">Contexto</span><strong>{% if selected_client %}{{ selected_client.name|truncatechars:16 }}{% else %}—{% endif %}</strong></div>
+    </div>
+    <div class="ge-currency-footer">Valores de referencia</div>
+  </article>
+</div>
+<p class="ge-source-note" style="margin-top: 14px">Valores de referencia. Las operaciones se confirman con la cotización vigente.</p>

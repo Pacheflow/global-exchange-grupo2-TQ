@@ -1,0 +1,118 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Clientes · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad" data-clientes-page
+       data-crear-url="{% url 'clientes_api:crear_cliente' %}"
+       data-editar-url="{% url 'clientes_api:editar_cliente' 0 %}"
+       data-baja-url="{% url 'clientes_api:dar_de_baja_cliente' 0 %}"
+       data-seleccionar-url="{% url 'clientes_api:seleccionar_cliente' 0 %}">
+    {% csrf_token %}
+    <div class="ge-frontend-section-head">
+      <div>
+        <span class="ge-frontend-eyebrow">Gestión comercial</span>
+        <h2 class="ge-frontend-h2">Clientes</h2>
+        <p class="ge-frontend-subtitle">Administrá y seleccioná las personas y empresas que operan en la plataforma.</p>
+      </div>
+      {% if 'ADMINISTRADOR' in request.session.roles %}
+        <button type="button" class="ge-btn-primary" data-cliente-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo cliente</button>
+      {% endif %}
+    </div>
+
+    {% if request.session.selected_client %}
+      <div class="ge-card ge-card--pad24" style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+        <span style="color:var(--success);font-size:20px" aria-hidden="true">✓</span>
+        <div style="flex:1">
+          <div class="ge-note-label ge-note-label--10">Cliente seleccionado</div>
+          <strong style="color:var(--text);font-size:15px">{{ request.session.selected_client.name }}</strong>
+        </div>
+        <form method="post" action="{% url 'deseleccionar_cliente' %}">
+          {% csrf_token %}
+          <button class="ge-btn-ghost" type="submit">Dejar de seleccionar</button>
+        </form>
+      </div>
+    {% endif %}
+
+    <form class="ge-frontend-section-head" method="get" role="search">
+      <div>
+        <h3 class="ge-frontend-panel-title">Listado de clientes</h3>
+        <p class="ge-frontend-subtitle">Buscá por nombre o razón social.</p>
+      </div>
+      <div class="ge-btn-row">
+        <div class="ge-search-box">
+          <span aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
+          <input type="search" name="buscar" value="{{ busqueda }}" class="ge-input" placeholder="Buscar cliente..." style="width:220px;font-size:12px;padding:8px 12px 8px 30px">
+        </div>
+        <button class="ge-btn-outline" type="submit" style="font-size:12px;padding:8px 12px">Buscar</button>
+        {% if busqueda %}
+          <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}" style="font-size:12px;padding:8px 12px">Limpiar</a>
+        {% endif %}
+      </div>
+    </form>
+
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table ge-table--frontend">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Documento</th>
+            <th>Categoría</th>
+            <th>Estado</th>
+            <th><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cliente in clientes %}
+            <tr {% if request.session.selected_client.id == cliente.id %}style="background:var(--primary-muted)"{% endif %}>
+              <td>
+                <div class="ge-cell-user">
+                  <span class="ge-avatar ge-avatar--sm">{{ cliente.nombre_razon_social|first|upper }}</span>
+                  <span>
+                    <strong>{{ cliente.nombre_razon_social }}</strong>
+                    <small>{{ cliente.get_tipo_persona_display }}</small>
+                  </span>
+                </div>
+              </td>
+              <td><span class="mono">{{ cliente.documento }}</span></td>
+              <td>{{ cliente.categoria.nombre|default:'Sin categoría' }}</td>
+              <td>
+                <span class="ge-state-dot {% if cliente.estado == 'ACTIVO' %}ge-state-dot--on{% else %}ge-state-dot--off{% endif %}">
+                  <i aria-hidden="true"></i>{% if request.session.selected_client.id == cliente.id %}Seleccionado{% else %}{{ cliente.get_estado_display }}{% endif %}
+                </span>
+              </td>
+              <td>
+                <div class="ge-btn-row">
+                  {% if cliente.estado == 'ACTIVO' and request.session.selected_client.id != cliente.id %}
+                    <button type="button" class="ge-btn-ghost" data-cliente-seleccionar="{{ cliente.id }}" aria-label="Seleccionar cliente" title="Seleccionar cliente" style="font-size:11px;padding:3px 8px">✓ Seleccionar</button>
+                  {% endif %}
+                  {% if 'ADMINISTRADOR' in request.session.roles %}
+                    <button type="button" class="ge-btn-ghost" data-cliente-editar="{{ cliente.id }}"
+                            data-nombre="{{ cliente.nombre_razon_social }}"
+                            data-tipo="{{ cliente.tipo_persona }}"
+                            data-documento="{{ cliente.documento }}"
+                            aria-label="Editar cliente" title="Editar cliente" style="font-size:11px;padding:3px 8px">Editar</button>
+                  {% endif %}
+                  {% if 'ADMINISTRADOR' in request.session.roles or 'ANALISTA_CAMBIARIO' in request.session.roles %}
+                    <a class="ge-btn-ghost" href="{% url 'segmentar_cliente' cliente.id %}" aria-label="Segmentar cliente" title="Segmentar cliente" style="font-size:11px;padding:3px 8px">Segmentar</a>
+                  {% endif %}
+                  {% if 'ADMINISTRADOR' in request.session.roles %}
+                    <a class="ge-btn-ghost" href="{% url 'asignaciones_cliente' cliente.id %}" aria-label="Asignar usuarios" title="Asignar usuarios" style="font-size:11px;padding:3px 8px">Usuarios</a>
+                  {% endif %}
+                  {% if cliente.estado == 'ACTIVO' and 'ADMINISTRADOR' in request.session.roles %}
+                    <button type="button" class="ge-btn-ghost ge-btn-ghost--danger" data-cliente-baja="{{ cliente.id }}"
+                            data-nombre="{{ cliente.nombre_razon_social }}"
+                            aria-label="Dar de baja" title="Dar de baja" style="font-size:11px;padding:3px 8px">Baja</button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td class="no-data" colspan="5">No se encontraron clientes.{% if busqueda %} Probá con otra búsqueda.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/clientes.js' %}"></script>{% endblock %}

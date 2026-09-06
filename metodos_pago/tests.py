@@ -1,3 +1,4 @@
+import json
 import time
 from unittest.mock import patch
 
@@ -81,7 +82,7 @@ class MetodoPagoBackendTests(TestCase):
         Verifica que un usuario sin sesión OIDC es redirigido al inicio
         de sesión antes de acceder al módulo.
         """
-        response = self.client.get("/metodos-pago/")
+        response = self.client.get("/api/metodos-pago/")
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "/login/")
@@ -93,7 +94,7 @@ class MetodoPagoBackendTests(TestCase):
         """
         self.autenticar(["USUARIO"])
 
-        response = self.client.get("/metodos-pago/")
+        response = self.client.get("/api/metodos-pago/")
 
         self.assertEqual(response.status_code, 403)
 
@@ -111,7 +112,7 @@ class MetodoPagoBackendTests(TestCase):
         cliente = self.crear_cliente()
 
         response = self.client.post(
-            "/metodos-pago/registrar/",
+            "/api/metodos-pago/registrar/",
             data=self.datos_metodo(cliente),
         )
 
@@ -135,7 +136,7 @@ class MetodoPagoBackendTests(TestCase):
         cliente = self.crear_cliente()
 
         response = self.client.post(
-            "/metodos-pago/registrar/",
+            "/api/metodos-pago/registrar/",
             data=self.datos_metodo(
                 cliente,
                 nombre="   Efectivo   ",
@@ -235,7 +236,7 @@ class MetodoPagoBackendTests(TestCase):
         with patch("metodos_pago.views.render") as mock_render:
             mock_render.return_value = HttpResponse("OK")
 
-            response = self.client.get("/metodos-pago/consultar/")
+            response = self.client.get("/api/metodos-pago/consultar/")
 
         self.assertEqual(response.status_code, 200)
         mock_render.assert_called_once()
@@ -244,6 +245,40 @@ class MetodoPagoBackendTests(TestCase):
 
         self.assertIn("metodos", contexto)
         self.assertIn(metodo, contexto["metodos"])
+
+    def test_listado_json_entrega_metodos_y_clientes_a_la_pantalla_frontend(self):
+        self.autenticar()
+        cliente = self.crear_cliente()
+        metodo = MetodoPago.objects.create(
+            cliente=cliente,
+            nombre="Transferencia bancaria",
+            tipo="TRANSFERENCIA",
+            estado="ACTIVO",
+        )
+
+        response = self.client.get(
+            "/api/metodos-pago/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["metodos"][0]["id"], metodo.id)
+        self.assertEqual(response.json()["clientes"][0]["id"], cliente.id)
+
+    def test_registro_json_devuelve_el_metodo_persistido(self):
+        self.autenticar()
+        cliente = self.crear_cliente()
+
+        response = self.client.post(
+            "/api/metodos-pago/registrar/",
+            data=json.dumps(self.datos_metodo(cliente)),
+            content_type="application/json",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["metodo"]["cliente"]["id"], cliente.id)
+        self.assertTrue(MetodoPago.objects.filter(pk=response.json()["metodo"]["id"]).exists())
 
     # ==============================================================
     # EDICIÓN
@@ -266,7 +301,7 @@ class MetodoPagoBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/metodos-pago/editar/{metodo.id}/",
+            f"/api/metodos-pago/editar/{metodo.id}/",
             data=self.datos_metodo(
                 cliente,
                 nombre="Tarjeta",
@@ -302,7 +337,7 @@ class MetodoPagoBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/metodos-pago/estado/{metodo.id}/",
+            f"/api/metodos-pago/estado/{metodo.id}/",
         )
 
         self.assertEqual(response.status_code, 302)
@@ -328,7 +363,7 @@ class MetodoPagoBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/metodos-pago/estado/{metodo.id}/",
+            f"/api/metodos-pago/estado/{metodo.id}/",
         )
 
         self.assertEqual(response.status_code, 302)
@@ -420,7 +455,7 @@ class MetodoPagoBackendTests(TestCase):
             mock_render.return_value = HttpResponse("OK")
 
             response = self.client.post(
-                "/metodos-pago/registrar/",
+                "/api/metodos-pago/registrar/",
                 data=self.datos_metodo(cliente),
             )
 
@@ -463,7 +498,7 @@ class MetodoPagoBackendTests(TestCase):
             mock_render.return_value = HttpResponse("OK")
 
             response = self.client.post(
-                f"/metodos-pago/editar/{metodo.id}/",
+                f"/api/metodos-pago/editar/{metodo.id}/",
                 data=self.datos_metodo(
                     cliente,
                     nombre="Tarjeta",

@@ -9,11 +9,18 @@
   <link rel="stylesheet" href="{% static 'material/css/unpoly.min.css' %}">
   <link rel="stylesheet" href="{% static 'material/css/material.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+  <link rel="stylesheet" href="{% static 'css/ge-app.css' %}">
+  {% block extra_head %}{% endblock %}
 </head>
-<body class="{% if request.session.kc_user %}authenticated{% else %}public{% endif %}">
+<body class="{% if kc_user %}authenticated{% else %}public{% endif %}">
   <a class="skip-link" href="#content">Saltar al contenido</a>
 
-  {% if request.session.kc_user %}
+  <div id="global-navbar">
+    {% include 'components/navbar.html' %}
+  </div>
+
+  {% if kc_user %}
     <div class="app-shell">
       <aside class="sidebar" id="app-menu">
         <a class="logo sidebar-logo" href="{% url 'usuarios:dashboard' %}" aria-label="Global Exchange, panel">
@@ -21,15 +28,20 @@
         </a>
         <nav class="sidebar-nav" aria-label="Navegación de la aplicación">
           <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">home</i><span>Inicio</span></a>
-          {% if 'ADMINISTRADOR' in request.session.roles %}<a href="{% url 'usuarios:list' %}" {% if request.resolver_match.url_name == 'list' or request.resolver_match.url_name == 'create' or request.resolver_match.url_name == 'edit' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">group</i><span>Usuarios</span></a>{% endif %}
+          {% if 'ADMINISTRADOR' in kc_roles %}<a href="{% url 'usuarios:list' %}" {% if request.resolver_match.url_name == 'list' or request.resolver_match.url_name == 'create' or request.resolver_match.url_name == 'edit' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">group</i><span>Usuarios</span></a>{% endif %}
           <a href="{% url 'consultar_clientes' %}" {% if request.resolver_match.app_name == '' and 'cliente' in request.resolver_match.url_name %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">business_center</i><span>Clientes</span></a>
+          <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">currency_exchange</i><span>Monedas</span></a>
+          <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">trending_up</i><span>Cotizaciones</span></a>
+          {% if 'ADMINISTRADOR' in kc_roles or 'ANALISTA_CAMBIARIO' in kc_roles %}<a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">edit_calendar</i><span>Tasas comerciales</span></a>{% endif %}
+          <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">swap_horiz</i><span>Conversor</span></a>
+          <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">account_balance_wallet</i><span>Medios de pago</span></a>
         </nav>
         <div class="sidebar-context">
-          <a href="{% url 'consultar_clientes' %}">{% if request.session.selected_client %}<i class="material-symbols" aria-hidden="true">business_center</i><span>{{ request.session.selected_client.name }}</span>{% else %}<i class="material-symbols" aria-hidden="true">add_business</i><span>Seleccionar cliente</span>{% endif %}</a>
+          <a href="{% url 'consultar_clientes' %}">{% if selected_client %}<i class="material-symbols" aria-hidden="true">business_center</i><span>{{ selected_client.name }}</span>{% else %}<i class="material-symbols" aria-hidden="true">add_business</i><span>Seleccionar cliente</span>{% endif %}</a>
         </div>
         <div class="sidebar-user">
           <span class="user-avatar material-symbols" aria-hidden="true">account_circle</span>
-          <span><strong>{{ request.session.kc_user.given_name|default:request.session.kc_user.preferred_username }}</strong><small>{{ request.session.kc_user.email|default:'Cuenta activa' }}</small></span>
+          <span><strong>{{ kc_display_name }}</strong><small>{{ kc_email|default:'Cuenta activa' }}</small></span>
           <a class="material-symbols" href="{% url 'usuarios:logout' %}" title="Cerrar sesión" aria-label="Cerrar sesión">logout</a>
         </div>
       </aside>
@@ -39,7 +51,7 @@
       </header>
       <div class="app-main">
   {% else %}
-    <div class="public-header-wrap">
+    <div class="public-header-wrap legacy-public-navigation">
       <header class="site-header">
         <a class="logo" href="{% url 'usuarios:home' %}" aria-label="Global Exchange, inicio"><span class="logo-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Global Exchange</span></a>
         <button class="menu-toggle material-symbols" data-menu aria-label="Abrir navegación" aria-expanded="false" aria-controls="main-menu" title="Abrir navegación">menu</button>
@@ -51,7 +63,7 @@
         <div class="header-actions"><a class="login-link" href="{% url 'usuarios:login' %}">Iniciar sesión</a><a class="button button-public-primary" href="{% url 'usuarios:registro' %}"><span class="material-symbols" aria-hidden="true">person_add</span>Registrarse</a></div>
       </header>
       <nav class="public-subnav" aria-label="Secciones de la landing">
-        <a class="active" href="{% url 'usuarios:home' %}#cotizaciones">Conversor de divisas</a>
+        <a class="active" href="{% url 'usuarios:home' %}#cotizaciones">Conversor de monedas</a>
         <a href="{% url 'usuarios:home' %}#tasas">Cotizaciones</a>
         <a href="{% url 'usuarios:home' %}#servicios">Servicios</a>
         <a href="{% url 'usuarios:home' %}#nosotros">Nosotros</a>
@@ -62,14 +74,18 @@
   {% if messages %}<div class="messages" role="status">{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
   <main id="content">{% block content %}{% endblock %}</main>
 
-  {% if request.session.kc_user %}
+  {% if kc_user %}
       </div>
     </div>
   {% else %}
-    <footer class="site-footer"><span>Global Exchange</span><span>Casa de cambios · Paraguay</span></footer>
+    {% block public_footer %}<footer class="site-footer"><span>Global Exchange</span><span>Casa de cambios · Paraguay</span></footer>{% endblock %}
   {% endif %}
   <script src="{% static 'material/js/unpoly.js' %}"></script>
   <script src="{% static 'material/js/material.js' %}"></script>
   <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static 'js/navbar.js' %}"></script>
+  <script src="{% static 'js/ge-data.js' %}"></script>
+  <script src="{% static 'js/ge-app.js' %}"></script>
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

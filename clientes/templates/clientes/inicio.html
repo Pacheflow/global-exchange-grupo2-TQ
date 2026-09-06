@@ -1,3 +1,24 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Clientes · Global Exchange{% endblock %}
-{% block content %}<section class="workspace"><header class="workspace-header"><div class="page-intro"><h1>Clientes</h1><p>Gestioná el alta, consulta y segmentación de clientes.</p></div></header><div class="action-list"><a href="{% url 'registrar_cliente' %}"><span class="action-icon material-symbols">person_add</span><span><strong>Registrar cliente</strong><small>Crear una persona o empresa</small></span><span class="material-symbols">arrow_forward</span></a><a href="{% url 'consultar_clientes' %}"><span class="action-icon material-symbols">manage_search</span><span><strong>Consultar clientes</strong><small>Buscar y administrar registros</small></span><span class="material-symbols">arrow_forward</span></a></div></section>{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Clientes</h1>
+        <p>Gestioná el alta, consulta y segmentación de clientes.</p>
+      </div>
+    </div>
+    <div class="ge-quick-actions-grid">
+      <a class="ge-card ge-quick-card" href="{% url 'registrar_cliente' %}">
+        <span class="ge-quick-icon" aria-hidden="true">👤</span>
+        <span><strong>Registrar cliente</strong><small>Crear una persona o empresa</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
+        <span class="ge-quick-icon" aria-hidden="true">🔎</span>
+        <span><strong>Consultar clientes</strong><small>Buscar y administrar registros</small></span>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

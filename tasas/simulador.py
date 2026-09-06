@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -29,14 +30,10 @@ def _convertir_monto(monto):
     try:
         monto_decimal = Decimal(str(monto))
     except (InvalidOperation, TypeError, ValueError):
-        raise ValidationError(
-            {"monto": "El monto debe ser numérico."}
-        )
+        raise ValidationError({"monto": "El monto debe ser numérico."})
 
     if not monto_decimal.is_finite() or monto_decimal <= 0:
-        raise ValidationError(
-            {"monto": "El monto debe ser mayor que cero."}
-        )
+        raise ValidationError({"monto": "El monto debe ser mayor que cero."})
 
     return monto_decimal
 
@@ -47,9 +44,7 @@ def _obtener_moneda_activa(moneda_id, campo):
     try:
         moneda = Moneda.objects.get(pk=moneda_id)
     except (Moneda.DoesNotExist, ValueError, TypeError):
-        raise ValidationError(
-            {campo: "La moneda seleccionada no existe."}
-        )
+        raise ValidationError({campo: "La moneda seleccionada no existe."})
 
     if moneda.estado != "ACTIVA":
         raise ValidationError(
@@ -60,93 +55,74 @@ def _obtener_moneda_activa(moneda_id, campo):
 
 
 def _buscar_tasa(moneda_origen, moneda_destino):
-    """
-    Busca una tasa de referencia persistida y vigente.
-
-    Puede utilizar el par directo o el inverso.
-    """
+    """Busca una tasa de referencia vigente para el par directo o inverso."""
 
     ahora = timezone.now()
-
     tasa_directa = (
-        TasaReferencia.objects
-        .filter(
+        TasaReferencia.objects.filter(
             moneda_base=moneda_origen,
             moneda_cotizada=moneda_destino,
             vigente_hasta__gte=ahora,
-        )
-        .first()
+        ).first()
     )
 
     if tasa_directa:
-        return (
-            tasa_directa.valor,
-            tasa_directa.fecha_hora_fuente,
-        )
+        return tasa_directa.valor, tasa_directa.fecha_hora_fuente
 
     tasa_inversa = (
-        TasaReferencia.objects
-        .filter(
+        TasaReferencia.objects.filter(
             moneda_base=moneda_destino,
             moneda_cotizada=moneda_origen,
             vigente_hasta__gte=ahora,
-        )
-        .first()
+        ).first()
     )
 
     if tasa_inversa:
-        return (
-            Decimal("1") / tasa_inversa.valor,
-            tasa_inversa.fecha_hora_fuente,
-        )
+        return Decimal("1") / tasa_inversa.valor, tasa_inversa.fecha_hora_fuente
+
+    moneda_base = Moneda.objects.filter(
+        codigo=settings.TASAS_BASE_CURRENCY,
+        estado="ACTIVA",
+    ).first()
+    if moneda_base:
+        def tasa_desde_base(moneda):
+            if moneda.pk == moneda_base.pk:
+                return Decimal("1"), ahora
+            tasa = TasaReferencia.objects.filter(
+                moneda_base=moneda_base,
+                moneda_cotizada=moneda,
+                vigente_hasta__gte=ahora,
+            ).first()
+            if not tasa:
+                return None
+            return tasa.valor, tasa.fecha_hora_fuente
+
+        origen_desde_base = tasa_desde_base(moneda_origen)
+        destino_desde_base = tasa_desde_base(moneda_destino)
+        if origen_desde_base and destino_desde_base:
+            valor_origen, fecha_origen = origen_desde_base
+            valor_destino, fecha_destino = destino_desde_base
+            return valor_destino / valor_origen, min(fecha_origen, fecha_destino)
 
     raise ValidationError(
-        {
-            "tasa": (
-                "No existe una tasa disponible "
-                "para la conversión seleccionada."
-            )
-        }
+        {"tasa": "No existe una tasa disponible para la conversión seleccionada."}
     )
 
 
-def simular_conversion(
-    moneda_origen_id,
-    moneda_destino_id,
-    monto,
-):
+def simular_conversion(moneda_origen_id, moneda_destino_id, monto):
     """Simula una conversión sin generar una operación real."""
 
-    moneda_origen = _obtener_moneda_activa(
-        moneda_origen_id,
-        "moneda_origen",
-    )
-
-    moneda_destino = _obtener_moneda_activa(
-        moneda_destino_id,
-        "moneda_destino",
-    )
+    moneda_origen = _obtener_moneda_activa(moneda_origen_id, "moneda_origen")
+    moneda_destino = _obtener_moneda_activa(moneda_destino_id, "moneda_destino")
 
     if moneda_origen.id == moneda_destino.id:
         raise ValidationError(
-            {
-                "monedas": (
-                    "La moneda de origen y destino "
-                    "deben ser diferentes."
-                )
-            }
+            {"monedas": "La moneda de origen y destino deben ser diferentes."}
         )
 
     monto_decimal = _convertir_monto(monto)
-
-    tasa, fecha_hora = _buscar_tasa(
-        moneda_origen,
-        moneda_destino,
-    )
-
-    resultado = (
-        monto_decimal * tasa
-    ).quantize(
+    tasa, fecha_hora = _buscar_tasa(moneda_origen, moneda_destino)
+    resultado = (monto_decimal * tasa).quantize(
         PRECISION_RESULTADO,
         rounding=ROUND_HALF_UP,
     )

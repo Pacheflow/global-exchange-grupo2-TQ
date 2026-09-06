@@ -19,6 +19,11 @@ class MonedaBackendTests(TestCase):
     Pruebas de Backend para HU-36 - Configurar Monedas.
     """
 
+    def setUp(self):
+        # Los casos CRUD necesitan un catálogo vacío; la migración de datos
+        # iniciales se valida por separado en MonedasInicialesTests.
+        Moneda.objects.all().delete()
+
     def autenticar(self, roles=None):
         """
         Crea una sesión OIDC válida para las pruebas.
@@ -39,14 +44,14 @@ class MonedaBackendTests(TestCase):
         session.save()
 
     def test_usuario_no_autenticado_recibe_401(self):
-        response = self.client.get("/monedas/")
+        response = self.client.get("/api/monedas/")
 
         self.assertEqual(response.status_code, 401)
 
     def test_usuario_sin_rol_administrador_recibe_403(self):
         self.autenticar(["USUARIO"])
 
-        response = self.client.get("/monedas/")
+        response = self.client.get("/api/monedas/")
 
         self.assertEqual(response.status_code, 403)
 
@@ -55,7 +60,7 @@ class MonedaBackendTests(TestCase):
         self.autenticar()
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": "USD",
@@ -82,7 +87,7 @@ class MonedaBackendTests(TestCase):
         self.autenticar()
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": " usd ",
@@ -112,7 +117,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": " usd ",
@@ -132,7 +137,7 @@ class MonedaBackendTests(TestCase):
         self.autenticar()
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": "",
@@ -159,7 +164,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/editar/",
+            f"/api/monedas/{moneda.id}/editar/",
             data=json.dumps(
                 {
                     "codigo": "EUR",
@@ -191,7 +196,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/estado/",
+            f"/api/monedas/{moneda.id}/estado/",
             data=json.dumps(
                 {"estado": "INACTIVA"}
             ),
@@ -218,7 +223,7 @@ class MonedaBackendTests(TestCase):
         moneda_id = moneda.id
 
         response = self.client.post(
-            f"/monedas/{moneda_id}/estado/",
+            f"/api/monedas/{moneda_id}/estado/",
             data=json.dumps(
                 {"estado": "INACTIVA"}
             ),
@@ -246,7 +251,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/estado/",
+            f"/api/monedas/{moneda.id}/estado/",
             data=json.dumps(
                 {"estado": "ACTIVA"}
             ),
@@ -277,7 +282,7 @@ class MonedaBackendTests(TestCase):
             estado="INACTIVA",
         )
 
-        response = self.client.get("/monedas/activas/")
+        response = self.client.get("/api/monedas/activas/")
 
         self.assertEqual(response.status_code, 200)
 
@@ -305,7 +310,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/editar/",
+            f"/api/monedas/{moneda.id}/editar/",
             data=json.dumps(
                 {
                     "codigo": "USD",
@@ -333,7 +338,7 @@ class MonedaBackendTests(TestCase):
         moneda_id = moneda.id
 
         response = self.client.post(
-                f"/monedas/{moneda_id}/estado/",
+                f"/api/monedas/{moneda_id}/estado/",
                 data=json.dumps(
                     {
                         "estado": "INACTIVA",
@@ -364,7 +369,7 @@ class MonedaBackendTests(TestCase):
         mock_save.side_effect = Exception("Error de persistencia")
 
         response = self.client.post(
-                "/monedas/crear/",
+                "/api/monedas/crear/",
                 data=json.dumps(
                     {
                         "codigo": "USD",
@@ -403,7 +408,7 @@ class MonedaBackendTests(TestCase):
         mock_save.side_effect = Exception("Error de persistencia")
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/editar/",
+            f"/api/monedas/{moneda.id}/editar/",
             data=json.dumps(
                 {
                     "codigo": "USD",
@@ -420,4 +425,20 @@ class MonedaBackendTests(TestCase):
         self.assertEqual(
             response.json()["error"],
             "No fue posible actualizar la moneda.",
+        )
+
+
+class MonedasInicialesTests(TestCase):
+    """Comprueba el catálogo mínimo instalado por la migración de datos."""
+
+    def test_migracion_carga_las_cinco_monedas_activas(self):
+        self.assertEqual(
+            set(Moneda.objects.values_list("codigo", "estado")),
+            {
+                ("USD", "ACTIVA"),
+                ("PYG", "ACTIVA"),
+                ("BRL", "ACTIVA"),
+                ("EUR", "ACTIVA"),
+                ("ARS", "ACTIVA"),
+            },
         )

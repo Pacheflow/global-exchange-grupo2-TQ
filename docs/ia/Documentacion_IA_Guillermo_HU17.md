@@ -181,7 +181,7 @@ Se recomendó separar ambas colecciones en el contrato y acompañar cada referen
 Se creó el endpoint autenticado:
 
 ```http
-GET /tasas/
+GET /api/tasas/
 ```
 
 La respuesta contiene `tasas_referencia` y `tasas_comerciales` como colecciones independientes. La segunda queda vacía hasta la integración de HU-21.
@@ -228,15 +228,16 @@ Se propuso ejecutar las pruebas específicas, la regresión completa, la comprob
 
 **Aplicación en el proyecto**
 
-Se obtuvieron los siguientes resultados:
+Durante la integración selectiva se obtuvieron los siguientes resultados:
 
 | Comprobación | Resultado |
 |---|---|
 | Pruebas HU-17 | 16 aprobadas |
-| Regresión completa | 127 aprobadas |
+| Pruebas completas del módulo `tasas` | 39 aprobadas |
+| Regresión completa | 197 aprobadas y 2 fallos ajenos a `tasas`, en módulos protegidos preexistentes |
 | Django system check | Sin observaciones |
-| Migraciones pendientes | Ninguna |
-| Consulta real al proveedor | Exitosa |
+| Estado de migraciones | Sin cambios de modelo sin migración; el esquema de HU-17 queda en `tasas.0001` (pendiente de aplicación en desarrollo) |
+| Consulta real al proveedor | No ejecutada; las pruebas de integración usan mocks |
 
 ---
 
@@ -262,7 +263,7 @@ tasas/providers.py
 tasas/services.py
 tasas/views.py
 tasas/urls.py
-tasas/tests.py
+tasas/test_reference_rates.py
 tasas/migrations/0001_initial.py
 docs/HU-17_Tasas_Referencia.md
 docs/ia/Documentacion_IA_Guillermo_HU17.md

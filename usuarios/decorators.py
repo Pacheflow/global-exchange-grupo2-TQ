@@ -62,6 +62,36 @@ def requiere_rol(rol_requerido):
     return decorator
 
 
+def requiere_alguno_de_roles(*roles_permitidos):
+    """Protege una API cuando más de un rol puede consultar el recurso."""
+
+    desconocidos = set(roles_permitidos) - ROLES_SISTEMA
+    if desconocidos:
+        raise ValueError(f"Roles de sistema desconocidos: {sorted(desconocidos)}")
+
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            if not sesion_oidc_vigente(request):
+                return JsonResponse({"error": "Autenticación requerida"}, status=401)
+
+            roles_usuario = set(request.session.get(SESSION_ROLES, []))
+            if not roles_usuario.intersection(roles_permitidos):
+                return JsonResponse(
+                    {
+                        "error": "Acceso denegado",
+                        "roles_requeridos": roles_permitidos,
+                    },
+                    status=403,
+                )
+
+            return view_func(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def requiere_roles_web(*roles_permitidos):
     """Protege vistas HTML y presenta respuestas apropiadas para navegador."""
 

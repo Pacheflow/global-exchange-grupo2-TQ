@@ -1,0 +1,78 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Usuarios · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad" data-usuarios-page
+       data-crear-url="{% url 'usuarios_api:crear_usuario' %}"
+       data-detalle-url="{% url 'usuarios_api:detalle_usuario' 0 %}"
+       data-editar-url="{% url 'usuarios_api:editar_usuario' 0 %}"
+       data-baja-url="{% url 'usuarios_api:baja_usuario' 0 %}">
+    {% csrf_token %}
+    {{ business_roles|json_script:"ge-business-roles" }}
+    <div class="ge-frontend-section-head">
+      <div>
+        <span class="ge-frontend-eyebrow">Administración de acceso</span>
+        <h2 class="ge-frontend-h2">Usuarios</h2>
+        <p class="ge-frontend-subtitle">Identidades registradas en Global Exchange.</p>
+      </div>
+      <button type="button" class="ge-btn-primary" data-usuario-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo usuario</button>
+    </div>
+
+    {% if api_error %}
+      <div class="ge-error-banner" role="alert">
+        <span aria-hidden="true">!</span>
+        <div>
+          <strong>No se pudo consultar Keycloak.</strong>
+          <div style="margin-top:4px;font-size:12px;font-weight:400">{{ api_error }}</div>
+          <div style="margin-top:4px;font-size:12px;font-weight:400">Verificá que la cuenta de servicio tenga los permisos <code>view-users</code> y <code>manage-users</code>.</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="ge-card" style="overflow:hidden">
+        <table class="ge-table ge-table--frontend">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Email</th>
+              <th>Estado</th>
+              <th><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td>
+                  <div class="ge-cell-user">
+                    <span class="ge-avatar ge-avatar--sm">{{ user.firstName|first|default:'U'|upper }}{{ user.lastName|first|default:''|upper }}</span>
+                    <span>
+                      <strong>{% if user.firstName or user.lastName %}{{ user.firstName }} {{ user.lastName }}{% else %}{{ user.username }}{% endif %}</strong>
+                      <small>@{{ user.username }}</small>
+                    </span>
+                  </div>
+                </td>
+                <td>{{ user.email|default:'Sin email' }}</td>
+                <td>
+                  <span class="ge-state-dot {% if user.enabled %}ge-state-dot--on{% else %}ge-state-dot--off{% endif %}">
+                    <i aria-hidden="true"></i>{% if user.enabled %}Activo{% else %}Inactivo{% endif %}
+                  </span>
+                </td>
+                <td>
+                  <div class="ge-btn-row">
+                    <button type="button" class="ge-btn-ghost" data-usuario-editar data-user-id="{{ user.id }}" style="font-size:11px;padding:3px 8px">Editar</button>
+                    {% if user.enabled %}
+                      <button type="button" class="ge-btn-ghost ge-btn-ghost--danger" data-usuario-baja data-user-id="{{ user.id }}" style="font-size:11px;padding:3px 8px">Dar de baja</button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="no-data">No hay usuarios.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/usuarios.js' %}"></script>{% endblock %}
