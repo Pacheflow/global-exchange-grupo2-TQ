@@ -5,7 +5,6 @@ from . import views
 
 app_name = "tasas"
 
-
 urlpatterns = [
     path(
         "",
@@ -21,5 +20,10 @@ urlpatterns = [
         "comerciales/historial/",
         views.historial_tasas_comerciales,
         name="historial_tasas_comerciales",
+    ),
+    path(
+        "simular/",
+        views.simular_conversion_view,
+        name="simular_conversion",
     ),
 ]

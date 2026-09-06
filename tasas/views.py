@@ -12,11 +12,10 @@ from .services import (
     actualizar_tasa_comercial,
     consultar_tasas_referencia,
 )
-
+from .simulador import simular_conversion
 
 
 # HU-17 - Consultar y visualizar tasas
-
 
 
 def _serializar_tasa_referencia(tasa, *, desactualizada):
@@ -77,7 +76,6 @@ def consultar_tasas(request):
 # HU-21 - Administrar tasas comerciales
 
 
-
 def _serializar_tasa_comercial(tasa):
     """Convierte una tasa comercial en datos para JSON."""
 
@@ -97,9 +95,7 @@ def _serializar_tasa_comercial(tasa):
         "version": tasa.version,
         "usuario_id": tasa.usuario_id,
         "usuario_username": tasa.usuario_username,
-        "fecha_registro": (
-            tasa.fecha_registro.isoformat()
-        ),
+        "fecha_registro": tasa.fecha_registro.isoformat(),
     }
 
 
@@ -245,4 +241,93 @@ def historial_tasas_comerciales(request):
                 for tasa in tasas
             ]
         }
+    )
+
+
+# HU-19 - Simular conversión
+
+
+@require_POST
+def simular_conversion_view(request):
+    """
+    Simula una conversión entre monedas.
+
+    Esta funcionalidad es pública y no genera
+    transacciones ni modifica datos.
+    """
+
+    try:
+        datos = json.loads(request.body)
+
+    except (
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ):
+        return JsonResponse(
+            {
+                "error": (
+                    "El cuerpo de la solicitud "
+                    "debe contener JSON válido."
+                )
+            },
+            status=400,
+        )
+
+    if not isinstance(datos, dict):
+        return JsonResponse(
+            {
+                "error": (
+                    "El cuerpo de la solicitud "
+                    "debe contener un objeto JSON."
+                )
+            },
+            status=400,
+        )
+
+    moneda_origen_id = datos.get(
+        "moneda_origen_id"
+    )
+
+    moneda_destino_id = datos.get(
+        "moneda_destino_id"
+    )
+
+    monto = datos.get("monto")
+
+    try:
+        resultado = simular_conversion(
+            moneda_origen_id=moneda_origen_id,
+            moneda_destino_id=moneda_destino_id,
+            monto=monto,
+        )
+
+    except ValidationError as exc:
+        return JsonResponse(
+            {
+                "error": (
+                    "No se pudo realizar "
+                    "la simulación."
+                ),
+                "detalles": exc.message_dict,
+            },
+            status=400,
+        )
+
+    return JsonResponse(
+        {
+            "moneda_origen": (
+                resultado.moneda_origen.codigo
+            ),
+            "moneda_destino": (
+                resultado.moneda_destino.codigo
+            ),
+            "monto": str(resultado.monto),
+            "tasa": str(resultado.tasa),
+            "tipo_tasa": resultado.tipo_tasa,
+            "fecha_hora": (
+                resultado.fecha_hora.isoformat()
+            ),
+            "resultado": str(resultado.resultado),
+        },
+        status=200,
     )
