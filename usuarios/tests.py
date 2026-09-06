@@ -917,7 +917,7 @@ class RolesPermisosViewTests(TestCase):
         response = self.client.get(reverse("usuarios:roles_permisos"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "figma/roles_permisos.html")
+        self.assertTemplateUsed(response, "frontend/roles_permisos.html")
         self.assertEqual(len(response.context["roles_sistema"]), 4)
         self.assertTrue(
             all(role["configurado"] for role in response.context["roles_sistema"])
@@ -941,22 +941,22 @@ class RolesPermisosViewTests(TestCase):
         self.assertContains(response, "No se pudo verificar Keycloak")
 
 
-class FigmaApiScreensTests(TestCase):
+class FrontendApiScreensTests(TestCase):
     """Verifica que las pantallas conectadas exponen su configuración de API."""
 
     def _autenticar_como(self, roles):
         session = self.client.session
         session[SESSION_AUTENTICADO] = True
         session[SESSION_USUARIO] = {
-            "sub": "figma-api-user",
-            "username": "figma.api",
-            "email": "figma.api@example.com",
+            "sub": "frontend-api-user",
+            "username": "frontend.api",
+            "email": "frontend.api@example.com",
         }
         session[SESSION_ROLES] = roles
         session[SESSION_EXPIRA_EN] = time.time() + 3600
         session["kc_user"] = {
-            "sub": "figma-api-user",
-            "preferred_username": "figma.api",
+            "sub": "frontend-api-user",
+            "preferred_username": "frontend.api",
         }
         session.save()
 
@@ -966,7 +966,7 @@ class FigmaApiScreensTests(TestCase):
         response = self.client.get(reverse("usuarios:monedas"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "figma/monedas.html")
+        self.assertTemplateUsed(response, "frontend/monedas.html")
         self.assertContains(response, 'data-ge-api="currencies"')
         self.assertContains(response, reverse("monedas:listar_monedas"))
 
@@ -976,7 +976,7 @@ class FigmaApiScreensTests(TestCase):
         response = self.client.get(reverse("usuarios:tasas_comerciales"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "figma/tasas_comerciales.html")
+        self.assertTemplateUsed(response, "frontend/tasas_comerciales.html")
         self.assertContains(response, 'data-ge-api="rates"')
         self.assertContains(response, reverse("tasas:historial_tasas_comerciales"))
 
@@ -986,12 +986,12 @@ class FigmaApiScreensTests(TestCase):
         response = self.client.get(reverse("usuarios:pagos"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "figma/pagos.html")
+        self.assertTemplateUsed(response, "frontend/pagos.html")
         self.assertContains(response, 'data-ge-api="payments"')
         self.assertContains(response, reverse("metodos_pago:inicio_metodos_pago"))
 
     @patch("usuarios.views.admin_request", return_value=[])
-    def test_navegacion_figma_del_administrador_renderiza(self, _mock_admin_request):
+    def test_navegacion_frontend_del_administrador_renderiza(self, _mock_admin_request):
         self._autenticar_como(["ADMINISTRADOR"])
         rutas = (
             reverse("usuarios:dashboard"),
@@ -1011,7 +1011,7 @@ class FigmaApiScreensTests(TestCase):
                 self.assertContains(response, "<svg")
                 self.assertNotContains(response, "Divisas")
 
-def test_navegacion_figma_del_analista_renderiza(self):
+def test_navegacion_frontend_del_analista_renderiza(self):
         self._autenticar_como(["ANALISTA_CAMBIARIO"])
         rutas = (
             reverse("usuarios:dashboard"),
@@ -1028,8 +1028,8 @@ def test_navegacion_figma_del_analista_renderiza(self):
                 self.assertNotContains(response, "Divisas")
 
 
-class UsuariosFigmaApiTest(TestCase):
-    """Pruebas de los endpoints JSON utilizados por la interfaz Figma."""
+class UsuariosFrontendApiTest(TestCase):
+    """Pruebas de los endpoints JSON utilizados por la interfaz Frontend."""
 
     def _autenticar_como(self, roles):
         session = self.client.session

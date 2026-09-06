@@ -1,136 +1,88 @@
-{% extends 'usuarios/base.html' %}
-{% block title %}Cotizaciones · Global Exchange{% endblock %}
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Cotizaciones actuales · Global Exchange{% endblock %}
+{% block extra_head %}
+  <style>
+    .ge-quote-cards > .ge-card,
+    .ge-quote-head,
+    .ge-quote-id,
+    .ge-quote-id > div,
+    .ge-quote-rates,
+    .ge-quote-rates > div:not(.ge-quote-divider) {
+      min-width: 0;
+    }
+    .ge-quote-cards > .ge-card {
+      max-width: 100%;
+    }
+    .ge-quote-head > .ge-quote-id {
+      flex: 1 1 auto;
+    }
+    .ge-quote-head > :last-child {
+      flex-shrink: 0;
+    }
+    .ge-quote-id strong,
+    .ge-quote-rates strong {
+      white-space: nowrap;
+    }
+    .ge-quote-rates {
+      gap: 12px;
+    }
+    .ge-quote-rates > div:not(.ge-quote-divider) {
+      min-width: 0;
+    }
+    .ge-quote-rates > div:first-child {
+      flex: 1 1 auto;
+      text-align: left;
+    }
+    .ge-quote-rates > div:last-child {
+      flex: 0 0 auto;
+      text-align: right;
+    }
+    .ge-quote-rates strong.ge-mono {
+      font-size: 18px;
+    }
+    .ge-quote-rates strong:not(.ge-mono) {
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .ge-card > .ge-frontend-note {
+      max-width: 100%;
+      text-align: center;
+      text-wrap: balance;
+      line-height: 1.45;
+    }
+    @media (min-width: 1281px) and (max-width: 1500px) {
+      .ge-quote-rates strong.ge-mono { font-size: 16px; }
+    }
+    @media (max-width: 1280px) {
+      .ge-quote-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .ge-quote-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-<div class="ge-app">
-  <div class="ge-page">
-    <div class="ge-page-header">
+  <div class="ge-frontend-main-pad"
+       data-ge-api="reference-rates"
+       data-list-url="{% url 'tasas:consultar' %}">
+    <div class="ge-frontend-section-head">
       <div>
-        <h1>Cotizaciones actuales</h1>
-        <p>Frontend de referencia · datos simulados (HU-17)</p>
+        <h2 class="ge-frontend-h2">Cotizaciones actuales</h2>
+        <p class="ge-frontend-note">Tasas de referencia obtenidas del proveedor configurado.</p>
       </div>
-      <div class="ge-tabs" data-ge-tabs="tasas" aria-label="Rango de tiempo">
-        <button type="button" data-ge-tab="Hoy" class="is-active">Hoy</button>
-        <button type="button" data-ge-tab="7D">7D</button>
-        <button type="button" data-ge-tab="30D">30D</button>
-        <button type="button" data-ge-tab="90D">90D</button>
-        <button type="button" data-ge-tab="1A">1A</button>
-      </div>
+      <span class="ge-chip" data-reference-status>Consultando</span>
     </div>
 
-    <div class="ge-demo-toolbar" role="note">
-      <label for="ge-tasas-state">Estado de datos (demo)</label>
-      <select id="ge-tasas-state">
-        <option value="datos">Con datos</option>
-        <option value="desactualizado">Dato desactualizado</option>
-        <option value="cargando">Cargando</option>
-        <option value="sin-datos">Sin datos</option>
-        <option value="error">Error</option>
-      </select>
-      <span>Solo frontend. Cuando se conecte el backend estos estados se emitirán automáticamente.</span>
+    <div class="ge-inline-banner" data-reference-message hidden role="status"></div>
+    <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+        <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+        <div class="ge-skeleton" style="height:12px;width:65%"></div>
+      </article>
     </div>
-
-    <div id="ge-tasas-content"></div>
-
-    <p class="ge-source-note" style="margin-top: 18px">Fuente: referencia del mercado · Datos actualizados al <span id="ge-tasas-updated">—</span></p>
   </div>
-</div>
 {% endblock %}
-{% block extra_js %}
-<script>
-(function () {
-  var activeFilter = 'Hoy';
-  var state = 'datos';
-  var content = document.getElementById('ge-tasas-content');
-
-  function trendClass(trend) {
-    return trend === 'up' ? 'ge-trend-up' : trend === 'down' ? 'ge-trend-down' : 'ge-trend-flat';
-  }
-
-  function staleBadge() {
-    return '<span class="ge-badge ge-badge--warning">Dato desactualizado</span>';
-  }
-
-  function card(item, currency, showSpark) {
-    var sign = item.change >= 0 ? '+' : '';
-    var trend = item.change > 0 ? 'up' : item.change < 0 ? 'down' : 'neutral';
-    return '<article class="ge-card ge-currency-card" style="animation: ge-fade-up 0.3s ease both">' +
-      '<div class="ge-currency-head">' +
-        '<div class="ge-currency-id">' +
-          '<span class="ge-currency-flag">' + (currency ? currency.flag : '') + '</span>' +
-          '<div><div class="ge-currency-code">' + item.code + '</div><div class="ge-currency-name">' + (currency ? currency.name : item.code) + '</div></div>' +
-        '</div>' +
-        '<div style="text-align:right">' +
-          (state === 'desactualizado' ? staleBadge() + '<br>' : '') +
-          '<div class="ge-variation">VARIACIÓN</div>' +
-          '<div class="ge-variation-value ' + trendClass(trend) + '">' + sign + (item.change == null ? 0 : item.change.toFixed(2)) + '%</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="ge-buy-sell">' +
-        '<div><span class="ge-note-label">COMPRA</span><strong>' + window.GEApp.formatValue(item.buy) + '</strong></div>' +
-        '<div class="ge-divider"></div>' +
-        '<div><span class="ge-note-label">VENTA</span><strong>' + window.GEApp.formatValue(item.sell) + '</strong></div>' +
-      '</div>' +
-      (showSpark ? '<div style="margin-bottom:16px">' + window.GEApp.sparkline(item.sparkData, trend, 300, 60) + '</div>' : '') +
-      '<div class="ge-currency-footer">Última actualización: ' + (currency ? currency.updated : '—') + '</div>' +
-    '</article>';
-  }
-
-  function renderLoading() {
-    content.innerHTML = '<div class="ge-currencies-grid" aria-busy="true">' +
-      new Array(4).fill(0).map(function () {
-        return '<div class="ge-card ge-currency-card"><div class="ge-skeleton" style="height:18px;width:40%;margin-bottom:16px"></div>' +
-          '<div class="ge-skeleton" style="height:40px;margin-bottom:16px"></div>' +
-          '<div class="ge-skeleton" style="height:60px;margin-bottom:16px"></div>' +
-          '<div class="ge-skeleton" style="height:12px;width:60%;margin:0 auto"></div></div>';
-      }).join('') + '</div>';
-  }
-
-  function renderEmpty() {
-    content.innerHTML = '<div class="ge-card ge-empty"><strong>Sin datos disponibles</strong><p>No hay cotizaciones para el rango seleccionado.</p></div>';
-  }
-
-  function renderError() {
-    content.innerHTML = '<div class="ge-error-banner"><span aria-hidden="true">{% include 'components/icon.html' with name='alert' size=14 %}</span><div><strong>No se pudieron cargar las cotizaciones.</strong><br>Verificá la conexión con el servicio de tasas e intentá nuevamente.</div><button type="button" data-ge-tasas-retry>Reintentar</button></div>';
-  }
-
-  function renderData() {
-    var data = ((window.GEData.dataByFilter || {})[activeFilter] || []);
-    var updated = window.GEData.updatedAt || '—';
-    document.getElementById('ge-tasas-updated').textContent = updated;
-    var notice = state === 'desactualizado'
-      ? '<div class="ge-warning-banner">Esta cotización puede estar desactualizada. Comprobá la fecha de actualización antes de operar.</div>'
-      : '';
-    content.innerHTML = (data.length ? notice + '<div class="ge-currencies-grid">' + data.map(function (item) {
-        return card(item, window.GEData.currencyByCode(item.code), true);
-      }).join('') + '</div>' : renderEmpty());
-  }
-
-  function render() {
-    if (state === 'cargando') { renderLoading(); return; }
-    if (state === 'sin-datos') { renderEmpty(); return; }
-    if (state === 'error') { renderError(); return; }
-    renderData();
-  }
-
-  document.querySelector('[data-ge-tabs="tasas"]').addEventListener('click', function (event) {
-    var tab = event.target.closest('[data-ge-tab]');
-    if (!tab) return;
-    activeFilter = tab.getAttribute('data-ge-tab');
-    this.querySelectorAll('[data-ge-tab]').forEach(function (t) { t.classList.remove('is-active'); });
-    tab.classList.add('is-active');
-    render();
-  });
-
-  document.getElementById('ge-tasas-state').addEventListener('change', function () {
-    state = this.value;
-    render();
-  });
-
-  content.addEventListener('click', function (event) {
-    if (event.target.hasAttribute('data-ge-tasas-retry')) { state = 'datos'; document.getElementById('ge-tasas-state').value = 'datos'; render(); }
-  });
-
-  render();
-})();
-</script>
-{% endblock %}
+{% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}

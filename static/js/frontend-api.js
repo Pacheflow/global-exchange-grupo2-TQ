@@ -59,7 +59,7 @@
   }
 
   function emptyRow(message) {
-    body.innerHTML = '<tr><td colspan="6" class="ge-figma-note">' + esc(message) + '</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="ge-frontend-note">' + esc(message) + '</td></tr>';
   }
 
   function fail(error) {
@@ -144,7 +144,7 @@
 
   function initCurrencies() {
     loadCurrencies();
-    var primary = page.querySelector('.ge-figma-section-head .ge-btn-primary');
+    var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
     if (primary) primary.addEventListener('click', function () {
       if (page.dataset.canManage !== 'true') return notify('Solo un administrador puede configurar monedas.', 'warning');
       currencyForm(null);
@@ -198,7 +198,7 @@
       return '<tr data-id="' + rate.id + '"><td><div class="ge-mono-cell"><span style="font-size:18px">' + flag(rate.moneda_origen.codigo) + '</span><strong class="ge-mono">' + esc(pair) + '</strong></div></td>' +
         '<td class="ge-mono">' + number(rate.compra) + '</td><td class="ge-mono">' + number(rate.venta) + '</td>' +
         '<td><span class="' + trendClass + '">' + trend + (previous ? Math.abs(change).toFixed(2) + '%' : '') + '</span></td>' +
-        '<td class="ge-figma-note">' + esc(relativeDate(rate.fecha_registro)) + '</td><td><div class="ge-btn-row">' + edit +
+        '<td class="ge-frontend-note">' + esc(relativeDate(rate.fecha_registro)) + '</td><td><div class="ge-btn-row">' + edit +
         '<button class="ge-btn-ghost" data-action="history" style="font-size:11px;padding:3px 8px">Historial</button></div></td></tr>';
     }).join('');
   }
@@ -242,14 +242,14 @@
   function rateHistory(rate) {
     var entries = state.history.filter(function (candidate) { return pairKey(candidate) === pairKey(rate); });
     var rows = entries.map(function (entry) {
-      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td class="ge-figma-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
+      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
     }).join('');
     dialog('ge-rate-history', 'Histórico de tasas', '<div class="ge-card" style="overflow:auto"><table class="ge-table"><thead><tr><th>Versión</th><th>Compra</th><th>Venta</th><th>Fecha</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'Cerrar');
   }
 
   function initRates() {
     loadRates();
-    var primary = page.querySelector('.ge-figma-section-head .ge-btn-primary');
+    var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
     if (primary) primary.addEventListener('click', function () {
       if (page.dataset.canManage !== 'true') return notify('Solo un analista cambiario puede actualizar tasas.', 'warning');
       rateForm(null);
@@ -315,7 +315,7 @@
 
   function initPayments() {
     loadPayments();
-    var primary = page.querySelector('.ge-figma-section-head .ge-btn-primary');
+    var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
     if (primary) primary.addEventListener('click', function () {
       if (!state.clients.length) return notify('Primero debe existir un cliente para asociar el medio de pago.', 'warning');
       paymentForm(null);
@@ -370,12 +370,12 @@
       return '<article class="ge-card" style="padding:24px">' +
         '<div class="ge-quote-head"><div class="ge-quote-id"><span style="font-size:24px">' +
         flag(item.moneda_cotizada) + '</span><div><strong class="ge-mono">' +
-        esc(item.par) + '</strong><span class="ge-figma-note">Base ' +
+        esc(item.par) + '</strong><span class="ge-frontend-note">Base ' +
         esc(item.moneda_base) + '</span></div></div><div>' + stale + '</div></div>' +
         '<div class="ge-quote-rates"><div><small>TASA DE REFERENCIA</small><strong class="ge-mono">' +
         number(item.valor) + '</strong></div><div class="ge-quote-divider"></div>' +
         '<div><small>FUENTE</small><strong>' + esc(item.fuente) + '</strong></div></div>' +
-        '<div class="ge-figma-note" style="text-align:center">Actualizada ' +
+        '<div class="ge-frontend-note" style="text-align:center">Actualizada ' +
         esc(relativeDate(item.fecha_hora)) + ' · Vigente hasta ' +
         esc(new Date(item.vigente_hasta).toLocaleString('es-PY')) + '</div></article>';
     }).join('');

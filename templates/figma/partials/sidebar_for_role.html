@@ -1,9 +1,0 @@
-{% if 'ADMINISTRADOR' in kc_roles %}
-  {% include 'figma/partials/sidebar.html' with rol='administrador' rol_label='Administrador' %}
-{% elif 'ANALISTA_CAMBIARIO' in kc_roles %}
-  {% include 'figma/partials/sidebar.html' with rol='analista' rol_label='Analista cambiario' %}
-{% elif 'CAJERO' in kc_roles %}
-  {% include 'figma/partials/sidebar.html' with rol='cajero' rol_label='Cajero / Operador' %}
-{% else %}
-  {% include 'figma/partials/sidebar.html' with rol='usuario' rol_label='Usuario' %}
-{% endif %}

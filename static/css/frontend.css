@@ -1,16 +1,16 @@
 /*
- * frontend-figma.css — Capa de presentación 1:1 con la referencia
- * `front_actualizado` (Figma). Tema oscuro único (default), tokens ya
+ * frontend.css — Capa de presentación 1:1 con la referencia
+ * `front_actualizado` (Frontend). Tema oscuro único (default), tokens ya
  * definidos en ge-app.css. Solo agrega las clases que faltan.
  */
 
 /* ── Shell ── */
-.ge-figma-app { min-height: 100vh; background: var(--bg); overflow-x: hidden; }
-.ge-figma-body { display: flex; align-items: stretch; width: 100%; max-width: 100%; min-height: 100vh; overflow-x: hidden; }
-.ge-figma-main-pad, .ge-figma-grid2, .ge-quote-cards, .ge-card { min-width: 0; max-width: 100%; }
+.ge-frontend-app { min-height: 100vh; background: var(--bg); overflow-x: hidden; }
+.ge-frontend-body { display: flex; align-items: stretch; width: 100%; max-width: 100%; min-height: 100vh; overflow-x: hidden; }
+.ge-frontend-main-pad, .ge-frontend-grid2, .ge-quote-cards, .ge-card { min-width: 0; max-width: 100%; }
 
 /* ── Sidebar (referencia: components/Sidebar.tsx) ── */
-.ge-figma-sidebar {
+.ge-frontend-sidebar {
   width: 220px;
   flex-shrink: 0;
   background: var(--surface);
@@ -22,85 +22,85 @@
   top: 0;
   overflow-y: auto;
 }
-.ge-figma-sidebar-user {
+.ge-frontend-sidebar-user {
   padding: 80px 16px 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.ge-figma-avatar {
+.ge-frontend-avatar {
   width: 36px; height: 36px; border-radius: 50%;
   background: var(--primary); color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 700; flex-shrink: 0;
 }
-.ge-figma-user-copy { overflow: hidden; }
-.ge-figma-user-name {
+.ge-frontend-user-copy { overflow: hidden; }
+.ge-frontend-user-name {
   font-size: 13px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ge-figma-user-role {
+.ge-frontend-user-role {
   font-size: 10px; color: var(--text-2);
   text-transform: uppercase; letter-spacing: 0.08em;
 }
-.ge-figma-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; }
-.ge-figma-nav a {
+.ge-frontend-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; }
+.ge-frontend-nav a {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: 8px; margin-bottom: 2px;
   text-decoration: none; color: var(--text-2);
   font-size: 13px; font-weight: 400; font-family: 'DM Sans', sans-serif;
   transition: all 0.15s ease; position: relative;
 }
-.ge-figma-nav a:hover { background: var(--surface-2); color: var(--text); }
-.ge-figma-nav a.is-active { color: var(--primary); background: var(--primary-muted); font-weight: 600; }
-.ge-figma-nav a.is-active::before {
+.ge-frontend-nav a:hover { background: var(--surface-2); color: var(--text); }
+.ge-frontend-nav a.is-active { color: var(--primary); background: var(--primary-muted); font-weight: 600; }
+.ge-frontend-nav a.is-active::before {
   content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
   width: 3px; border-radius: 0 2px 2px 0; background: var(--primary);
 }
-.ge-figma-nav-icon {
+.ge-frontend-nav-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 18px; height: 18px; color: currentColor;
   font-style: normal; opacity: 0.7; flex: 0 0 18px;
 }
-.ge-figma-nav-icon svg { display: block; width: 18px; height: 18px; stroke: currentColor; }
-.ge-figma-nav a.is-active .ge-figma-nav-icon { opacity: 1; }
-.ge-figma-nav-label { flex: 1; }
-.ge-figma-nav-badge {
+.ge-frontend-nav-icon svg { display: block; width: 18px; height: 18px; stroke: currentColor; }
+.ge-frontend-nav a.is-active .ge-frontend-nav-icon { opacity: 1; }
+.ge-frontend-nav-label { flex: 1; }
+.ge-frontend-nav-badge {
   background: var(--primary); color: #fff; border-radius: 999px;
   font-size: 10px; font-weight: 700; padding: 1px 6px;
   min-width: 18px; text-align: center;
 }
-.ge-figma-sidebar-foot {
+.ge-frontend-sidebar-foot {
   padding: 12px 20px; border-top: 1px solid var(--border);
   font-size: 10px; color: var(--text-3); letter-spacing: 0.06em;
 }
 
 /* ── Main ── */
-.ge-figma-main { flex: 1; padding: 80px 0 0; overflow-x: hidden; min-width: 0; }
-.ge-figma-header {
+.ge-frontend-main { flex: 1; padding: 80px 0 0; overflow-x: hidden; min-width: 0; }
+.ge-frontend-header {
   padding: 20px 40px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; flex-wrap: wrap;
 }
-.ge-figma-header-title {
+.ge-frontend-header-title {
   font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500;
   color: var(--text); letter-spacing: -0.02em; margin: 0;
 }
-.ge-figma-header-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
-.ge-figma-header-meta { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
-.ge-figma-header-meta strong { font-size: 11px; font-weight: 700; }
-.ge-figma-pad { padding: 28px 40px; }
-.ge-figma-section { max-width: 1140px; }
-.ge-figma-section-title {
+.ge-frontend-header-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+.ge-frontend-header-meta { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.ge-frontend-header-meta strong { font-size: 11px; font-weight: 700; }
+.ge-frontend-pad { padding: 28px 40px; }
+.ge-frontend-section { max-width: 1140px; }
+.ge-frontend-section-title {
   font-family: 'Fraunces', serif; font-size: 22px; font-weight: 500;
   color: var(--text); letter-spacing: -0.02em; margin-bottom: 24px;
 }
-.ge-figma-panel-title { font-family: 'Fraunces', serif; font-size: 18px; margin: 0; color: var(--text); }
+.ge-frontend-panel-title { font-family: 'Fraunces', serif; font-size: 18px; margin: 0; color: var(--text); }
 
 /* ── Capacidad de tabla compacta ── */
-.ge-table--figma thead th { padding: 11px 20px; }
-.ge-table--figma tbody td { padding: 13px 20px; }
+.ge-table--frontend thead th { padding: 11px 20px; }
+.ge-table--frontend tbody td { padding: 13px 20px; }
 
 /* ── Tabs (subrayado, referencia ClientDashboard) ── */
 .ge-tabs-line {
@@ -331,22 +331,22 @@
 /* ── Utilidades de texto ── */
 .ge-mono { font-family: 'JetBrains Mono', monospace; }
 .ge-mono--primary { color: var(--primary); }
-.ge-figma-note { font-size: 11px; color: var(--text-3); }
+.ge-frontend-note { font-size: 11px; color: var(--text-3); }
 
 /* ── Dashboard standalone (Admin/Analista) ── */
-.ge-figma-pagehead { padding: 28px 40px 0; }
-.ge-figma-h1 {
+.ge-frontend-pagehead { padding: 28px 40px 0; }
+.ge-frontend-h1 {
   font-family: 'Fraunces', serif; font-size: 26px; font-weight: 500;
   color: var(--text); letter-spacing: -0.02em; margin: 0 0 4px;
 }
-.ge-figma-h2 {
+.ge-frontend-h2 {
   font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500;
   color: var(--text); letter-spacing: -0.02em; margin: 0;
 }
-.ge-figma-h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 16px; }
-.ge-figma-sub { font-size: 13px; color: var(--text-2); margin: 0; }
-.ge-figma-main-pad { padding: 24px 40px 40px; }
-.ge-figma-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+.ge-frontend-h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 16px; }
+.ge-frontend-sub { font-size: 13px; color: var(--text-2); margin: 0; }
+.ge-frontend-main-pad { padding: 24px 40px 40px; }
+.ge-frontend-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
 
 .ge-kpi--icon { display: flex; align-items: center; gap: 14px; }
 .ge-kpi-icon-circle {
@@ -363,7 +363,7 @@
 }
 .ge-kpi--simple-sub { display: block; font-size: 11px; color: var(--text-2); margin-top: 4px; }
 
-.ge-figma-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.ge-frontend-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
 .ge-card-head {
   padding: 18px 24px; border-bottom: 1px solid var(--border-subtle);
@@ -383,11 +383,11 @@
 .ge-legend em { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
 
 /* ── Headers de secciones CRUD ── */
-.ge-figma-section-head {
+.ge-frontend-section-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
 }
-.ge-figma-section-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ge-frontend-section-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ge-search-box { position: relative; display: inline-flex; align-items: center; }
 .ge-search-box > span { position: absolute; left: 10px; font-size: 12px; opacity: 0.6; z-index: 1; }
 .ge-search-box .ge-input { padding-left: 30px; }
@@ -409,7 +409,7 @@
 .ge-quote-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
 .ge-quote-id { display: flex; align-items: center; gap: 10px; }
 .ge-quote-id strong { display: block; font-size: 14px; }
-.ge-quote-id .ge-figma-note { font-size: 10px; }
+.ge-quote-id .ge-frontend-note { font-size: 10px; }
 .ge-quote-change { text-align: right; }
 .ge-quote-change small { display: block; font-size: 9px; color: var(--text-3); letter-spacing: 0.1em; margin-bottom: 2px; }
 .ge-quote-change strong { font-size: 12px; font-family: 'DM Sans', sans-serif; }
@@ -433,7 +433,7 @@
 .ge-inline-banner--primary p { margin: 0; font-weight: 400; }
 
 /* ── Simulador (Landing conversor) ── */
-.ge-figma-field-label {
+.ge-frontend-field-label {
   display: block; font-size: 10px; font-weight: 700; color: var(--text-3);
   font-family: 'DM Sans', sans-serif; margin-bottom: 10px;
 }
@@ -454,17 +454,17 @@
 .ge-sim-rate span { font-size: 12px; color: var(--text-2); }
 
 /* ── Página standalone: header + acciones ── */
-.ge-figma-pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.ge-figma-pagehead-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.ge-figma-label {
+.ge-frontend-pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ge-frontend-pagehead-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ge-frontend-label {
   font-size: 11px; font-weight: 600; color: var(--text-3);
   font-family: 'DM Sans', sans-serif; letter-spacing: 0.02em;
 }
-.ge-figma-phest { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.ge-frontend-phest { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
 
 /* ── Quick actions grid (variante cliente) ── */
-.ge-figma-quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.ge-figma-quick {
+.ge-frontend-quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ge-frontend-quick {
   display: flex; align-items: center; justify-content: flex-start; gap: 10px;
   width: 100%; padding: 14px 16px;
   border: 1px solid var(--border); border-radius: 8px;
@@ -473,12 +473,12 @@
   cursor: pointer; text-align: left;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.ge-figma-quick:hover { border-color: var(--primary); background: var(--primary-muted); }
-.ge-figma-quick > span { font-size: 16px; line-height: 1; flex-shrink: 0; }
-.ge-figma-quick span:last-child { color: var(--text); font-weight: 500; }
+.ge-frontend-quick:hover { border-color: var(--primary); background: var(--primary-muted); }
+.ge-frontend-quick > span { font-size: 16px; line-height: 1; flex-shrink: 0; }
+.ge-frontend-quick span:last-child { color: var(--text); font-weight: 500; }
 
 /* ── Icono pill de contador ── */
-.ge-figma-count-pill {
+.ge-frontend-count-pill {
   background: var(--primary); color: #fff; border-radius: 999px;
   font-size: 10px; font-weight: 700; padding: 2px 8px; font-family: 'DM Sans', sans-serif;
 }
@@ -503,8 +503,8 @@
 .ge-tabs-line-link:hover { color: var(--text); }
 
 /* ── Cajero: saldos ── */
-.ge-figma-balances { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
-.ge-figma-col-narrow { max-width: 640px; }
+.ge-frontend-balances { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+.ge-frontend-col-narrow { max-width: 640px; }
 .ge-balance-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
 .ge-balance-label { font-size: 11px; color: var(--text-2); font-family: 'DM Sans', sans-serif; margin-top: 2px; }
 .ge-balance-state {
@@ -581,7 +581,7 @@
 .ge-cierre-list strong { font-family: 'JetBrains Mono', monospace; color: var(--text); }
 
 /* ── Roles y permisos (Keycloak) ── */
-.ge-figma-nav-pending {
+.ge-frontend-nav-pending {
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 2px; padding: 9px 12px; border-radius: 8px;
   color: var(--text-3); font-size: 13px; cursor: not-allowed; opacity: 0.72;
@@ -591,11 +591,11 @@
   border-radius: 999px; color: var(--warning); font-size: 9px;
   font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
 }
-.ge-figma-eyebrow {
+.ge-frontend-eyebrow {
   display: block; margin-bottom: 6px; color: var(--primary); font-size: 10px;
   font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
 }
-.ge-figma-subtitle { margin: 7px 0 0; color: var(--text-2); font-size: 13px; }
+.ge-frontend-subtitle { margin: 7px 0 0; color: var(--text-2); font-size: 13px; }
 .ge-keycloak-chip {
   display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px;
   border: 1px solid rgba(34, 197, 94, .28); border-radius: 999px;
@@ -641,20 +641,20 @@
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
-  .ge-figma-body { display: block; }
-  .ge-figma-sidebar { width: 100%; max-width: 100vw; height: auto; position: static; max-height: none; overflow-x: hidden; border-right: 0; border-bottom: 1px solid var(--border); }
-  .ge-figma-sidebar-user { padding: 24px 16px 20px; }
-  .ge-figma-nav { min-width: 0; flex-direction: row; flex-wrap: wrap; gap: 4px; }
-  .ge-figma-nav a { max-width: 100%; }
-  .ge-figma-main { padding: 20px 0 0; }
-  .ge-figma-header { padding: 18px 20px; }
-  .ge-figma-pad { padding: 20px; }
-  .ge-figma-pagehead { padding: 20px 20px 0; }
-  .ge-figma-main-pad { padding: 20px; }
-  .ge-figma-kpis { grid-template-columns: repeat(2, 1fr); }
-  .ge-figma-grid2 { grid-template-columns: 1fr; }
+  .ge-frontend-body { display: block; }
+  .ge-frontend-sidebar { width: 100%; max-width: 100vw; height: auto; position: static; max-height: none; overflow-x: hidden; border-right: 0; border-bottom: 1px solid var(--border); }
+  .ge-frontend-sidebar-user { padding: 24px 16px 20px; }
+  .ge-frontend-nav { min-width: 0; flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .ge-frontend-nav a { max-width: 100%; }
+  .ge-frontend-main { padding: 20px 0 0; }
+  .ge-frontend-header { padding: 18px 20px; }
+  .ge-frontend-pad { padding: 20px; }
+  .ge-frontend-pagehead { padding: 20px 20px 0; }
+  .ge-frontend-main-pad { padding: 20px; }
+  .ge-frontend-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ge-frontend-grid2 { grid-template-columns: 1fr; }
   .ge-quote-cards { grid-template-columns: repeat(2, 1fr); }
-  .ge-figma-balances { grid-template-columns: repeat(2, 1fr); }
+  .ge-frontend-balances { grid-template-columns: repeat(2, 1fr); }
   .ge-donut-wrap { flex-direction: column; }
   .ge-donut-wrap .ge-chart-box { max-width: 100%; }
   .ge-tabs-line { padding: 0 20px; overflow-x: auto; }
@@ -662,19 +662,19 @@
   .ge-quick-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-  .ge-figma-header { align-items: flex-start; }
+  .ge-frontend-header { align-items: flex-start; }
   .ge-pagination { flex-direction: column; align-items: flex-start; }
   .ge-kpi-grid { grid-template-columns: 1fr 1fr; }
-  .ge-figma-kpis { grid-template-columns: 1fr; }
+  .ge-frontend-kpis { grid-template-columns: 1fr; }
   .ge-quote-cards { grid-template-columns: 1fr; }
-  .ge-figma-balances { grid-template-columns: 1fr; }
-  .ge-figma-quick-grid { grid-template-columns: 1fr; }
+  .ge-frontend-balances { grid-template-columns: 1fr; }
+  .ge-frontend-quick-grid { grid-template-columns: 1fr; }
   .ge-buy-sell { flex-direction: column; }
   .ge-filter-row .ge-input { width: 100%; }
-  .ge-figma-section-head, .ge-figma-section-actions, .ge-btn-row { align-items: stretch; }
-  .ge-figma-section-head { flex-direction: column; }
-  .ge-figma-section-head .ge-search-box, .ge-figma-section-head .ge-search-box .ge-input { width: 100% !important; }
-  .ge-figma-section-head .ge-btn-primary { width: 100%; justify-content: center; }
+  .ge-frontend-section-head, .ge-frontend-section-actions, .ge-btn-row { align-items: stretch; }
+  .ge-frontend-section-head { flex-direction: column; }
+  .ge-frontend-section-head .ge-search-box, .ge-frontend-section-head .ge-search-box .ge-input { width: 100% !important; }
+  .ge-frontend-section-head .ge-btn-primary { width: 100%; justify-content: center; }
   .ge-crud-form-card { padding: 20px; }
   [data-converter] > div > div[style*="display:flex"] { flex-wrap: wrap; }
   [data-converter] > div > div[style*="display:flex"] > .ge-input { width: 100% !important; min-width: 0; flex: 1 1 100% !important; }

@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
   <link rel="stylesheet" href="{% static 'css/ge-app.css' %}">
-  <link rel="stylesheet" href="{% static 'css/frontend-figma.css' %}">
+  <link rel="stylesheet" href="{% static 'css/frontend.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="authenticated">
@@ -22,10 +22,10 @@
   </div>
 
   <div class="ge-app">
-    {% block figma_shell %}
-    <div class="ge-figma-body">
+    {% block frontend_shell %}
+    <div class="ge-frontend-body">
       {% block sidebar %}{% endblock %}
-      <main id="content" class="ge-figma-main">
+      <main id="content" class="ge-frontend-main">
         {% block content %}{% endblock %}
       </main>
     </div>
@@ -39,7 +39,7 @@
   <script src="{% static 'js/navbar.js' %}"></script>
   <script src="{% static 'js/ge-data.js' %}"></script>
   <script src="{% static 'js/ge-app.js' %}"></script>
-  <script src="{% static 'js/frontend-figma.js' %}"></script>
+  <script src="{% static 'js/frontend.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

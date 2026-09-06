@@ -82,7 +82,7 @@ def consultar_clientes(request):
 
     return render(
         request,
-        "figma/clientes.html",
+        "frontend/clientes.html",
         {
             "clientes": clientes,
             "busqueda": busqueda,
@@ -325,7 +325,7 @@ def _respuesta_documento_o_error(form):
 @requiere_rol("ADMINISTRADOR")
 @require_POST
 def crear_cliente_api(request):
-    """Registra un nuevo cliente desde la interfaz Figma (JSON)."""
+    """Registra un nuevo cliente desde la interfaz Frontend (JSON)."""
 
     datos = _json_body(request)
 
@@ -354,7 +354,7 @@ def crear_cliente_api(request):
 @requiere_rol("ADMINISTRADOR")
 @require_POST
 def editar_cliente_api(request, cliente_id):
-    """Actualiza los datos de un cliente desde la interfaz Figma (JSON)."""
+    """Actualiza los datos de un cliente desde la interfaz Frontend (JSON)."""
 
     datos = _json_body(request)
 
@@ -391,7 +391,7 @@ def editar_cliente_api(request, cliente_id):
 @requiere_rol("ADMINISTRADOR")
 @require_POST
 def dar_de_baja_cliente_api(request, cliente_id):
-    """Da de baja lógicamente a un cliente desde la interfaz Figma (JSON)."""
+    """Da de baja lógicamente a un cliente desde la interfaz Frontend (JSON)."""
 
     try:
         cliente = Cliente.objects.get(id=cliente_id)
@@ -415,7 +415,7 @@ def dar_de_baja_cliente_api(request, cliente_id):
 @requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
 @require_POST
 def seleccionar_cliente_api(request, cliente_id):
-    """Define el cliente activo sin salir de la interfaz Figma (JSON)."""
+    """Define el cliente activo sin salir de la interfaz Frontend (JSON)."""
 
     try:
         cliente = Cliente.objects.get(id=cliente_id, estado="ACTIVO")

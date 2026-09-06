@@ -295,10 +295,10 @@ def logout(request):
 
 
 DASHBOARD_POR_ROL = {
-    "ADMINISTRADOR": "figma/dashboard_administrador.html",
-    "ANALISTA_CAMBIARIO": "figma/dashboard_analista.html",
-    "CAJERO": "figma/dashboard_cajero.html",
-    "USUARIO": "figma/dashboard_usuario.html",
+    "ADMINISTRADOR": "frontend/dashboard_administrador.html",
+    "ANALISTA_CAMBIARIO": "frontend/dashboard_analista.html",
+    "CAJERO": "frontend/dashboard_cajero.html",
+    "USUARIO": "frontend/dashboard_usuario.html",
 }
 
 ROLES_PANEL_INFO = (
@@ -350,7 +350,7 @@ def dashboard(request):
     roles = set(request.session.get("roles", []))
     template = next(
         (DASHBOARD_POR_ROL[rol] for rol in DASHBOARD_POR_ROL if rol in roles),
-        "figma/dashboard_usuario.html",
+        "frontend/dashboard_usuario.html",
     )
     return render(request, template, {"display_name": display_name})
 
@@ -381,7 +381,7 @@ def roles_permisos(request):
     ]
     return render(
         request,
-        "figma/roles_permisos.html",
+        "frontend/roles_permisos.html",
         {
             "roles_sistema": roles,
             "api_error": api_error,
@@ -398,7 +398,7 @@ def usuarios(request):
         rows, error = [], str(exc)
     return render(
         request,
-        "figma/usuarios.html",
+        "frontend/usuarios.html",
         {
             "users": rows,
             "api_error": error,
@@ -548,31 +548,31 @@ ROLES_PANEL = ("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
 @requiere_roles_web(*ROLES_PANEL)
 @require_GET
 def monedas(request):
-    return render(request, "figma/monedas.html")
+    return render(request, "frontend/monedas.html")
 
 
 @requiere_roles_web(*ROLES_PANEL)
 @require_GET
 def tasas(request):
-    return render(request, "figma/tasas.html")
+    return render(request, "frontend/tasas.html")
 
 
 @requiere_roles_web("ADMINISTRADOR", "ANALISTA_CAMBIARIO")
 @require_GET
 def tasas_comerciales(request):
-    return render(request, "figma/tasas_comerciales.html")
+    return render(request, "frontend/tasas_comerciales.html")
 
 
 @requiere_roles_web(*ROLES_PANEL)
 @require_GET
 def simulador(request):
-    return render(request, "figma/simulador.html")
+    return render(request, "frontend/simulador.html")
 
 
 @requiere_roles_web(*ROLES_PANEL)
 @require_GET
 def pagos(request):
-    return render(request, "figma/pagos.html")
+    return render(request, "frontend/pagos.html")
 
 
 def _json_body(request):

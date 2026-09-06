@@ -246,7 +246,7 @@ class MetodoPagoBackendTests(TestCase):
         self.assertIn("metodos", contexto)
         self.assertIn(metodo, contexto["metodos"])
 
-    def test_listado_json_entrega_metodos_y_clientes_a_la_pantalla_figma(self):
+    def test_listado_json_entrega_metodos_y_clientes_a_la_pantalla_frontend(self):
         self.autenticar()
         cliente = self.crear_cliente()
         metodo = MetodoPago.objects.create(

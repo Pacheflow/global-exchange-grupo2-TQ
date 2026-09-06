@@ -13,7 +13,7 @@ from .models import MetodoPago
 
 
 def _solicita_json(request):
-    """Detecta las solicitudes realizadas por la pantalla Figma."""
+    """Detecta las solicitudes realizadas por la pantalla Frontend."""
 
     return (
         request.content_type == "application/json"
@@ -86,7 +86,7 @@ def inicio_metodos_pago(request):
 
     return render(
         request,
-        "figma/pagos.html",
+        "frontend/pagos.html",
         {
             "metodos": metodos,
         },
@@ -152,7 +152,7 @@ def registrar_metodo_pago(request):
 
     return render(
         request,
-        "figma/pagos.html",
+        "frontend/pagos.html",
         {
             "form": form,
         },
@@ -177,7 +177,7 @@ def consultar_metodos_pago(request):
 
     return render(
         request,
-        "figma/pagos.html",
+        "frontend/pagos.html",
         {
             "metodos": metodos,
         },
@@ -251,7 +251,7 @@ def editar_metodo_pago(request, metodo_id):
 
     return render(
         request,
-        "figma/pagos.html",
+        "frontend/pagos.html",
         {
             "form": form,
             "metodo": metodo,

@@ -1,20 +1,20 @@
-{% extends 'figma/base.html' %}
+{% extends 'frontend/base.html' %}
 {% load static %}
 {% block title %}Usuarios · Global Exchange{% endblock %}
-{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-  <div class="ge-figma-main-pad" data-usuarios-page
+  <div class="ge-frontend-main-pad" data-usuarios-page
        data-crear-url="{% url 'usuarios_api:crear_usuario' %}"
        data-detalle-url="{% url 'usuarios_api:detalle_usuario' 0 %}"
        data-editar-url="{% url 'usuarios_api:editar_usuario' 0 %}"
        data-baja-url="{% url 'usuarios_api:baja_usuario' 0 %}">
     {% csrf_token %}
     {{ business_roles|json_script:"ge-business-roles" }}
-    <div class="ge-figma-section-head">
+    <div class="ge-frontend-section-head">
       <div>
-        <span class="ge-figma-eyebrow">Administración de acceso</span>
-        <h2 class="ge-figma-h2">Usuarios</h2>
-        <p class="ge-figma-subtitle">Identidades registradas en Global Exchange.</p>
+        <span class="ge-frontend-eyebrow">Administración de acceso</span>
+        <h2 class="ge-frontend-h2">Usuarios</h2>
+        <p class="ge-frontend-subtitle">Identidades registradas en Global Exchange.</p>
       </div>
       <button type="button" class="ge-btn-primary" data-usuario-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo usuario</button>
     </div>
@@ -30,7 +30,7 @@
       </div>
     {% else %}
       <div class="ge-card" style="overflow:hidden">
-        <table class="ge-table ge-table--figma">
+        <table class="ge-table ge-table--frontend">
           <thead>
             <tr>
               <th>Usuario</th>
@@ -75,4 +75,4 @@
     {% endif %}
   </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/usuarios-figma.js' %}"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/usuarios.js' %}"></script>{% endblock %}

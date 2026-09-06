@@ -1,19 +1,19 @@
-{% extends 'figma/base.html' %}
+{% extends 'frontend/base.html' %}
 {% load static %}
 {% block title %}Clientes · Global Exchange{% endblock %}
-{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-  <div class="ge-figma-main-pad" data-clientes-page
+  <div class="ge-frontend-main-pad" data-clientes-page
        data-crear-url="{% url 'clientes_api:crear_cliente' %}"
        data-editar-url="{% url 'clientes_api:editar_cliente' 0 %}"
        data-baja-url="{% url 'clientes_api:dar_de_baja_cliente' 0 %}"
        data-seleccionar-url="{% url 'clientes_api:seleccionar_cliente' 0 %}">
     {% csrf_token %}
-    <div class="ge-figma-section-head">
+    <div class="ge-frontend-section-head">
       <div>
-        <span class="ge-figma-eyebrow">Gestión comercial</span>
-        <h2 class="ge-figma-h2">Clientes</h2>
-        <p class="ge-figma-subtitle">Administrá y seleccioná las personas y empresas que operan en la plataforma.</p>
+        <span class="ge-frontend-eyebrow">Gestión comercial</span>
+        <h2 class="ge-frontend-h2">Clientes</h2>
+        <p class="ge-frontend-subtitle">Administrá y seleccioná las personas y empresas que operan en la plataforma.</p>
       </div>
       {% if 'ADMINISTRADOR' in request.session.roles %}
         <button type="button" class="ge-btn-primary" data-cliente-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo cliente</button>
@@ -34,10 +34,10 @@
       </div>
     {% endif %}
 
-    <form class="ge-figma-section-head" method="get" role="search">
+    <form class="ge-frontend-section-head" method="get" role="search">
       <div>
-        <h3 class="ge-figma-panel-title">Listado de clientes</h3>
-        <p class="ge-figma-subtitle">Buscá por nombre o razón social.</p>
+        <h3 class="ge-frontend-panel-title">Listado de clientes</h3>
+        <p class="ge-frontend-subtitle">Buscá por nombre o razón social.</p>
       </div>
       <div class="ge-btn-row">
         <div class="ge-search-box">
@@ -52,7 +52,7 @@
     </form>
 
     <div class="ge-card" style="overflow:hidden">
-      <table class="ge-table ge-table--figma">
+      <table class="ge-table ge-table--frontend">
         <thead>
           <tr>
             <th>Cliente</th>
@@ -115,4 +115,4 @@
     </div>
   </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/clientes-figma.js' %}"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/clientes.js' %}"></script>{% endblock %}

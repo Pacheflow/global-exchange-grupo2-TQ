@@ -1,9 +1,9 @@
 /*
- * frontend-figma.js — Interacción JS mínima para la capa de presentación
+ * frontend.js — Interacción JS mínima para la capa de presentación
  * 1:1 con la referencia `front_actualizado`. Solo comportamientos de UI;
  * la lógica de negocio (conversión) se delega en GEServices/GEData.
  */
-window.GEFigma = (function () {
+window.GEFrontend = (function () {
   'use strict';
 
   var NS = 'http://www.w3.org/2000/svg';
@@ -36,7 +36,7 @@ window.GEFigma = (function () {
     var wrap = document.createElement('div');
     wrap.innerHTML = svgString;
     var node = wrap.firstChild;
-    node.classList.add('ge-figma-spark');
+    node.classList.add('ge-frontend-spark');
     var grad = node.querySelector('linearGradient[id]');
     if (grad) {
       var uid = 'ge-spark-' + Math.random().toString(36).slice(2, 8);
@@ -291,7 +291,7 @@ window.GEFigma = (function () {
   /* ── Controles de tablas y formularios demo de Sprint 2 ── */
   function initTableSearch(root) {
     Array.prototype.forEach.call($('.ge-search-box input', root), function (input) {
-      var scope = input.closest('.ge-figma-main-pad') || root;
+      var scope = input.closest('.ge-frontend-main-pad') || root;
       input.addEventListener('input', function () {
         var query = input.value.trim().toLocaleLowerCase('es');
         var rows = scope.querySelectorAll('tbody tr');
@@ -361,7 +361,7 @@ window.GEFigma = (function () {
     }
 
     var list = page.innerHTML;
-    page.innerHTML = '<div class="ge-crud-form-view"><div class="ge-crud-form-head"><button type="button" class="ge-btn-ghost" data-crud-back>← Volver</button><h2 class="ge-figma-h2">' + esc(title) + '</h2></div>' +
+    page.innerHTML = '<div class="ge-crud-form-view"><div class="ge-crud-form-head"><button type="button" class="ge-btn-ghost" data-crud-back>← Volver</button><h2 class="ge-frontend-h2">' + esc(title) + '</h2></div>' +
       '<div class="ge-card ge-crud-form-card"><form data-crud-form>' + body + '<div class="ge-modal-actions"><button type="button" class="ge-btn-outline" data-crud-back>Cancelar</button><button class="ge-btn-primary" type="submit">' + esc(submit) + '</button></div></form></div></div>';
     function restore(message) {
       page.innerHTML = list;
@@ -388,18 +388,18 @@ window.GEFigma = (function () {
   }
 
   function initSprintCrud(root) {
-    var page = root.matches && root.matches('.ge-figma-main-pad')
+    var page = root.matches && root.matches('.ge-frontend-main-pad')
       ? root
-      : root.querySelector ? root.querySelector('.ge-figma-main-pad') : null;
+      : root.querySelector ? root.querySelector('.ge-frontend-main-pad') : null;
     if (!page || page.dataset.crudReady === 'true') return;
     if (page.hasAttribute('data-ge-api')) return;
-    var heading = page.querySelector('.ge-figma-section-head h2');
+    var heading = page.querySelector('.ge-frontend-section-head h2');
     if (!heading) return;
     var title = heading.textContent.trim();
     var kind = title === 'Gestión de monedas' ? 'currency' : title === 'Medios de pago del cliente' ? 'payment' : title === 'Cotizaciones y Tasas' ? 'rate' : '';
     if (!kind) return;
     page.dataset.crudReady = 'true';
-    var primary = page.querySelector('.ge-figma-section-head .ge-btn-primary');
+    var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
     if (primary) primary.addEventListener('click', function () { showCrudForm(page, kind, null); });
     Array.prototype.forEach.call(page.querySelectorAll('tbody tr'), function (row) {
       Array.prototype.forEach.call(row.querySelectorAll('button'), function (button) {
@@ -420,7 +420,7 @@ window.GEFigma = (function () {
   }
 
   function initDashboardActions(root) {
-    Array.prototype.forEach.call(root.querySelectorAll('.ge-figma-quick'), function (button) {
+    Array.prototype.forEach.call(root.querySelectorAll('.ge-frontend-quick'), function (button) {
       button.addEventListener('click', function () {
         var label = button.textContent.trim();
         var target = label.indexOf('historial') >= 0 ? 'transacciones' : 'operaciones';

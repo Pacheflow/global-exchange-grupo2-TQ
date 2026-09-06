@@ -858,7 +858,7 @@ class SeguridadYMetodosClientesTest(TestCase):
 
 
 class ClientesFiguApiTest(TestCase):
-    """Pruebas de los endpoints JSON utilizados por la interfaz Figma."""
+    """Pruebas de los endpoints JSON utilizados por la interfaz Frontend."""
 
     def setUp(self):
         autenticar_admin(self)

@@ -1,79 +1,124 @@
-{% extends 'usuarios/base.html' %}
-{% block title %}Inicio · Global Exchange{% endblock %}
+{% extends 'frontend/base.html' %}
+{% block title %}Panel Administrador · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar.html' with rol='administrador' rol_label='Administrador' %}{% endblock %}
 {% block content %}
-<div class="ge-app">
-  <div class="ge-page">
-    <div class="ge-page-header">
-      <div>
-        <h1>Hola, {{ display_name }}</h1>
-        <p>Administrá usuarios, clientes, tasas y la configuración del sistema.</p>
-      </div>
-      <div class="ge-page-header-actions">
-        <a class="ge-btn-primary" href="{% url 'consultar_clientes' %}">
-          {% if selected_client %}Cambiar cliente{% else %}Seleccionar cliente{% endif %}
-        </a>
-      </div>
-    </div>
-
-    <div class="ge-kpi-grid" style="margin-top: 24px">
-      <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='user' size=18 %}</span>
-        <div>
-          <span class="ge-kpi-label">Usuario</span>
-          <span class="ge-kpi-value">{{ kc_display_name }}</span>
-          <span class="ge-kpi-sub">{{ kc_email|default:'Cuenta activa' }}</span>
-        </div>
-      </article>
-      <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='roles' size=18 %}</span>
-        <div>
-          <span class="ge-kpi-label">Rol activo</span>
-          <span class="ge-kpi-value">Administrador</span>
-          <span class="ge-kpi-sub">Gestión de usuarios, clientes y tasas</span>
-        </div>
-      </article>
-      <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span>
-        <div>
-          <span class="ge-kpi-label">Cliente activo</span>
-          <span class="ge-kpi-value">{% if selected_client %}{{ selected_client.name|truncatechars:18 }}{% else %}Sin seleccionar{% endif %}</span>
-          <span class="ge-kpi-sub">{% if selected_client %}Contexto de trabajo en sesión{% else %}Seleccioná un cliente para operar{% endif %}</span>
-        </div>
-      </article>
-    </div>
-
-    {% include 'frontend/partials/currency_grid.html' %}
-
-    <div class="ge-page-title" style="margin-top: 40px">
-      <span class="ge-note-label">Accesos</span>
-      <h1 style="margin-top: 6px">Acciones rápidas</h1>
-    </div>
-    <div class="ge-quick-actions-grid">
-      <a class="ge-card ge-quick-card" href="{% url 'usuarios:list' %}">
-        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='users' size=20 %}</span>
-        <span><strong>Gestionar usuarios</strong><small>Crear, editar, asignar roles y dar de baja</small></span>
-      </a>
-      <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
-        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='clients' size=20 %}</span>
-        <span><strong>Gestionar clientes</strong><small>Registrar, editar y seleccionar el contexto</small></span>
-      </a>
-      <a class="ge-card ge-quick-card" href="{% url 'usuarios:tasas_comerciales' %}">
-        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='settings' size=20 %}</span>
-        <span><strong>Tasas comerciales</strong><small>Definir compra y venta de la casa</small></span>
-      </a>
-      <a class="ge-card ge-quick-card" href="{% url 'usuarios:monedas' %}">
-        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='currencies' size=20 %}</span>
-        <span><strong>Monedas</strong><small>Habilitar y administrar monedas del sistema</small></span>
-      </a>
-      <a class="ge-card ge-quick-card" href="{% url 'usuarios:pagos' %}">
-        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='payments' size=20 %}</span>
-        <span><strong>Medios de pago</strong><small>Administrar los métodos disponibles</small></span>
-      </a>
-      <a class="ge-card ge-quick-card" href="{% url 'usuarios:simulador' %}">
-        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='operations' size=20 %}</span>
-        <span><strong>Conversor de monedas</strong><small>Simular conversiones de referencia</small></span>
-      </a>
+  <div class="ge-frontend-pagehead">
+    <div>
+      <h1 class="ge-frontend-h1">Panel Administrador</h1>
+      <p class="ge-frontend-sub">31 de agosto de 2026 · Visión global del sistema</p>
     </div>
   </div>
-</div>
+
+  <div class="ge-frontend-main-pad">
+    <!-- KPIs row 1 -->
+    <div class="ge-frontend-kpis">
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='users' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">USUARIOS ACTIVOS</span><span class="ge-kpi--simple-value">47</span><span class="ge-kpi--simple-sub">en el sistema</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='clients' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">CLIENTES</span><span class="ge-kpi--simple-value">183</span><span class="ge-kpi--simple-sub">registrados</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">OPERACIONES HOY</span><span class="ge-kpi--simple-value">28</span><span class="ge-kpi--simple-sub">↑ +3 vs. ayer</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value">48.2M PYG</span><span class="ge-kpi--simple-sub">Agosto 2026</span></div>
+      </article>
+    </div>
+
+    <!-- KPIs row 2 -->
+    <div class="ge-frontend-kpis" style="margin-bottom:28px">
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='reconciliation' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">CAJAS ACTIVAS</span><span class="ge-kpi--simple-value">3/5</span><span class="ge-kpi--simple-sub">Turno abierto</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='history' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">PENDIENTES</span><span class="ge-kpi--simple-value">6</span><span class="ge-kpi--simple-sub">transacciones</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value">1.84M PYG</span><span class="ge-kpi--simple-sub">31/08/2026</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">OPERACIONES MES</span><span class="ge-kpi--simple-value">614</span><span class="ge-kpi--simple-sub">Agosto 2026</span></div>
+      </article>
+    </div>
+
+    <div class="ge-frontend-grid2" style="margin-bottom:24px">
+      <!-- Ganancia mensual -->
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-title" style="margin-bottom:20px">Ganancia mensual (PYG)</div>
+        <div class="ge-chart-box" data-chart="bar" data-height="200" data-color="var(--primary)"
+          data-labels='["Mar","Abr","May","Jun","Jul","Ago"]'
+          data-values='[32000000,38000000,41000000,35000000,44000000,48200000]'></div>
+      </article>
+
+      <!-- Ganancia por moneda -->
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-title" style="margin-bottom:20px">Ganancia por moneda (%)</div>
+        <div class="ge-donut-wrap">
+          <div class="ge-chart-box" data-chart="donut" data-segments='[{"name":"USD","value":38,"color":"#3B5BFF"},{"name":"EUR","value":28,"color":"#22C55E"},{"name":"BRL","value":20,"color":"#FBBF24"},{"name":"ARS","value":14,"color":"#F87171"}]'></div>
+          <div class="ge-donut-legend">
+            <div><span style="background:#3B5BFF"></span><span>USD</span><strong>38%</strong></div>
+            <div><span style="background:#22C55E"></span><span>EUR</span><strong>28%</strong></div>
+            <div><span style="background:#FBBF24"></span><span>BRL</span><strong>20%</strong></div>
+            <div><span style="background:#F87171"></span><span>ARS</span><strong>14%</strong></div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <!-- Actividad reciente -->
+    <div class="ge-card" style="overflow:hidden">
+      <div class="ge-card-head">
+        <span class="ge-card-title">Actividad reciente</span>
+        <button class="ge-btn-ghost" style="font-size:12px">Ver todo →</button>
+      </div>
+      <table class="ge-table">
+        <thead>
+          <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="ge-mono ge-mono--primary">TXN-2026-00412</span></td>
+            <td>31/08/2026 · 10:24</td>
+            <td>KNG S.A.</td>
+            <td><span class="ge-trend-up" style="font-weight:700">Compra</span></td>
+            <td class="ge-mono">7.480.000 PYG</td>
+            <td><span class="ge-status-badge ge-status-badge--success">COMPLETADA</span></td>
+          </tr>
+          <tr>
+            <td><span class="ge-mono ge-mono--primary">TXN-2026-00411</span></td>
+            <td>30/08/2026 · 16:10</td>
+            <td>KNG S.A.</td>
+            <td><span class="ge-trend-down" style="font-weight:700">Venta</span></td>
+            <td class="ge-mono">2.500 USD</td>
+            <td><span class="ge-status-badge ge-status-badge--success">COMPLETADA</span></td>
+          </tr>
+          <tr>
+            <td><span class="ge-mono ge-mono--primary">TXN-2026-00408</span></td>
+            <td>29/08/2026 · 09:45</td>
+            <td>Importadora del Norte</td>
+            <td><span class="ge-trend-up" style="font-weight:700">Compra</span></td>
+            <td class="ge-mono">16.240.000 PYG</td>
+            <td><span class="ge-status-badge ge-status-badge--warning">PENDIENTE</span></td>
+          </tr>
+          <tr>
+            <td><span class="ge-mono ge-mono--primary">TXN-2026-00405</span></td>
+            <td>28/08/2026 · 14:30</td>
+            <td>Exportaciones Río S.R.L.</td>
+            <td><span class="ge-trend-down" style="font-weight:700">Venta</span></td>
+            <td class="ge-mono">5.000 BRL</td>
+            <td><span class="ge-status-badge ge-status-badge--success">COMPLETADA</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 {% endblock %}

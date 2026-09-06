@@ -1,236 +1,36 @@
-{% extends 'usuarios/base.html' %}
-{% block title %}Monedas · Global Exchange{% endblock %}
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Gestión de monedas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-<div class="ge-app">
-  <div class="ge-page">
-    <div class="ge-page-header">
-      <div>
-        <h1>Gestión de monedas</h1>
-        <p>Frontend de referencia · datos simulados (HU-36)</p>
-      </div>
-    </div>
-
-    <div id="ge-monedas-list">
-      <div class="ge-header-with-search">
-        <div class="ge-search">
-          <span class="ge-search-icon" aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
-          <input type="search" id="ge-monedas-search" class="ge-input" placeholder="Buscar moneda..." aria-label="Buscar moneda">
+  <div class="ge-frontend-main-pad" data-ge-api="currencies"
+       data-list-url="{% if 'ADMINISTRADOR' in kc_roles %}{% url 'monedas:listar_monedas' %}{% else %}{% url 'monedas:listar_monedas_activas' %}{% endif %}"
+       data-create-url="{% url 'monedas:crear_moneda' %}"
+       data-edit-url="{% url 'monedas:editar_moneda' 0 %}"
+       data-state-url="{% url 'monedas:cambiar_estado_moneda' 0 %}"
+       data-can-manage="{% if 'ADMINISTRADOR' in kc_roles %}true{% else %}false{% endif %}">
+    {% csrf_token %}
+    <div class="ge-frontend-section-head">
+      <h2 class="ge-frontend-h2">Gestión de monedas</h2>
+      <div class="ge-btn-row">
+        <div class="ge-search-box">
+          <span aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
+          <input type="text" class="ge-input" placeholder="Buscar moneda..." style="width:200px;font-size:12px;padding:8px 12px 8px 30px">
         </div>
-        <select id="ge-monedas-filter" class="ge-select ge-select--sm" aria-label="Filtrar por estado">
-          <option value="todas">Todas</option>
-          <option value="activas">Activas</option>
-          <option value="inactivas">Inactivas</option>
-        </select>
-        <button class="ge-btn-primary ge-btn-sm" type="button" data-ge-monedas-new>+ Nueva moneda</button>
-      </div>
-      <div class="ge-card ge-table-wrap">
-        <div class="ge-error-banner" id="ge-monedas-error" hidden></div>
-        <table class="ge-table">
-          <thead>
-            <tr><th>Bandera</th><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr>
-          </thead>
-          <tbody id="ge-monedas-body"></tbody>
-        </table>
+        <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">+ Nueva moneda</button>
       </div>
     </div>
 
-    <div id="ge-monedas-form" hidden>
-      <div class="ge-back-row">
-        <button type="button" class="ge-btn-ghost" data-ge-monedas-back>← Volver</button>
-        <h1 class="ge-title-h2" id="ge-monedas-form-title">Nueva moneda</h1>
-      </div>
-      <div class="ge-card ge-card--pad32" style="max-width: 620px">
-        <form id="ge-monedas-form-element" novalidate>
-          <div class="ge-form-grid">
-            <div class="ge-field">
-              <label for="ge-monedas-code">Código (ISO)</label>
-              <input id="ge-monedas-code" required maxlength="3" autocapitalize="characters">
-              <small class="ge-field-hint">Tres letras, p. ej. USD</small>
-            </div>
-            <div class="ge-field">
-              <label for="ge-monedas-symbol">Símbolo</label>
-              <input id="ge-monedas-symbol" required maxlength="6">
-            </div>
-          </div>
-          <div class="ge-field">
-            <label for="ge-monedas-name">Nombre de la moneda</label>
-            <input id="ge-monedas-name" required>
-          </div>
-          <div class="ge-field">
-            <label class="ge-check-field" for="ge-monedas-active">
-              <input id="ge-monedas-active" type="checkbox">
-              <span>Moneda activa en el sistema</span>
-            </label>
-          </div>
-          <div class="ge-error-banner" id="ge-monedas-form-error" hidden></div>
-          <div class="ge-form-actions">
-            <button type="button" class="ge-btn-outline" data-ge-monedas-back>Cancelar</button>
-            <button type="submit" class="ge-btn-primary">Guardar cambios</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="ge-modal-backdrop" id="ge-modal-desactivar" role="dialog" aria-modal="true" aria-labelledby="ge-modal-desactivar-title">
-      <div class="ge-card ge-card--pad32" style="max-width: 420px; background: var(--surface)">
-        <h3 class="ge-title-h2" id="ge-modal-desactivar-title">Desactivar moneda</h3>
-        <p style="margin-top: 8px">¿Estás seguro que deseas desactivar la moneda <strong id="ge-monedas-target">—</strong>? Esta acción ocultará la moneda en las nuevas operaciones.</p>
-        <div class="ge-modal-actions">
-          <button type="button" class="ge-btn-outline" data-ge-monedas-cancel>Cancelar</button>
-          <button type="button" class="ge-btn-primary" data-ge-monedas-confirm>Desactivar</button>
-        </div>
-      </div>
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead>
+          <tr><th></th><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody data-api-body>
+          <tr><td colspan="6" class="ge-frontend-note">Cargando monedas...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
-</div>
 {% endblock %}
-{% block extra_js %}
-<script>
-(function () {
-  var source = (window.GEData.currencies || []).slice();
-  var items = source.map(function (c) { return Object.assign({}, c); });
-  var active = {};
-  var editingCode = null;
-  var targetCode = null;
-
-  items.forEach(function (c) { active[c.code] = c.activa !== false; });
-
-  function esc(value) {
-    return String(value == null ? '' : value).replace(/[&<>"']/g, function (m) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
-    });
-  }
-
-  function showError(targetId, message) {
-    var box = document.getElementById(targetId);
-    box.textContent = message;
-    box.hidden = false;
-  }
-
-  function clearError(targetId) {
-    document.getElementById(targetId).hidden = true;
-  }
-
-  function byCode(code) {
-    return items.find(function (c) { return c.code === code; });
-  }
-
-  function render() {
-    var query = (document.getElementById('ge-monedas-search').value || '').toLowerCase();
-    var filter = document.getElementById('ge-monedas-filter').value;
-    clearError('ge-monedas-error');
-    var visible = items.filter(function (c) {
-      var matchQuery = !query || c.name.toLowerCase().indexOf(query) !== -1 || c.code.toLowerCase().indexOf(query) !== -1;
-      var matchState = filter === 'todas' || (filter === 'activas' && active[c.code]) || (filter === 'inactivas' && !active[c.code]);
-      return matchQuery && matchState;
-    });
-
-    if (!visible.length) {
-      document.getElementById('ge-monedas-error').hidden = false;
-      document.getElementById('ge-monedas-error').textContent = items.length
-        ? 'Sin monedas para el filtro o búsqueda actual.'
-        : 'No hay monedas registradas. Creá la primera con "+ Nueva moneda".';
-    }
-
-    var body = document.getElementById('ge-monedas-body');
-    body.innerHTML = visible.map(function (c) {
-      var isActive = active[c.code];
-      var action = isActive
-        ? '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-monedas-disable="' + esc(c.code) + '">Desactivar</button>'
-        : '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-monedas-enable="' + esc(c.code) + '">Activar</button>';
-      return '<tr>' +
-        '<td style="font-size:22px">' + (c.flag || c.symbol || '') + '</td>' +
-        '<td><span class="mono">' + esc(c.code) + '</span></td>' +
-        '<td>' + esc(c.name) + '</td>' +
-        '<td><span class="mono muted">' + esc(c.symbol || '—') + '</span></td>' +
-        '<td><span class="ge-badge ' + (isActive ? 'ge-badge--success' : 'ge-badge--neutral') + '">' + (isActive ? 'Activa' : 'Inactiva') + '</span></td>' +
-        '<td><div class="ge-actions-row">' +
-          '<button type="button" class="ge-btn-ghost ge-btn-xs" data-ge-monedas-edit="' + esc(c.code) + '">Editar</button>' + action +
-        '</div></td>' +
-      '</tr>';
-    }).join('');
-  }
-
-  function openForm(code) {
-    var isNew = code == null;
-    editingCode = isNew ? null : code;
-    clearError('ge-monedas-form-error');
-    document.getElementById('ge-monedas-list').hidden = true;
-    document.getElementById('ge-monedas-form').hidden = false;
-    document.getElementById('ge-monedas-form-title').textContent = isNew ? 'Nueva moneda' : 'Editar moneda: ' + code;
-    var item = isNew ? null : byCode(code);
-    document.getElementById('ge-monedas-code').value = isNew ? '' : item.code;
-    document.getElementById('ge-monedas-symbol').value = isNew ? '' : (item.symbol || '');
-    document.getElementById('ge-monedas-name').value = isNew ? '' : item.name;
-    document.getElementById('ge-monedas-active').checked = isNew ? true : active[item.code];
-  }
-
-  function backToList() {
-    document.getElementById('ge-monedas-list').hidden = false;
-    document.getElementById('ge-monedas-form').hidden = true;
-    editingCode = null;
-  }
-
-  document.body.addEventListener('click', function (event) {
-    var el = event.target;
-    if (el.hasAttribute('data-ge-monedas-new')) { openForm(null); return; }
-    if (el.hasAttribute('data-ge-monedas-back')) { backToList(); return; }
-    if (el.hasAttribute('data-ge-monedas-edit')) { openForm(el.getAttribute('data-ge-monedas-edit')); return; }
-    if (el.hasAttribute('data-ge-monedas-disable')) {
-      targetCode = el.getAttribute('data-ge-monedas-disable');
-      document.getElementById('ge-monedas-target').textContent = targetCode;
-      window.GEApp.openModal('ge-modal-desactivar');
-      return;
-    }
-    if (el.hasAttribute('data-ge-monedas-enable')) {
-      active[el.getAttribute('data-ge-monedas-enable')] = true;
-      render();
-      return;
-    }
-    if (el.hasAttribute('data-ge-monedas-cancel')) { window.GEApp.closeModal('ge-modal-desactivar'); return; }
-    if (el.hasAttribute('data-ge-monedas-confirm')) {
-      if (targetCode) { active[targetCode] = false; }
-      targetCode = null;
-      window.GEApp.closeModal('ge-modal-desactivar');
-      render();
-      window.GEApp.toast('Moneda desactivada exitosamente.');
-    }
-  });
-
-  document.getElementById('ge-monedas-search').addEventListener('input', render);
-  document.getElementById('ge-monedas-filter').addEventListener('change', render);
-
-  document.getElementById('ge-monedas-form-element').addEventListener('submit', function (event) {
-    event.preventDefault();
-    clearError('ge-monedas-form-error');
-    var code = document.getElementById('ge-monedas-code').value.trim().toUpperCase();
-    var symbol = document.getElementById('ge-monedas-symbol').value.trim();
-    var name = document.getElementById('ge-monedas-name').value.trim();
-    var isActive = document.getElementById('ge-monedas-active').checked;
-
-    if (!code) { showError('ge-monedas-form-error', 'El código (ISO) es obligatorio.'); return; }
-    if (!/^[A-Z]{3}$/.test(code)) { showError('ge-monedas-form-error', 'El código debe tener exactamente 3 letras.'); return; }
-    if (!name) { showError('ge-monedas-form-error', 'El nombre de la moneda es obligatorio.'); return; }
-    if (!symbol) { showError('ge-monedas-form-error', 'El símbolo es obligatorio.'); return; }
-    if (editingCode == null && byCode(code)) { showError('ge-monedas-form-error', 'Ya existe una moneda con el código ' + code + '.'); return; }
-
-    if (editingCode == null) {
-      items.push({ code: code, name: name, symbol: symbol, flag: '', buy: 0, sell: 0, change: 0, trend: 'neutral', updated: '—' });
-      active[code] = isActive;
-    } else {
-      var item = byCode(editingCode);
-      item.name = name;
-      item.symbol = symbol;
-      active[item.code] = isActive;
-    }
-
-    editingCode = null;
-    backToList();
-    render();
-    window.GEApp.toast('Moneda guardada exitosamente.');
-  });
-
-  render();
-})();
-</script>
-{% endblock %}
+{% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}
