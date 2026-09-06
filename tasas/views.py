@@ -4,15 +4,83 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
-from usuarios.decorators import requiere_rol
+from usuarios.decorators import requiere_autenticacion, requiere_rol
 from usuarios.services.keycloak import SESSION_USUARIO
 
 from .models import TasaComercial
-from .services import actualizar_tasa_comercial
+from .services import (
+    actualizar_tasa_comercial,
+    consultar_tasas_referencia,
+)
 
 
-def _serializar_tasa(tasa):
-    """Convierte una tasa comercial en datos aptos para JSON."""
+
+# HU-17 - Consultar y visualizar tasas
+
+
+
+def _serializar_tasa_referencia(tasa, *, desactualizada):
+    return {
+        "id": tasa.id,
+        "tipo": "REFERENCIA",
+        "par": (
+            f"{tasa.moneda_base.codigo}/"
+            f"{tasa.moneda_cotizada.codigo}"
+        ),
+        "moneda_base": tasa.moneda_base.codigo,
+        "moneda_cotizada": tasa.moneda_cotizada.codigo,
+        "valor": str(tasa.valor),
+        "fuente": tasa.fuente,
+        "fecha_hora": tasa.fecha_hora_fuente.isoformat(),
+        "vigente_hasta": tasa.vigente_hasta.isoformat(),
+        "desactualizada": desactualizada,
+    }
+
+
+@requiere_autenticacion
+@require_GET
+def consultar_tasas(request):
+    """
+    Consulta tasas de referencia y comunica
+    su estado de frescura o indisponibilidad.
+    """
+
+    resultado = consultar_tasas_referencia()
+
+    desactualizada = (
+        resultado.estado == "desactualizado"
+    )
+
+    payload = {
+        "estado": resultado.estado,
+        "mensaje": resultado.mensaje,
+        "tasas_referencia": [
+            _serializar_tasa_referencia(
+                tasa,
+                desactualizada=desactualizada,
+            )
+            for tasa in resultado.tasas
+        ],
+        "tasas_comerciales": [],
+    }
+
+    return JsonResponse(
+        payload,
+        status=(
+            503
+            if resultado.estado == "indisponible"
+            else 200
+        ),
+    )
+
+
+# HU-21 - Administrar tasas comerciales
+
+
+
+def _serializar_tasa_comercial(tasa):
+    """Convierte una tasa comercial en datos para JSON."""
+
     return {
         "id": tasa.id,
         "moneda_origen": {
@@ -29,7 +97,9 @@ def _serializar_tasa(tasa):
         "version": tasa.version,
         "usuario_id": tasa.usuario_id,
         "usuario_username": tasa.usuario_username,
-        "fecha_registro": tasa.fecha_registro.isoformat(),
+        "fecha_registro": (
+            tasa.fecha_registro.isoformat()
+        ),
     }
 
 
@@ -39,21 +109,39 @@ def administrar_tasa_comercial(request):
     """
     Registra o modifica una tasa comercial.
 
-    Cada modificación genera una nueva versión y conserva
-    la versión anterior en el histórico.
+    Cada modificación genera una nueva versión
+    y conserva la anterior en el histórico.
     """
+
     try:
         datos = json.loads(request.body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+
+    except (
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ):
         return JsonResponse(
-            {"error": "El cuerpo de la solicitud no contiene JSON válido."},
+            {
+                "error": (
+                    "El cuerpo de la solicitud "
+                    "no contiene JSON válido."
+                )
+            },
             status=400,
         )
 
-    moneda_origen_id = datos.get("moneda_origen_id")
-    moneda_destino_id = datos.get("moneda_destino_id")
+    moneda_origen_id = datos.get(
+        "moneda_origen_id"
+    )
 
-    if moneda_origen_id is None or moneda_destino_id is None:
+    moneda_destino_id = datos.get(
+        "moneda_destino_id"
+    )
+
+    if (
+        moneda_origen_id is None
+        or moneda_destino_id is None
+    ):
         return JsonResponse(
             {
                 "error": (
@@ -64,7 +152,10 @@ def administrar_tasa_comercial(request):
             status=400,
         )
 
-    usuario = request.session.get(SESSION_USUARIO, {})
+    usuario = request.session.get(
+        SESSION_USUARIO,
+        {},
+    )
 
     try:
         tasa = actualizar_tasa_comercial(
@@ -72,25 +163,42 @@ def administrar_tasa_comercial(request):
             moneda_destino_id=moneda_destino_id,
             compra=datos.get("compra"),
             venta=datos.get("venta"),
-            usuario_id=usuario.get("sub", ""),
-            usuario_username=usuario.get("username", ""),
+            usuario_id=usuario.get(
+                "sub",
+                "",
+            ),
+            usuario_username=usuario.get(
+                "username",
+                "",
+            ),
         )
 
     except ValidationError as error:
         if hasattr(error, "message_dict"):
             errores = error.message_dict
         else:
-            errores = {"error": error.messages}
+            errores = {
+                "error": error.messages
+            }
 
         return JsonResponse(
-            {"errores": errores},
+            {
+                "errores": errores
+            },
             status=400,
         )
 
     return JsonResponse(
         {
-            "mensaje": "Tasa comercial actualizada correctamente.",
-            "tasa": _serializar_tasa(tasa),
+            "mensaje": (
+                "Tasa comercial "
+                "actualizada correctamente."
+            ),
+            "tasa": (
+                _serializar_tasa_comercial(
+                    tasa
+                )
+            ),
         },
         status=201,
     )
@@ -99,7 +207,8 @@ def administrar_tasa_comercial(request):
 @require_GET
 @requiere_rol("ANALISTA_CAMBIARIO")
 def historial_tasas_comerciales(request):
-    """Devuelve el histórico de tasas comerciales registradas."""
+    """Devuelve el histórico de tasas comerciales."""
+
     tasas = (
         TasaComercial.objects
         .select_related(
@@ -109,8 +218,13 @@ def historial_tasas_comerciales(request):
         .all()
     )
 
-    moneda_origen_id = request.GET.get("moneda_origen_id")
-    moneda_destino_id = request.GET.get("moneda_destino_id")
+    moneda_origen_id = request.GET.get(
+        "moneda_origen_id"
+    )
+
+    moneda_destino_id = request.GET.get(
+        "moneda_destino_id"
+    )
 
     if moneda_origen_id:
         tasas = tasas.filter(
@@ -125,7 +239,9 @@ def historial_tasas_comerciales(request):
     return JsonResponse(
         {
             "tasas": [
-                _serializar_tasa(tasa)
+                _serializar_tasa_comercial(
+                    tasa
+                )
                 for tasa in tasas
             ]
         }

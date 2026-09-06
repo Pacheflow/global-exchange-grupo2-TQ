@@ -2,4 +2,6 @@ from django.apps import AppConfig
 
 
 class TasasConfig(AppConfig):
-    name = 'tasas'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "tasas"
+    verbose_name = "Tasas de referencia"

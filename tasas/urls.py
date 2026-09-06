@@ -8,6 +8,11 @@ app_name = "tasas"
 
 urlpatterns = [
     path(
+        "",
+        views.consultar_tasas,
+        name="consultar",
+    ),
+    path(
         "comerciales/",
         views.administrar_tasa_comercial,
         name="administrar_tasa_comercial",
