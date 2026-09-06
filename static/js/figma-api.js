@@ -28,6 +28,12 @@
 
   function errorMessage(data, fallback) {
     if (data && data.error) return data.error;
+    if (data && data.detalles) {
+      return Object.keys(data.detalles).map(function (key) {
+        var value = data.detalles[key];
+        return Array.isArray(value) ? value.join(' ') : String(value);
+      }).join(' ');
+    }
     if (data && data.errores) {
       return Object.keys(data.errores).map(function (key) {
         var value = data.errores[key];
@@ -331,7 +337,159 @@
     });
   }
 
+  function renderReferenceRates(data) {
+    var status = page.querySelector('[data-reference-status]');
+    var message = page.querySelector('[data-reference-message]');
+    var items = data.tasas_referencia || [];
+    if (status) {
+      status.textContent = {
+        actualizado: 'Actualizadas',
+        desactualizado: 'Respaldo disponible',
+        vacio: 'Sin monedas',
+        indisponible: 'No disponible'
+      }[data.estado] || data.estado || 'Sin datos';
+    }
+    if (message) {
+      message.hidden = !data.mensaje;
+      message.textContent = data.mensaje || '';
+      message.className = data.estado === 'desactualizado'
+        ? 'ge-warning-banner'
+        : 'ge-inline-banner';
+    }
+    body.setAttribute('aria-busy', 'false');
+    if (!items.length) {
+      body.innerHTML = '<article class="ge-card ge-empty"><strong>Sin tasas disponibles</strong><p>' +
+        esc(data.mensaje || 'Todavía no existen tasas de referencia para mostrar.') +
+        '</p></article>';
+      return;
+    }
+    body.innerHTML = items.map(function (item) {
+      var stale = item.desactualizada
+        ? '<span class="ge-badge ge-badge--warning">Dato de respaldo</span>'
+        : '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>';
+      return '<article class="ge-card" style="padding:24px">' +
+        '<div class="ge-quote-head"><div class="ge-quote-id"><span style="font-size:24px">' +
+        flag(item.moneda_cotizada) + '</span><div><strong class="ge-mono">' +
+        esc(item.par) + '</strong><span class="ge-figma-note">Base ' +
+        esc(item.moneda_base) + '</span></div></div><div>' + stale + '</div></div>' +
+        '<div class="ge-quote-rates"><div><small>TASA DE REFERENCIA</small><strong class="ge-mono">' +
+        number(item.valor) + '</strong></div><div class="ge-quote-divider"></div>' +
+        '<div><small>FUENTE</small><strong>' + esc(item.fuente) + '</strong></div></div>' +
+        '<div class="ge-figma-note" style="text-align:center">Actualizada ' +
+        esc(relativeDate(item.fecha_hora)) + ' · Vigente hasta ' +
+        esc(new Date(item.vigente_hasta).toLocaleString('es-PY')) + '</div></article>';
+    }).join('');
+  }
+
+  function initReferenceRates() {
+    request(page.dataset.listUrl).then(renderReferenceRates).catch(function (error) {
+      body.setAttribute('aria-busy', 'false');
+      body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
+        esc(error.message) + '</p></article>';
+      notify(error.message, 'error');
+    });
+  }
+
+  function initSimulator() {
+    var root = page.querySelector('[data-simulator]');
+    var amount = root.querySelector('[data-sim-amount]');
+    var from = root.querySelector('[data-sim-from]');
+    var to = root.querySelector('[data-sim-to]');
+    var result = root.querySelector('[data-sim-result]');
+    var rate = root.querySelector('[data-sim-rate]');
+    var updated = root.querySelector('[data-sim-updated]');
+    var error = root.querySelector('[data-sim-error]');
+    var swap = root.querySelector('[data-sim-swap]');
+    var timer = null;
+
+    function showError(message) {
+      error.textContent = message;
+      error.hidden = false;
+      result.textContent = '—';
+      rate.textContent = '—';
+      updated.textContent = '—';
+    }
+
+    function clearError() {
+      error.hidden = true;
+      error.textContent = '';
+    }
+
+    function simulate() {
+      clearError();
+      var raw = amount.value.trim().replace(',', '.');
+      var value = Number(raw);
+      if (!raw) {
+        result.textContent = '—';
+        rate.textContent = '—';
+        updated.textContent = '—';
+        return;
+      }
+      if (!Number.isFinite(value) || value <= 0) {
+        showError('El monto debe ser mayor que cero.');
+        return;
+      }
+      if (!from.value || !to.value || from.value === to.value) {
+        showError('La moneda de origen y destino deben ser diferentes.');
+        return;
+      }
+      result.textContent = 'Calculando…';
+      request(page.dataset.simulateUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          moneda_origen_id: Number(from.value),
+          moneda_destino_id: Number(to.value),
+          monto: raw
+        })
+      }).then(function (data) {
+        result.textContent = number(data.resultado) + ' ' + data.moneda_destino;
+        rate.textContent = '1 ' + data.moneda_origen + ' = ' +
+          number(data.tasa) + ' ' + data.moneda_destino;
+        updated.textContent = new Date(data.fecha_hora).toLocaleString('es-PY');
+      }).catch(function (requestError) {
+        showError(requestError.message || 'No fue posible realizar la simulación.');
+      });
+    }
+
+    function schedule() {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(simulate, 300);
+    }
+
+    request(page.dataset.currenciesUrl).then(function (data) {
+      state.currencies = data.monedas || [];
+      var options = state.currencies.map(function (currency) {
+        return '<option value="' + currency.id + '" data-code="' +
+          esc(currency.codigo) + '">' + flag(currency.codigo) + ' ' +
+          esc(currency.codigo) + '</option>';
+      }).join('');
+      from.innerHTML = options;
+      to.innerHTML = options;
+      var usd = state.currencies.find(function (currency) { return currency.codigo === 'USD'; });
+      var pyg = state.currencies.find(function (currency) { return currency.codigo === 'PYG'; });
+      if (usd) from.value = String(usd.id);
+      if (pyg) to.value = String(pyg.id);
+      if (!state.currencies.length) showError('No hay monedas activas disponibles.');
+    }).catch(function (requestError) {
+      showError(requestError.message || 'No fue posible cargar las monedas.');
+    });
+
+    amount.addEventListener('input', schedule);
+    from.addEventListener('change', simulate);
+    to.addEventListener('change', simulate);
+    swap.addEventListener('click', function () {
+      var previous = from.value;
+      from.value = to.value;
+      to.value = previous;
+      swap.classList.add('is-swapping');
+      simulate();
+      window.setTimeout(function () { swap.classList.remove('is-swapping'); }, 320);
+    });
+  }
+
   if (page.dataset.geApi === 'currencies') initCurrencies();
   if (page.dataset.geApi === 'rates') initRates();
   if (page.dataset.geApi === 'payments') initPayments();
+  if (page.dataset.geApi === 'reference-rates') initReferenceRates();
+  if (page.dataset.geApi === 'simulator') initSimulator();
 }());
