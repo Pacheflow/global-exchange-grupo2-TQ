@@ -134,6 +134,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "usuarios",
     "clientes",
+    "monedas",
+    "metodos_pago",
+    "tasas",
 ]
 
 MIDDLEWARE = [
