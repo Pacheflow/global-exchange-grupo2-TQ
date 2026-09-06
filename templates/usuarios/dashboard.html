@@ -17,7 +17,7 @@
 
     <div class="ge-page-title" style="margin-top: 28px">
       <span class="ge-note-label">Mercado</span>
-      <h1 style="margin-top: 6px">Cuentas de divisas</h1>
+      <h1 style="margin-top: 6px">Cuentas de monedas</h1>
     </div>
 
     <div class="ge-currencies-grid">
@@ -87,17 +87,17 @@
     <div class="ge-quick-actions-grid">
       {% if 'ADMINISTRADOR' in kc_roles %}
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:list' %}">
-        <span class="ge-quick-icon" aria-hidden="true">👥</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='users' size=20 %}</span>
         <span><strong>Gestionar usuarios</strong><small>Crear, editar, asignar roles y dar de baja</small></span>
       </a>
       {% endif %}
       <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
-        <span class="ge-quick-icon" aria-hidden="true">🏢</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='clients' size=20 %}</span>
         <span><strong>Gestionar clientes</strong><small>Registrar, editar y seleccionar el contexto</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:home' %}#cotizaciones">
-        <span class="ge-quick-icon" aria-hidden="true">💱</span>
-        <span><strong>Conversor de divisas</strong><small>Simular conversiones de referencia</small></span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='operations' size=20 %}</span>
+        <span><strong>Conversor de monedas</strong><small>Simular conversiones de referencia</small></span>
       </a>
     </div>
   </div>

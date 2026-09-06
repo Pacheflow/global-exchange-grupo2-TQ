@@ -93,6 +93,16 @@ class TasaComercialTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_administrador_puede_consultar_el_historial_sin_modificar_tasas(self):
+        self.autenticar_con_roles(["ADMINISTRADOR"])
+
+        response = self.client.get(
+            reverse("tasas:historial_tasas_comerciales")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["monedas"][0]["codigo"], "PYG")
         self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_analista_puede_registrar_tasa(self):

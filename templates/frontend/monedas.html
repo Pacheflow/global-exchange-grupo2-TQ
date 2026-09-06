@@ -5,7 +5,7 @@
   <div class="ge-page">
     <div class="ge-page-header">
       <div>
-        <h1>Gestión de divisas</h1>
+        <h1>Gestión de monedas</h1>
         <p>Frontend de referencia · datos simulados (HU-36)</p>
       </div>
     </div>
@@ -13,15 +13,15 @@
     <div id="ge-monedas-list">
       <div class="ge-header-with-search">
         <div class="ge-search">
-          <span class="ge-search-icon" aria-hidden="true">🔍</span>
-          <input type="search" id="ge-monedas-search" class="ge-input" placeholder="Buscar divisa..." aria-label="Buscar divisa">
+          <span class="ge-search-icon" aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
+          <input type="search" id="ge-monedas-search" class="ge-input" placeholder="Buscar moneda..." aria-label="Buscar moneda">
         </div>
         <select id="ge-monedas-filter" class="ge-select ge-select--sm" aria-label="Filtrar por estado">
           <option value="todas">Todas</option>
           <option value="activas">Activas</option>
           <option value="inactivas">Inactivas</option>
         </select>
-        <button class="ge-btn-primary ge-btn-sm" type="button" data-ge-monedas-new>+ Nueva divisa</button>
+        <button class="ge-btn-primary ge-btn-sm" type="button" data-ge-monedas-new>+ Nueva moneda</button>
       </div>
       <div class="ge-card ge-table-wrap">
         <div class="ge-error-banner" id="ge-monedas-error" hidden></div>
@@ -37,7 +37,7 @@
     <div id="ge-monedas-form" hidden>
       <div class="ge-back-row">
         <button type="button" class="ge-btn-ghost" data-ge-monedas-back>← Volver</button>
-        <h1 class="ge-title-h2" id="ge-monedas-form-title">Nueva divisa</h1>
+        <h1 class="ge-title-h2" id="ge-monedas-form-title">Nueva moneda</h1>
       </div>
       <div class="ge-card ge-card--pad32" style="max-width: 620px">
         <form id="ge-monedas-form-element" novalidate>
@@ -59,7 +59,7 @@
           <div class="ge-field">
             <label class="ge-check-field" for="ge-monedas-active">
               <input id="ge-monedas-active" type="checkbox">
-              <span>Divisa activa en el sistema</span>
+              <span>Moneda activa en el sistema</span>
             </label>
           </div>
           <div class="ge-error-banner" id="ge-monedas-form-error" hidden></div>
@@ -73,8 +73,8 @@
 
     <div class="ge-modal-backdrop" id="ge-modal-desactivar" role="dialog" aria-modal="true" aria-labelledby="ge-modal-desactivar-title">
       <div class="ge-card ge-card--pad32" style="max-width: 420px; background: var(--surface)">
-        <h3 class="ge-title-h2" id="ge-modal-desactivar-title">Desactivar divisa</h3>
-        <p style="margin-top: 8px">¿Estás seguro que deseas desactivar la divisa <strong id="ge-monedas-target">—</strong>? Esta acción ocultará la divisa en las nuevas operaciones.</p>
+        <h3 class="ge-title-h2" id="ge-modal-desactivar-title">Desactivar moneda</h3>
+        <p style="margin-top: 8px">¿Estás seguro que deseas desactivar la moneda <strong id="ge-monedas-target">—</strong>? Esta acción ocultará la moneda en las nuevas operaciones.</p>
         <div class="ge-modal-actions">
           <button type="button" class="ge-btn-outline" data-ge-monedas-cancel>Cancelar</button>
           <button type="button" class="ge-btn-primary" data-ge-monedas-confirm>Desactivar</button>
@@ -128,8 +128,8 @@
     if (!visible.length) {
       document.getElementById('ge-monedas-error').hidden = false;
       document.getElementById('ge-monedas-error').textContent = items.length
-        ? 'Sin divisas para el filtro o búsqueda actual.'
-        : 'No hay divisas registradas. Creá la primera con "+ Nueva divisa".';
+        ? 'Sin monedas para el filtro o búsqueda actual.'
+        : 'No hay monedas registradas. Creá la primera con "+ Nueva moneda".';
     }
 
     var body = document.getElementById('ge-monedas-body');
@@ -157,7 +157,7 @@
     clearError('ge-monedas-form-error');
     document.getElementById('ge-monedas-list').hidden = true;
     document.getElementById('ge-monedas-form').hidden = false;
-    document.getElementById('ge-monedas-form-title').textContent = isNew ? 'Nueva divisa' : 'Editar divisa: ' + code;
+    document.getElementById('ge-monedas-form-title').textContent = isNew ? 'Nueva moneda' : 'Editar moneda: ' + code;
     var item = isNew ? null : byCode(code);
     document.getElementById('ge-monedas-code').value = isNew ? '' : item.code;
     document.getElementById('ge-monedas-symbol').value = isNew ? '' : (item.symbol || '');
@@ -193,7 +193,7 @@
       targetCode = null;
       window.GEApp.closeModal('ge-modal-desactivar');
       render();
-      window.GEApp.toast('Divisa desactivada exitosamente.');
+      window.GEApp.toast('Moneda desactivada exitosamente.');
     }
   });
 
@@ -212,7 +212,7 @@
     if (!/^[A-Z]{3}$/.test(code)) { showError('ge-monedas-form-error', 'El código debe tener exactamente 3 letras.'); return; }
     if (!name) { showError('ge-monedas-form-error', 'El nombre de la moneda es obligatorio.'); return; }
     if (!symbol) { showError('ge-monedas-form-error', 'El símbolo es obligatorio.'); return; }
-    if (editingCode == null && byCode(code)) { showError('ge-monedas-form-error', 'Ya existe una divisa con el código ' + code + '.'); return; }
+    if (editingCode == null && byCode(code)) { showError('ge-monedas-form-error', 'Ya existe una moneda con el código ' + code + '.'); return; }
 
     if (editingCode == null) {
       items.push({ code: code, name: name, symbol: symbol, flag: '', buy: 0, sell: 0, change: 0, trend: 'neutral', updated: '—' });
@@ -227,7 +227,7 @@
     editingCode = null;
     backToList();
     render();
-    window.GEApp.toast('Divisa guardada exitosamente.');
+    window.GEApp.toast('Moneda guardada exitosamente.');
   });
 
   render();

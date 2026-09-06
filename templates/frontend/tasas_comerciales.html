@@ -48,7 +48,7 @@
       <div class="ge-card ge-card--pad32" style="max-width: 620px">
         <form id="ge-tasas-comerciales-form-element" novalidate>
           <div class="ge-field">
-            <label for="ge-tasas-comerciales-code">Divisa</label>
+            <label for="ge-tasas-comerciales-code">Moneda</label>
             <select id="ge-tasas-comerciales-code" required></select>
           </div>
           <div class="ge-form-grid">
@@ -215,7 +215,7 @@
     var buy = parseFloat(document.getElementById('ge-tasas-comerciales-buy').value);
     var sell = parseFloat(document.getElementById('ge-tasas-comerciales-sell').value);
 
-    if (!code) { showError('ge-tasas-comerciales-form-error', 'Seleccioná una divisa.'); return; }
+    if (!code) { showError('ge-tasas-comerciales-form-error', 'Seleccioná una moneda.'); return; }
     if (isNaN(buy) || buy <= 0) { showError('ge-tasas-comerciales-form-error', 'El precio de compra debe ser mayor que cero.'); return; }
     if (isNaN(sell) || sell <= 0) { showError('ge-tasas-comerciales-form-error', 'El precio de venta debe ser mayor que cero.'); return; }
     if (sell <= buy) { showError('ge-tasas-comerciales-form-error', 'El precio de venta debe ser mayor que el de compra.'); return; }

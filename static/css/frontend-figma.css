@@ -58,7 +58,12 @@
   content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
   width: 3px; border-radius: 0 2px 2px 0; background: var(--primary);
 }
-.ge-figma-nav-icon { font-style: normal; opacity: 0.7; flex-shrink: 0; }
+.ge-figma-nav-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; color: currentColor;
+  font-style: normal; opacity: 0.7; flex: 0 0 18px;
+}
+.ge-figma-nav-icon svg { display: block; width: 18px; height: 18px; stroke: currentColor; }
 .ge-figma-nav a.is-active .ge-figma-nav-icon { opacity: 1; }
 .ge-figma-nav-label { flex: 1; }
 .ge-figma-nav-badge {
@@ -253,6 +258,37 @@
 .ge-chart-box { width: 100%; height: 200px; }
 .ge-chart-box--sm { height: 160px; }
 .ge-chart-box svg { display: block; width: 100%; height: 100%; }
+
+/* ── Animaciones de carga de gráficos ── */
+.ge-bar--anim {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: ge-bar-grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ge-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.ge-donut--anim {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ge-donut-appear 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ge-donut-appear {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+.ge-line--anim {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: ge-line-draw 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ge-line-draw {
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ge-bar--anim, .ge-donut--anim, .ge-line--anim { animation: none; }
+}
 
 /* ── Donut legend ── */
 .ge-donut-legend { display: flex; flex-direction: column; gap: 10px; flex: 1; }
@@ -544,6 +580,65 @@
 .ge-cierre-list div:last-child { border-bottom: 0; }
 .ge-cierre-list strong { font-family: 'JetBrains Mono', monospace; color: var(--text); }
 
+/* ── Roles y permisos (Keycloak) ── */
+.ge-figma-nav-pending {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 2px; padding: 9px 12px; border-radius: 8px;
+  color: var(--text-3); font-size: 13px; cursor: not-allowed; opacity: 0.72;
+}
+.ge-nav-status {
+  margin-left: auto; padding: 2px 7px; border: 1px solid var(--border);
+  border-radius: 999px; color: var(--warning); font-size: 9px;
+  font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.ge-figma-eyebrow {
+  display: block; margin-bottom: 6px; color: var(--primary); font-size: 10px;
+  font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+}
+.ge-figma-subtitle { margin: 7px 0 0; color: var(--text-2); font-size: 13px; }
+.ge-keycloak-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px;
+  border: 1px solid rgba(34, 197, 94, .28); border-radius: 999px;
+  background: var(--success-bg); color: var(--success); font-size: 11px; font-weight: 700;
+}
+.ge-keycloak-chip i, .ge-role-state i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ge-roles-alert { margin-bottom: 20px; }
+.ge-roles-alert > span { font-size: 18px; font-weight: 800; }
+.ge-roles-alert div { display: grid; gap: 3px; }
+.ge-roles-alert small { color: var(--text-2); font-size: 12px; font-weight: 400; }
+.ge-roles-source { margin-bottom: 20px; overflow: hidden; }
+.ge-roles-source p { margin: 0; padding: 18px 24px; color: var(--text-2); font-size: 13px; line-height: 1.65; }
+.ge-count-summary { color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ge-roles-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ge-role-card { min-width: 0; padding: 22px; }
+.ge-role-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.ge-role-symbol { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 9px; background: var(--primary-muted); color: var(--primary); }
+.ge-role-state { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; }
+.ge-role-state--ready { color: var(--success); }
+.ge-role-state--missing { color: var(--danger); }
+.ge-role-state--unknown { color: var(--warning); }
+.ge-role-card h3 { margin: 0 0 5px; color: var(--text); font-family: 'Fraunces', serif; font-size: 19px; font-weight: 500; }
+.ge-role-name { color: var(--primary); font: 600 11px 'DM Sans', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.ge-role-card p { margin: 14px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.65; }
+.ge-roles-note { margin-top: 22px; padding: 16px 18px; border-left: 3px solid var(--warning); background: var(--warning-bg); }
+.ge-roles-note strong { color: var(--warning); font-size: 12px; }
+.ge-roles-note p { margin: 4px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.6; }
+
+/* ── Placeholder de cajas ── */
+.ge-cajas-placeholder { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 28px; padding: 24px; }
+.ge-cajas-placeholder-icon, .ge-cajas-feature > span {
+  display: grid; place-items: center; flex-shrink: 0;
+  border: 1px solid rgba(59, 91, 255, .25); border-radius: 10px;
+  background: var(--primary-muted); color: var(--primary);
+}
+.ge-cajas-placeholder-icon { width: 46px; height: 46px; }
+.ge-cajas-placeholder h3, .ge-cajas-feature h4 { margin: 0 0 6px; color: var(--text); font-size: 14px; }
+.ge-cajas-placeholder p, .ge-cajas-feature p { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.6; }
+.ge-cajas-section-head { margin-bottom: 16px; }
+.ge-cajas-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ge-cajas-feature { display: flex; align-items: flex-start; gap: 14px; padding: 20px; }
+.ge-cajas-feature > span { width: 38px; height: 38px; }
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .ge-figma-body { display: block; }
@@ -585,4 +680,7 @@
   [data-converter] > div > div[style*="display:flex"] > .ge-input { width: 100% !important; min-width: 0; flex: 1 1 100% !important; }
   .ge-sim-rate { flex-direction: column; align-items: flex-start; gap: 12px; }
   .ge-sim-rate > div { width: 100%; text-align: left !important; }
+  .ge-roles-grid { grid-template-columns: 1fr; }
+  .ge-cajas-features { grid-template-columns: 1fr; }
+  .ge-cajas-placeholder { padding: 20px; }
 }

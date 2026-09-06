@@ -17,7 +17,7 @@
 
     <div class="ge-kpi-grid" style="margin-top: 24px">
       <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">👤</span>
+        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='user' size=18 %}</span>
         <div>
           <span class="ge-kpi-label">Usuario</span>
           <span class="ge-kpi-value">{{ kc_display_name }}</span>
@@ -25,7 +25,7 @@
         </div>
       </article>
       <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">🛡️</span>
+        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='roles' size=18 %}</span>
         <div>
           <span class="ge-kpi-label">Rol activo</span>
           <span class="ge-kpi-value">Analista cambiario</span>
@@ -33,7 +33,7 @@
         </div>
       </article>
       <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">🏢</span>
+        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span>
         <div>
           <span class="ge-kpi-label">Cliente activo</span>
           <span class="ge-kpi-value">{% if selected_client %}{{ selected_client.name|truncatechars:18 }}{% else %}Sin seleccionar{% endif %}</span>
@@ -50,24 +50,24 @@
     </div>
     <div class="ge-quick-actions-grid">
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:tasas_comerciales' %}">
-        <span class="ge-quick-icon" aria-hidden="true">⚙️</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='settings' size=20 %}</span>
         <span><strong>Tasas comerciales</strong><small>Actualizar compra y venta de la casa</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:tasas' %}">
-        <span class="ge-quick-icon" aria-hidden="true">📈</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='rates' size=20 %}</span>
         <span><strong>Cotizaciones</strong><small>Consultar compra, venta y variación</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
-        <span class="ge-quick-icon" aria-hidden="true">🏢</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='clients' size=20 %}</span>
         <span><strong>Gestionar clientes</strong><small>Consultar y segmentar clientes asignados</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:monedas' %}">
-        <span class="ge-quick-icon" aria-hidden="true">🪙</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='currencies' size=20 %}</span>
         <span><strong>Monedas</strong><small>Consultar las monedas del sistema</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:simulador' %}">
-        <span class="ge-quick-icon" aria-hidden="true">💱</span>
-        <span><strong>Conversor de divisas</strong><small>Simular conversiones de referencia</small></span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='operations' size=20 %}</span>
+        <span><strong>Conversor de monedas</strong><small>Simular conversiones de referencia</small></span>
       </a>
     </div>
   </div>

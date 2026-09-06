@@ -59,10 +59,10 @@
         <article class="ge-card" style="padding:24px">
           <div class="ge-card-title" style="margin-bottom:16px">Accesos rápidos</div>
           <div class="ge-figma-quick-grid">
-            <button type="button" class="ge-figma-quick" style="color:var(--success)">↓<span>Comprar divisas</span></button>
-            <button type="button" class="ge-figma-quick" style="color:var(--danger)">↑<span>Vender divisas</span></button>
-            <button type="button" class="ge-figma-quick" style="color:var(--primary)">⇄<span>Convertir</span></button>
-            <button type="button" class="ge-figma-quick" style="color:var(--text-2)">📋<span>Ver historial</span></button>
+            <button type="button" class="ge-figma-quick" style="color:var(--success)">{% include 'components/icon.html' with name='arrow-down' size=16 %}<span>Comprar monedas</span></button>
+            <button type="button" class="ge-figma-quick" style="color:var(--danger)">{% include 'components/icon.html' with name='arrow-up' size=16 %}<span>Vender monedas</span></button>
+            <button type="button" class="ge-figma-quick" style="color:var(--primary)">{% include 'components/icon.html' with name='transfer' size=16 %}<span>Convertir</span></button>
+            <button type="button" class="ge-figma-quick" style="color:var(--text-2)">{% include 'components/icon.html' with name='reports' size=16 %}<span>Ver historial</span></button>
           </div>
         </article>
 
@@ -123,8 +123,8 @@
         <h2 class="ge-figma-h2">Nueva operación</h2>
         <article class="ge-card" style="padding:28px">
           <div class="ge-switch" style="margin-bottom:24px">
-            <button type="button" class="is-active">Comprar divisas</button>
-            <button type="button">Vender divisas</button>
+            <button type="button" class="is-active">Comprar monedas</button>
+            <button type="button">Vender monedas</button>
           </div>
           <div class="ge-form-grid">
             <div>
@@ -137,7 +137,7 @@
                 <option value="ARS">🇦🇷 ARS — Peso argentino</option>
               </select>
             </div>
-            <button type="button" class="ge-btn-outline ge-op-swap" data-conv-swap>⇄</button>
+            <button type="button" class="ge-btn-outline ge-op-swap" data-conv-swap>{% include 'components/icon.html' with name='transfer' size=18 %}</button>
             <div>
               <label class="ge-figma-field-label" for="op-destino">MONEDA DESTINO</label>
               <select id="op-destino" class="ge-input" data-conv-destino style="cursor:pointer">

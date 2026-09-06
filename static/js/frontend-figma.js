@@ -135,7 +135,10 @@ window.GEFigma = (function () {
       svgEl.appendChild(defs);
 
       svgEl.appendChild(svg('path', { d: area, fill: 'url(#' + gradId + ')' }));
-      svgEl.appendChild(svg('path', { d: line, fill: 'none', stroke: s.color, 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      var linePath = svg('path', { d: line, fill: 'none', stroke: s.color, 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+      linePath.classList.add('ge-line--anim');
+      linePath.style.animationDelay = String(150 + si * 180) + 'ms';
+      svgEl.appendChild(linePath);
     });
 
     el.innerHTML = '';
@@ -166,12 +169,18 @@ window.GEFigma = (function () {
     }
 
     var slot = plotW / values.length;
-    var barW = Math.min(34, slot * 0.55);
+    var barW = Math.min(46, slot * 0.74);
     values.forEach(function (v, i) {
       var x = padL + slot * i + (slot - barW) / 2;
       var h = (v / max) * plotH;
       var y = padT + plotH - h;
-      var rect = svg('rect', { x: String(x), y: String(y), width: String(barW), height: String(h), rx: '4', fill: color || 'var(--primary)' });
+      var rect = svg('rect', {
+        x: String(x), y: String(y), width: String(barW), height: String(h),
+        rx: '4', fill: color || 'var(--primary)'
+      });
+      rect.setAttribute('data-bar-index', String(i));
+      rect.classList.add('ge-bar--anim');
+      rect.style.animationDelay = String(80 + i * 90) + 'ms';
       svgEl.appendChild(rect);
       var ll = svg('text', { x: String(x + barW / 2), y: String(height - 6), 'text-anchor': 'middle', fill: 'var(--text-3)', 'font-family': 'DM Sans, sans-serif', 'font-size': '10' });
       ll.textContent = labels[i];
@@ -191,16 +200,19 @@ window.GEFigma = (function () {
     var total = segments.reduce(function (a, s) { return a + s.value; }, 0) || 1;
     var offset = 0;
 
-    segments.forEach(function (s) {
+    segments.forEach(function (s, si) {
       var frac = s.value / total;
       var len = frac * circ;
       var g = svg('g', { transform: 'rotate(-90 ' + center + ' ' + center + ')' });
-      g.appendChild(svg('circle', {
+      var circle = svg('circle', {
         cx: String(center), cy: String(center), r: String(radius),
         fill: 'none', stroke: s.color, 'stroke-width': String(stroke),
         'stroke-dasharray': len.toFixed(1) + ' ' + (circ - len).toFixed(1),
         'stroke-dashoffset': String(-offset)
-      }));
+      });
+      circle.classList.add('ge-donut--anim');
+      circle.style.animationDelay = String(si * 130) + 'ms';
+      g.appendChild(circle);
       offset += len;
       svgEl.appendChild(g);
     });
@@ -280,9 +292,9 @@ window.GEFigma = (function () {
   function initTableSearch(root) {
     Array.prototype.forEach.call($('.ge-search-box input', root), function (input) {
       var scope = input.closest('.ge-figma-main-pad') || root;
-      var rows = scope.querySelectorAll('tbody tr');
       input.addEventListener('input', function () {
         var query = input.value.trim().toLocaleLowerCase('es');
+        var rows = scope.querySelectorAll('tbody tr');
         Array.prototype.forEach.call(rows, function (row) {
           row.hidden = query !== '' && row.textContent.toLocaleLowerCase('es').indexOf(query) === -1;
         });
@@ -324,13 +336,13 @@ window.GEFigma = (function () {
     var body = '';
     var submit = '';
     if (kind === 'currency') {
-      title = isEdit ? 'Editar divisa' : 'Nueva divisa';
+      title = isEdit ? 'Editar moneda' : 'Nueva moneda';
       submit = 'Guardar cambios';
       body = '<div class="ge-form-grid">' +
         field('CÓDIGO (ISO)', '<input class="ge-input" name="code" maxlength="3" required placeholder="USD" value="' + (isEdit ? esc(cells[1].textContent.trim()) : '') + '">') +
         field('BANDERA (EMOJI)', '<input class="ge-input" name="flag" required placeholder="🇺🇸" value="' + (isEdit ? esc(cells[0].textContent.trim()) : '') + '">') + '</div>' +
         field('NOMBRE DE LA MONEDA', '<input class="ge-input" name="name" required placeholder="Dólar estadounidense" value="' + (isEdit ? esc(cells[2].textContent.trim()) : '') + '">') +
-        '<label class="ge-crud-check"><input type="checkbox" checked> Divisa activa</label>';
+        '<label class="ge-crud-check"><input type="checkbox" checked> Moneda activa</label>';
     } else if (kind === 'payment') {
       title = isEdit ? 'Editar medio de pago' : 'Nuevo medio de pago';
       submit = 'Guardar medio de pago';
@@ -342,7 +354,7 @@ window.GEFigma = (function () {
     } else {
       title = isEdit ? 'Editar tasa' : 'Actualizar tasa';
       submit = 'Confirmar actualización';
-      body = field('DIVISA', '<select class="ge-input" name="currency"><option>🇺🇸 USD - Dólar estadounidense</option><option>🇪🇺 EUR - Euro</option><option>🇧🇷 BRL - Real brasileño</option><option>🇦🇷 ARS - Peso argentino</option></select>') +
+      body = field('MONEDA', '<select class="ge-input" name="currency"><option>🇺🇸 USD - Dólar estadounidense</option><option>🇪🇺 EUR - Euro</option><option>🇧🇷 BRL - Real brasileño</option><option>🇦🇷 ARS - Peso argentino</option></select>') +
         '<div class="ge-form-grid">' +
         field('PRECIO COMPRA (PYG)', '<input class="ge-input ge-mono" type="number" min="0.0001" step="0.0001" name="buy" required value="' + (isEdit ? esc(cells[1].textContent.trim().replace('.', '')) : '') + '">') +
         field('PRECIO VENTA (PYG)', '<input class="ge-input ge-mono" type="number" min="0.0001" step="0.0001" name="sell" required value="' + (isEdit ? esc(cells[2].textContent.trim().replace('.', '')) : '') + '">') + '</div>';
@@ -371,7 +383,7 @@ window.GEFigma = (function () {
           return;
         }
       }
-      restore(kind === 'currency' ? 'Divisa guardada correctamente.' : kind === 'payment' ? 'Medio de pago guardado correctamente.' : 'Tasa actualizada correctamente.');
+      restore(kind === 'currency' ? 'Moneda guardada correctamente.' : kind === 'payment' ? 'Medio de pago guardado correctamente.' : 'Tasa actualizada correctamente.');
     });
   }
 
@@ -380,10 +392,11 @@ window.GEFigma = (function () {
       ? root
       : root.querySelector ? root.querySelector('.ge-figma-main-pad') : null;
     if (!page || page.dataset.crudReady === 'true') return;
+    if (page.hasAttribute('data-ge-api')) return;
     var heading = page.querySelector('.ge-figma-section-head h2');
     if (!heading) return;
     var title = heading.textContent.trim();
-    var kind = title === 'Gestión de divisas' ? 'currency' : title === 'Medios de pago del cliente' ? 'payment' : title === 'Cotizaciones y Tasas' ? 'rate' : '';
+    var kind = title === 'Gestión de monedas' ? 'currency' : title === 'Medios de pago del cliente' ? 'payment' : title === 'Cotizaciones y Tasas' ? 'rate' : '';
     if (!kind) return;
     page.dataset.crudReady = 'true';
     var primary = page.querySelector('.ge-figma-section-head .ge-btn-primary');
@@ -396,7 +409,7 @@ window.GEFigma = (function () {
           createDialog('ge-rate-history', 'Histórico de tasas', '<p>Registro visual de cambios para <strong class="ge-mono">' + esc(row.cells[0].textContent.trim()) + '</strong>.</p><div class="ge-empty"><strong>Histórico en preparación</strong><p>Se conectará al backend cuando el servicio esté disponible.</p></div>', 'Cerrar');
         });
         if (action === 'Desactivar' || action === 'Eliminar') button.addEventListener('click', function () {
-          var noun = kind === 'currency' ? 'Divisa' : 'Medio de Pago';
+          var noun = kind === 'currency' ? 'Moneda' : 'Medio de Pago';
           createDialog('ge-delete-confirm', action + ' ' + noun, '<p>¿Confirmás esta acción sobre <strong>' + esc(row.cells[kind === 'currency' ? 2 : 0].textContent.trim()) + '</strong>?</p>', action, function () {
             row.remove();
             if (window.GEApp) window.GEApp.toast(noun + ' actualizado correctamente.');

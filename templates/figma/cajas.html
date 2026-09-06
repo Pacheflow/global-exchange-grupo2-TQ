@@ -1,0 +1,38 @@
+{% extends 'figma/base.html' %}
+{% block title %}Gestión de cajas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-figma-main-pad">
+    <div class="ge-figma-section-head">
+      <div>
+        <span class="ge-figma-eyebrow">Operación de efectivo</span>
+        <h2 class="ge-figma-h2">Gestión de cajas</h2>
+        <p class="ge-figma-subtitle">Administración del ciclo operativo de cajas.</p>
+      </div>
+      <span class="ge-status-badge ge-status-badge--warning ge-status-badge--md"><span class="ge-status-dot"></span>Pendiente de implementación</span>
+    </div>
+
+    <section class="ge-card ge-cajas-placeholder" aria-labelledby="cajas-pending-title">
+      <span class="ge-cajas-placeholder-icon" aria-hidden="true">{% include 'components/icon.html' with name='cash' size=24 %}</span>
+      <div>
+        <h3 id="cajas-pending-title">Módulo en preparación</h3>
+        <p>Esta pantalla reserva el espacio visual del futuro módulo. Todavía no existen operaciones de caja conectadas al backend.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="cajas-features-title">
+      <div class="ge-figma-section-head ge-cajas-section-head">
+        <div>
+          <h3 id="cajas-features-title" class="ge-figma-panel-title">Funcionalidades futuras</h3>
+          <p class="ge-figma-subtitle">Capacidades previstas para la implementación del módulo.</p>
+        </div>
+      </div>
+      <div class="ge-cajas-features">
+        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='cash' size=20 %}</span><div><h4>Apertura</h4><p>Inicio de jornada y registro del fondo inicial.</p></div></article>
+        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='history' size=20 %}</span><div><h4>Cierre</h4><p>Consolidación y cierre operativo de la jornada.</p></div></article>
+        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='reconciliation' size=20 %}</span><div><h4>Arqueo</h4><p>Comparación de saldos registrados y efectivo disponible.</p></div></article>
+        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='transfer' size=20 %}</span><div><h4>Transferencias</h4><p>Movimientos controlados de fondos entre cajas.</p></div></article>
+      </div>
+    </section>
+  </div>
+{% endblock %}

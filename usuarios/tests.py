@@ -868,3 +868,373 @@ class AsignarRolTests(TestCase):
             response.json()["error"],
             "El usuario ya posee ese rol.",
         )
+
+
+class RolesPermisosViewTests(TestCase):
+    """Comprueba la consulta administrativa de roles de Keycloak."""
+
+    def _autenticar_como(self, roles):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "admin-roles",
+            "username": "admin.roles",
+            "email": "admin.roles@example.com",
+        }
+        session[SESSION_ROLES] = roles
+        session[SESSION_EXPIRA_EN] = time.time() + 3600
+        session["kc_user"] = {
+            "sub": "admin-roles",
+            "preferred_username": "admin.roles",
+        }
+        session.save()
+
+    def test_usuario_anonimo_es_redirigido_al_login(self):
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/login/")
+
+    def test_usuario_sin_rol_administrador_recibe_403(self):
+        self._autenticar_como(["USUARIO"])
+
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTemplateUsed(response, "usuarios/forbidden.html")
+
+    @patch("usuarios.views.admin_request")
+    def test_administrador_consulta_los_roles_de_keycloak(self, mock_admin_request):
+        self._autenticar_como(["ADMINISTRADOR"])
+        mock_admin_request.return_value = [
+            {"name": "ADMINISTRADOR"},
+            {"name": "CAJERO"},
+            {"name": "ANALISTA_CAMBIARIO"},
+            {"name": "USUARIO"},
+            {"name": "offline_access"},
+        ]
+
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "figma/roles_permisos.html")
+        self.assertEqual(len(response.context["roles_sistema"]), 4)
+        self.assertTrue(
+            all(role["configurado"] for role in response.context["roles_sistema"])
+        )
+        mock_admin_request.assert_called_once_with("/roles")
+
+    @patch("usuarios.views.admin_request")
+    def test_error_de_keycloak_conserva_la_vista_informativa(
+        self,
+        mock_admin_request,
+    ):
+        self._autenticar_como(["ADMINISTRADOR"])
+        mock_admin_request.side_effect = KeycloakError(
+            "No se pudo conectar con Keycloak."
+        )
+
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sin verificar", count=4)
+        self.assertContains(response, "No se pudo verificar Keycloak")
+
+
+class FigmaApiScreensTests(TestCase):
+    """Verifica que las pantallas conectadas exponen su configuración de API."""
+
+    def _autenticar_como(self, roles):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "figma-api-user",
+            "username": "figma.api",
+            "email": "figma.api@example.com",
+        }
+        session[SESSION_ROLES] = roles
+        session[SESSION_EXPIRA_EN] = time.time() + 3600
+        session["kc_user"] = {
+            "sub": "figma-api-user",
+            "preferred_username": "figma.api",
+        }
+        session.save()
+
+    def test_monedas_carga_la_configuracion_de_api(self):
+        self._autenticar_como(["ADMINISTRADOR"])
+
+        response = self.client.get(reverse("usuarios:monedas"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "figma/monedas.html")
+        self.assertContains(response, 'data-ge-api="currencies"')
+        self.assertContains(response, reverse("monedas:listar_monedas"))
+
+    def test_tasas_comerciales_carga_la_configuracion_de_api(self):
+        self._autenticar_como(["ANALISTA_CAMBIARIO"])
+
+        response = self.client.get(reverse("usuarios:tasas_comerciales"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "figma/tasas_comerciales.html")
+        self.assertContains(response, 'data-ge-api="rates"')
+        self.assertContains(response, reverse("tasas:historial_tasas_comerciales"))
+
+    def test_pagos_carga_la_configuracion_de_api(self):
+        self._autenticar_como(["ADMINISTRADOR"])
+
+        response = self.client.get(reverse("usuarios:pagos"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "figma/pagos.html")
+        self.assertContains(response, 'data-ge-api="payments"')
+        self.assertContains(response, reverse("metodos_pago:inicio_metodos_pago"))
+
+    @patch("usuarios.views.admin_request", return_value=[])
+    def test_navegacion_figma_del_administrador_renderiza(self, _mock_admin_request):
+        self._autenticar_como(["ADMINISTRADOR"])
+        rutas = (
+            reverse("usuarios:dashboard"),
+            reverse("usuarios:list"),
+            reverse("consultar_clientes"),
+            reverse("usuarios:monedas"),
+            reverse("usuarios:tasas"),
+            reverse("usuarios:tasas_comerciales"),
+            reverse("usuarios:pagos"),
+            reverse("usuarios:roles_permisos"),
+        )
+
+        for ruta in rutas:
+            with self.subTest(ruta=ruta):
+                response = self.client.get(ruta)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "<svg")
+                self.assertNotContains(response, "Divisas")
+
+def test_navegacion_figma_del_analista_renderiza(self):
+        self._autenticar_como(["ANALISTA_CAMBIARIO"])
+        rutas = (
+            reverse("usuarios:dashboard"),
+            reverse("usuarios:tasas"),
+            reverse("usuarios:tasas_comerciales"),
+            reverse("usuarios:monedas"),
+        )
+
+        for ruta in rutas:
+            with self.subTest(ruta=ruta):
+                response = self.client.get(ruta)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "<svg")
+                self.assertNotContains(response, "Divisas")
+
+
+class UsuariosFigmaApiTest(TestCase):
+    """Pruebas de los endpoints JSON utilizados por la interfaz Figma."""
+
+    def _autenticar_como(self, roles):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "admin-gestion",
+            "username": "admin.gestion",
+            "email": "admin@example.com",
+        }
+        session[SESSION_ROLES] = roles
+        session[SESSION_EXPIRA_EN] = time.time() + 300
+        session["kc_user"] = {
+            "sub": "admin-gestion",
+            "preferred_username": "admin.gestion",
+        }
+        session.save()
+
+    def setUp(self):
+        self._autenticar_como(["ADMINISTRADOR"])
+
+    @patch("usuarios.views.actualizar_roles_usuario")
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api(self, mock_admin_request, mock_actualizar_roles):
+        mock_admin_request.side_effect = [
+            None,
+            [{"id": "kc-usuario-api", "username": "usuario.api", "email": "api@example.com"}],
+        ]
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "usuario.api",
+                "email": "api@example.com",
+                "first_name": "Usuario",
+                "last_name": "API",
+                "password": "temporal-segura",
+                "roles": ["CAJERO"],
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(mock_admin_request.call_count, 2)
+        primera, segunda = mock_admin_request.call_args_list
+        self.assertEqual(primera.args[0], "/users")
+        self.assertEqual(primera.kwargs["method"], "POST")
+        self.assertEqual(primera.kwargs["payload"]["username"], "usuario.api")
+        self.assertIn("exact=true", segunda.args[0])
+        mock_actualizar_roles.assert_called_once_with("kc-usuario-api", ["CAJERO"])
+
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api_datos_invalidos(self, mock_admin_request):
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "",
+                "email": "incompleto@example.com",
+                "password": "corta",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        mock_admin_request.assert_not_called()
+
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api_error_keycloak(self, mock_admin_request):
+        mock_admin_request.side_effect = KeycloakError("Keycloak rechazó la creación.")
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "usuario.api",
+                "email": "api@example.com",
+                "password": "temporal-segura",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "Keycloak rechazó la creación.", status_code=400)
+
+    @patch("usuarios.views.roles_usuario", return_value=["ADMINISTRADOR"])
+    @patch("usuarios.views.admin_request")
+    def test_detalle_usuario_api(self, mock_admin_request, mock_roles_usuario):
+        mock_admin_request.return_value = {
+            "id": "kc-detalle",
+            "username": "usuario.detalle",
+            "email": "detalle@example.com",
+            "firstName": "Detalle",
+            "lastName": "User",
+            "enabled": True,
+        }
+
+        response = self.client.get(reverse("usuarios_api:detalle_usuario", args=["kc-detalle"]))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["username"], "usuario.detalle")
+        self.assertEqual(data["email"], "detalle@example.com")
+        self.assertTrue(data["enabled"])
+        self.assertEqual(data["roles"], ["ADMINISTRADOR"])
+
+    @patch("usuarios.views.actualizar_roles_usuario")
+    @patch("usuarios.views.admin_request")
+    def test_editar_usuario_api(self, mock_admin_request, mock_actualizar_roles):
+        usuario = {
+            "id": "kc-editar",
+            "username": "usuario.editar",
+            "email": "antes@example.com",
+            "firstName": "Antes",
+            "lastName": "",
+            "enabled": True,
+        }
+        mock_admin_request.side_effect = [usuario, None]
+
+        response = self.client.post(
+            reverse("usuarios_api:editar_usuario", args=["kc-editar"]),
+            data=json.dumps({
+                "first_name": "Despues",
+                "last_name": "Editado",
+                "email": "despues@example.com",
+                "enabled": False,
+                "roles": ["USUARIO", "CAJERO"],
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        actualizacion = mock_admin_request.call_args_list[1]
+        self.assertEqual(actualizacion.kwargs["method"], "PUT")
+        self.assertEqual(actualizacion.kwargs["payload"]["enabled"], False)
+        self.assertEqual(actualizacion.kwargs["payload"]["email"], "despues@example.com")
+        mock_actualizar_roles.assert_called_once_with("kc-editar", ["USUARIO", "CAJERO"])
+
+    @patch("usuarios.views.admin_request")
+    def test_editar_usuario_api_inexistente(self, mock_admin_request):
+        mock_admin_request.side_effect = KeycloakError("User cannot be found")
+
+        response = self.client.post(
+            reverse("usuarios_api:editar_usuario", args=["kc-no-existe"]),
+            data=json.dumps({"first_name": "Nadie", "roles": []}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    @patch("usuarios.views.admin_request")
+    def test_baja_usuario_api(self, mock_admin_request):
+        usuario = {"id": "kc-baja", "username": "usuario.baja", "enabled": True}
+        mock_admin_request.side_effect = [usuario, None]
+
+        response = self.client.post(
+            reverse("usuarios_api:baja_usuario", args=["kc-baja"]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        actualizacion = mock_admin_request.call_args_list[1]
+        self.assertEqual(actualizacion.kwargs["method"], "PUT")
+        self.assertEqual(actualizacion.kwargs["payload"]["enabled"], False)
+
+    @patch("usuarios.views.admin_request")
+    def test_baja_usuario_api_inexistente(self, mock_admin_request):
+        mock_admin_request.side_effect = KeycloakError("User cannot be found")
+
+        response = self.client.post(
+            reverse("usuarios_api:baja_usuario", args=["kc-no-existe"]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_crear_usuario_requiere_administrador(self):
+        self._autenticar_como(["USUARIO"])
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "sin.permiso",
+                "email": "sin@example.com",
+                "password": "temporal-segura",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_metodos_restringidos(self):
+        urls_mutacion = [
+            reverse("usuarios_api:crear_usuario"),
+            reverse("usuarios_api:editar_usuario", args=["kc-405"]),
+            reverse("usuarios_api:baja_usuario", args=["kc-405"]),
+        ]
+
+        for url in urls_mutacion:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 405)
+
+        with self.subTest(url="detalle"):
+            response = self.client.post(
+                reverse("usuarios_api:detalle_usuario", args=["kc-405"]),
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 405)

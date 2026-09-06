@@ -1,15 +1,23 @@
 window.GEApp = (function () {
   'use strict';
 
-  function toast(message) {
+  function toast(message, type) {
+    var allowedTypes = ['success', 'warning', 'error', 'info'];
+    type = allowedTypes.indexOf(type) >= 0 ? type : 'success';
     var existing = document.querySelector('.ge-toast');
     if (existing) existing.remove();
     var el = document.createElement('div');
-    el.className = 'ge-toast';
-    el.setAttribute('role', 'status');
+    el.className = 'ge-toast ge-toast--' + type;
+    el.setAttribute('role', type === 'error' || type === 'warning' ? 'alert' : 'status');
     var icon = document.createElement('span');
     icon.className = 'ge-toast-icon';
-    icon.textContent = '\u2713';
+    var icons = {
+      success: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>',
+      warning: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5"/><path d="M12 18h.01"/></svg>',
+      error: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+      info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>'
+    };
+    icon.innerHTML = icons[type];
     el.appendChild(icon);
     var text = document.createElement('span');
     text.textContent = message;

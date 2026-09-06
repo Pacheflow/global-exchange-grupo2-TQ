@@ -39,14 +39,14 @@ class MonedaBackendTests(TestCase):
         session.save()
 
     def test_usuario_no_autenticado_recibe_401(self):
-        response = self.client.get("/monedas/")
+        response = self.client.get("/api/monedas/")
 
         self.assertEqual(response.status_code, 401)
 
     def test_usuario_sin_rol_administrador_recibe_403(self):
         self.autenticar(["USUARIO"])
 
-        response = self.client.get("/monedas/")
+        response = self.client.get("/api/monedas/")
 
         self.assertEqual(response.status_code, 403)
 
@@ -55,7 +55,7 @@ class MonedaBackendTests(TestCase):
         self.autenticar()
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": "USD",
@@ -82,7 +82,7 @@ class MonedaBackendTests(TestCase):
         self.autenticar()
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": " usd ",
@@ -112,7 +112,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": " usd ",
@@ -132,7 +132,7 @@ class MonedaBackendTests(TestCase):
         self.autenticar()
 
         response = self.client.post(
-            "/monedas/crear/",
+            "/api/monedas/crear/",
             data=json.dumps(
                 {
                     "codigo": "",
@@ -159,7 +159,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/editar/",
+            f"/api/monedas/{moneda.id}/editar/",
             data=json.dumps(
                 {
                     "codigo": "EUR",
@@ -191,7 +191,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/estado/",
+            f"/api/monedas/{moneda.id}/estado/",
             data=json.dumps(
                 {"estado": "INACTIVA"}
             ),
@@ -218,7 +218,7 @@ class MonedaBackendTests(TestCase):
         moneda_id = moneda.id
 
         response = self.client.post(
-            f"/monedas/{moneda_id}/estado/",
+            f"/api/monedas/{moneda_id}/estado/",
             data=json.dumps(
                 {"estado": "INACTIVA"}
             ),
@@ -246,7 +246,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/estado/",
+            f"/api/monedas/{moneda.id}/estado/",
             data=json.dumps(
                 {"estado": "ACTIVA"}
             ),
@@ -277,7 +277,7 @@ class MonedaBackendTests(TestCase):
             estado="INACTIVA",
         )
 
-        response = self.client.get("/monedas/activas/")
+        response = self.client.get("/api/monedas/activas/")
 
         self.assertEqual(response.status_code, 200)
 
@@ -305,7 +305,7 @@ class MonedaBackendTests(TestCase):
         )
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/editar/",
+            f"/api/monedas/{moneda.id}/editar/",
             data=json.dumps(
                 {
                     "codigo": "USD",
@@ -333,7 +333,7 @@ class MonedaBackendTests(TestCase):
         moneda_id = moneda.id
 
         response = self.client.post(
-                f"/monedas/{moneda_id}/estado/",
+                f"/api/monedas/{moneda_id}/estado/",
                 data=json.dumps(
                     {
                         "estado": "INACTIVA",
@@ -364,7 +364,7 @@ class MonedaBackendTests(TestCase):
         mock_save.side_effect = Exception("Error de persistencia")
 
         response = self.client.post(
-                "/monedas/crear/",
+                "/api/monedas/crear/",
                 data=json.dumps(
                     {
                         "codigo": "USD",
@@ -403,7 +403,7 @@ class MonedaBackendTests(TestCase):
         mock_save.side_effect = Exception("Error de persistencia")
 
         response = self.client.post(
-            f"/monedas/{moneda.id}/editar/",
+            f"/api/monedas/{moneda.id}/editar/",
             data=json.dumps(
                 {
                     "codigo": "USD",

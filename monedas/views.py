@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from usuarios.decorators import requiere_rol
+from usuarios.decorators import requiere_alguno_de_roles, requiere_rol
 
 from .forms import MonedaForm
 from .models import Moneda
@@ -203,7 +203,12 @@ def cambiar_estado_moneda(request, moneda_id):
     )
 
 
-@requiere_rol("ADMINISTRADOR")
+@requiere_alguno_de_roles(
+    "ADMINISTRADOR",
+    "CAJERO",
+    "ANALISTA_CAMBIARIO",
+    "USUARIO",
+)
 @require_GET
 def listar_monedas_activas(request):
     """Devuelve únicamente monedas disponibles para nuevas operaciones."""

@@ -1,10 +1,14 @@
+import json
+
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from usuarios.keycloak import KeycloakError, admin_request
-from usuarios.decorators import requiere_roles_web
+from usuarios.decorators import requiere_alguno_de_roles, requiere_rol, requiere_roles_web
+from usuarios.services.keycloak import SESSION_ROLES
 
 from .forms import AsignacionUsuarioClienteForm, ClienteForm, SegmentacionClienteForm
 from .models import Cliente, UsuarioCliente
@@ -78,7 +82,7 @@ def consultar_clientes(request):
 
     return render(
         request,
-        "clientes/consultar.html",
+        "figma/clientes.html",
         {
             "clientes": clientes,
             "busqueda": busqueda,
@@ -271,3 +275,181 @@ def quitar_asignacion_cliente(request, cliente_id, asignacion_id):
     asignacion.delete()
     messages.success(request, "Asignación eliminada.")
     return redirect("asignaciones_cliente", cliente_id=cliente_id)
+
+
+def _cliente_data(cliente):
+    """Convierte un cliente en un diccionario para respuestas JSON."""
+
+    return {
+        "id": cliente.id,
+        "nombre_razon_social": cliente.nombre_razon_social,
+        "tipo_persona": cliente.tipo_persona,
+        "tipo_persona_display": cliente.get_tipo_persona_display(),
+        "documento": cliente.documento,
+        "estado": cliente.estado,
+        "estado_display": cliente.get_estado_display(),
+        "categoria": cliente.categoria.nombre if cliente.categoria_id else None,
+        "fecha_registro": cliente.fecha_registro.isoformat(),
+    }
+
+
+def _json_body(request):
+    """Lee y decodifica JSON del cuerpo de una solicitud API."""
+
+    try:
+        return json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
+def _respuesta_documento_o_error(form):
+    """Convierte errores del formulario en respuestas JSON apropiadas."""
+
+    errores_documento = form.errors.get("documento", [])
+
+    if any(error.code == "duplicate" for error in errores_documento.as_data()):
+        return JsonResponse(
+            {"error": "Ya existe un cliente con ese documento."},
+            status=409,
+        )
+
+    return JsonResponse(
+        {
+            "error": "Los datos del cliente no son válidos.",
+            "detalles": form.errors.get_json_data(),
+        },
+        status=400,
+    )
+
+
+@requiere_rol("ADMINISTRADOR")
+@require_POST
+def crear_cliente_api(request):
+    """Registra un nuevo cliente desde la interfaz Figma (JSON)."""
+
+    datos = _json_body(request)
+
+    if datos is None:
+        return JsonResponse(
+            {"error": "El cuerpo de la solicitud debe contener JSON válido."},
+            status=400,
+        )
+
+    form = ClienteForm(datos)
+
+    if not form.is_valid():
+        return _respuesta_documento_o_error(form)
+
+    cliente = form.save()
+
+    return JsonResponse(
+        {
+            "message": f"Cliente {cliente.nombre_razon_social} registrado.",
+            "cliente": _cliente_data(cliente),
+        },
+        status=201,
+    )
+
+
+@requiere_rol("ADMINISTRADOR")
+@require_POST
+def editar_cliente_api(request, cliente_id):
+    """Actualiza los datos de un cliente desde la interfaz Figma (JSON)."""
+
+    datos = _json_body(request)
+
+    if datos is None:
+        return JsonResponse(
+            {"error": "El cuerpo de la solicitud debe contener JSON válido."},
+            status=400,
+        )
+
+    try:
+        cliente = Cliente.objects.get(id=cliente_id)
+    except Cliente.DoesNotExist:
+        return JsonResponse(
+            {"error": "El cliente no existe."},
+            status=404,
+        )
+
+    form = ClienteForm(datos, instance=cliente)
+
+    if not form.is_valid():
+        return _respuesta_documento_o_error(form)
+
+    cliente = form.save()
+
+    return JsonResponse(
+        {
+            "message": "Los datos del cliente fueron actualizados.",
+            "cliente": _cliente_data(cliente),
+        },
+        status=200,
+    )
+
+
+@requiere_rol("ADMINISTRADOR")
+@require_POST
+def dar_de_baja_cliente_api(request, cliente_id):
+    """Da de baja lógicamente a un cliente desde la interfaz Figma (JSON)."""
+
+    try:
+        cliente = Cliente.objects.get(id=cliente_id)
+    except Cliente.DoesNotExist:
+        return JsonResponse(
+            {"error": "El cliente no existe."},
+            status=404,
+        )
+
+    cliente.dar_de_baja()
+
+    if request.session.get("selected_client", {}).get("id") == cliente.id:
+        request.session.pop("selected_client", None)
+
+    return JsonResponse(
+        {"message": "Cliente dado de baja correctamente."},
+        status=200,
+    )
+
+
+@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@require_POST
+def seleccionar_cliente_api(request, cliente_id):
+    """Define el cliente activo sin salir de la interfaz Figma (JSON)."""
+
+    try:
+        cliente = Cliente.objects.get(id=cliente_id, estado="ACTIVO")
+    except Cliente.DoesNotExist:
+        return JsonResponse(
+            {"error": "El cliente no existe o no está activo."},
+            status=404,
+        )
+
+    roles = set(request.session.get(SESSION_ROLES, []))
+
+    if "ADMINISTRADOR" not in roles:
+        user_id = request.session.get("kc_user", {}).get("sub")
+        if not user_id:
+            return JsonResponse(
+                {"error": "No se encontró una identidad Keycloak válida."},
+                status=401,
+            )
+        if not UsuarioCliente.objects.filter(
+            cliente=cliente,
+            keycloak_user_id=user_id,
+            activo=True,
+        ).exists():
+            return JsonResponse(
+                {"error": "No tenés acceso a este cliente."},
+                status=404,
+            )
+
+    request.session["selected_client"] = {
+        "id": cliente.id,
+        "name": cliente.nombre_razon_social,
+    }
+
+    return JsonResponse(
+        {"message": f"Ahora estás trabajando con {cliente.nombre_razon_social}."},
+        status=200,
+    )

@@ -117,7 +117,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .sidebar-user > a:hover { background: var(--color-canvas); color: var(--color-ink); }
 .app-main { min-width: 0; }
 .mobile-app-header { display: none; }
-.authenticated .messages { left: auto; right: var(--page-gutter); }
+.authenticated .messages { left: auto; right: var(--page-gutter); z-index: 1300; }
 
 /* Controles */
 .button {
@@ -152,6 +152,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .message { max-width: 380px; padding: 13px 16px; border-radius: var(--radius-sm); background: var(--color-ink); color: white; box-shadow: var(--shadow-lg); font-size: 13px; }
 .message.success { border-left: 4px solid var(--color-green); }
 .message.error { border-left: 4px solid var(--color-danger); }
+body.authenticated .message { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: 1px solid #36527d; border-left-width: 4px; border-radius: 10px; background: #111e38; color: #e3efff; box-shadow: 0 16px 44px rgb(0 0 0 / 52%); line-height: 1.45; font-weight: 650; }
+body.authenticated .message::before { display: grid; place-items: center; flex: 0 0 20px; width: 20px; height: 20px; border: 1px solid currentColor; border-radius: 50%; font-weight: 800; line-height: 1; }
+body.authenticated .message.success { border-color: #22c55e; background: #102b24; color: #bdf8d0; }
+body.authenticated .message.success::before { content: "✓"; }
+body.authenticated .message.warning { border-color: #fbbf24; background: #302713; color: #ffeda6; }
+body.authenticated .message.warning::before { content: "!"; }
+body.authenticated .message.error { border-color: #f87171; background: #321923; color: #ffd7dc; }
+body.authenticated .message.error::before { content: "×"; }
+body.authenticated .message.info { border-color: #38bdf8; background: #10263a; color: #c8efff; }
+body.authenticated .message.info::before { content: "i"; font-family: Georgia, serif; }
 
 /* Estructura compartida de aplicación */
 .workspace {

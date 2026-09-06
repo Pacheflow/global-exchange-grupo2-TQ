@@ -6,7 +6,7 @@
     <div class="ge-page-header">
       <div>
         <h1>Hola, {{ display_name }}</h1>
-        <p>Atendé las operaciones de divisas y administrá el trabajo de tu caja.</p>
+        <p>Atendé las operaciones de monedas y administrá el trabajo de tu caja.</p>
       </div>
       <div class="ge-page-header-actions">
         <a class="ge-btn-primary" href="{% url 'consultar_clientes' %}">
@@ -17,7 +17,7 @@
 
     <div class="ge-kpi-grid" style="margin-top: 24px">
       <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">👤</span>
+        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='user' size=18 %}</span>
         <div>
           <span class="ge-kpi-label">Usuario</span>
           <span class="ge-kpi-value">{{ kc_display_name }}</span>
@@ -25,7 +25,7 @@
         </div>
       </article>
       <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">🛡️</span>
+        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='roles' size=18 %}</span>
         <div>
           <span class="ge-kpi-label">Rol activo</span>
           <span class="ge-kpi-value">Cajero</span>
@@ -33,7 +33,7 @@
         </div>
       </article>
       <article class="ge-card ge-kpi">
-        <span class="ge-kpi-icon">🏢</span>
+        <span class="ge-kpi-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span>
         <div>
           <span class="ge-kpi-label">Cliente activo</span>
           <span class="ge-kpi-value">{% if selected_client %}{{ selected_client.name|truncatechars:18 }}{% else %}Sin seleccionar{% endif %}</span>
@@ -50,23 +50,23 @@
     </div>
     <div class="ge-quick-actions-grid">
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:simulador' %}">
-        <span class="ge-quick-icon" aria-hidden="true">💱</span>
-        <span><strong>Conversor de divisas</strong><small>Calcular y confirmar operaciones de cambio</small></span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='operations' size=20 %}</span>
+        <span><strong>Conversor de monedas</strong><small>Calcular y confirmar operaciones de cambio</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:pagos' %}">
-        <span class="ge-quick-icon" aria-hidden="true">💳</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='payments' size=20 %}</span>
         <span><strong>Medios de pago</strong><small>Consultar los métodos disponibles</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
-        <span class="ge-quick-icon" aria-hidden="true">🏢</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='clients' size=20 %}</span>
         <span><strong>Gestionar clientes</strong><small>Consultar y seleccionar el contexto de trabajo</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:tasas' %}">
-        <span class="ge-quick-icon" aria-hidden="true">📈</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='rates' size=20 %}</span>
         <span><strong>Cotizaciones</strong><small>Consultar compra y venta actuales</small></span>
       </a>
       <a class="ge-card ge-quick-card" href="{% url 'usuarios:monedas' %}">
-        <span class="ge-quick-icon" aria-hidden="true">🪙</span>
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='currencies' size=20 %}</span>
         <span><strong>Monedas</strong><small>Consultar las monedas disponibles</small></span>
       </a>
     </div>

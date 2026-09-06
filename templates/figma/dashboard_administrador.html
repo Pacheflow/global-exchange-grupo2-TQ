@@ -13,19 +13,19 @@
     <!-- KPIs row 1 -->
     <div class="ge-figma-kpis">
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">👥</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='users' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">USUARIOS ACTIVOS</span><span class="ge-kpi--simple-value">47</span><span class="ge-kpi--simple-sub">en el sistema</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">🏢</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='clients' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">CLIENTES</span><span class="ge-kpi--simple-value">183</span><span class="ge-kpi--simple-sub">registrados</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">⇄</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">OPERACIONES HOY</span><span class="ge-kpi--simple-value">28</span><span class="ge-kpi--simple-sub">↑ +3 vs. ayer</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">💰</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value">48.2M PYG</span><span class="ge-kpi--simple-sub">Agosto 2026</span></div>
       </article>
     </div>
@@ -33,19 +33,19 @@
     <!-- KPIs row 2 -->
     <div class="ge-figma-kpis" style="margin-bottom:28px">
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">🗄</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='reconciliation' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">CAJAS ACTIVAS</span><span class="ge-kpi--simple-value">3/5</span><span class="ge-kpi--simple-sub">Turno abierto</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">⏳</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='history' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">PENDIENTES</span><span class="ge-kpi--simple-value">6</span><span class="ge-kpi--simple-sub">transacciones</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">📈</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value">1.84M PYG</span><span class="ge-kpi--simple-sub">31/08/2026</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">📊</span>
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
         <div><span class="ge-kpi--simple-label">OPERACIONES MES</span><span class="ge-kpi--simple-value">614</span><span class="ge-kpi--simple-sub">Agosto 2026</span></div>
       </article>
     </div>
@@ -59,9 +59,9 @@
           data-values='[32000000,38000000,41000000,35000000,44000000,48200000]'></div>
       </article>
 
-      <!-- Ganancia por divisa -->
+      <!-- Ganancia por moneda -->
       <article class="ge-card" style="padding:24px">
-        <div class="ge-card-title" style="margin-bottom:20px">Ganancia por divisa (%)</div>
+        <div class="ge-card-title" style="margin-bottom:20px">Ganancia por moneda (%)</div>
         <div class="ge-donut-wrap">
           <div class="ge-chart-box" data-chart="donut" data-segments='[{"name":"USD","value":38,"color":"#3B5BFF"},{"name":"EUR","value":28,"color":"#22C55E"},{"name":"BRL","value":20,"color":"#FBBF24"},{"name":"ARS","value":14,"color":"#F87171"}]'></div>
           <div class="ge-donut-legend">
