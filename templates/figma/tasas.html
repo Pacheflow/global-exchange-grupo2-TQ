@@ -1,6 +1,67 @@
 {% extends 'figma/base.html' %}
 {% load static %}
 {% block title %}Cotizaciones actuales · Global Exchange{% endblock %}
+{% block extra_head %}
+  <style>
+    .ge-quote-cards > .ge-card,
+    .ge-quote-head,
+    .ge-quote-id,
+    .ge-quote-id > div,
+    .ge-quote-rates,
+    .ge-quote-rates > div:not(.ge-quote-divider) {
+      min-width: 0;
+    }
+    .ge-quote-cards > .ge-card {
+      max-width: 100%;
+    }
+    .ge-quote-head > .ge-quote-id {
+      flex: 1 1 auto;
+    }
+    .ge-quote-head > :last-child {
+      flex-shrink: 0;
+    }
+    .ge-quote-id strong,
+    .ge-quote-rates strong {
+      white-space: nowrap;
+    }
+    .ge-quote-rates {
+      gap: 12px;
+    }
+    .ge-quote-rates > div:not(.ge-quote-divider) {
+      min-width: 0;
+    }
+    .ge-quote-rates > div:first-child {
+      flex: 1 1 auto;
+      text-align: left;
+    }
+    .ge-quote-rates > div:last-child {
+      flex: 0 0 auto;
+      text-align: right;
+    }
+    .ge-quote-rates strong.ge-mono {
+      font-size: 18px;
+    }
+    .ge-quote-rates strong:not(.ge-mono) {
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .ge-card > .ge-figma-note {
+      max-width: 100%;
+      text-align: center;
+      text-wrap: balance;
+      line-height: 1.45;
+    }
+    @media (min-width: 1281px) and (max-width: 1500px) {
+      .ge-quote-rates strong.ge-mono { font-size: 16px; }
+    }
+    @media (max-width: 1280px) {
+      .ge-quote-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .ge-quote-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+{% endblock %}
 {% block sidebar %}{% include 'figma/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
   <div class="ge-figma-main-pad"
