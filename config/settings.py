@@ -70,6 +70,17 @@ OIDC_REGISTRATION_SUCCESS_URL = os.getenv("OIDC_REGISTRATION_SUCCESS_URL", "")
 OIDC_ERROR_URL = os.getenv("OIDC_ERROR_URL", "")
 OIDC_FLOW_MAX_AGE_SECONDS = int(os.getenv("OIDC_FLOW_MAX_AGE_SECONDS", "600"))
 
+# Proveedor externo de tasas de referencia (HU-17).
+TASAS_PROVIDER_URL = os.getenv(
+    "TASAS_PROVIDER_URL",
+    "https://open.er-api.com/v6/latest/__BASE__",
+)
+TASAS_PROVIDER_API_KEY = os.getenv("TASAS_PROVIDER_API_KEY", "")
+TASAS_PROVIDER_TIMEOUT = float(os.getenv("TASAS_PROVIDER_TIMEOUT", "5"))
+TASAS_PROVIDER_NAME = os.getenv("TASAS_PROVIDER_NAME", "ExchangeRate-API")
+TASAS_BASE_CURRENCY = os.getenv("TASAS_BASE_CURRENCY", "USD").strip().upper()
+TASAS_VALIDITY_SECONDS = int(os.getenv("TASAS_VALIDITY_SECONDS", "86400"))
+
 # Cookies de sesión preparadas para un frontend separado. Los valores seguros
 # para HTTPS pueden activarse por entorno sin habilitar CORS en esta etapa.
 SESSION_COOKIE_HTTPONLY = os.getenv("SESSION_COOKIE_HTTPONLY", "true").lower() in {
