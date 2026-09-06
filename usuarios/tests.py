@@ -1110,7 +1110,10 @@ class UsuariosFrontendApiTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertContains(response, "Keycloak rechazó la creación.", status_code=400)
+        self.assertEqual(
+            response.json()["error"],
+            "Keycloak rechazó la creación.",
+        )
 
     @patch("usuarios.views.roles_usuario", return_value=["ADMINISTRADOR"])
     @patch("usuarios.views.admin_request")

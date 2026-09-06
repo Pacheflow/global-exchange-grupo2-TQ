@@ -307,7 +307,7 @@ def _respuesta_documento_o_error(form):
 
     errores_documento = form.errors.get("documento", [])
 
-    if any(error.code == "duplicate" for error in errores_documento.as_data()):
+    if any(error.code in ("unique", "duplicate") for error in errores_documento.as_data()):
         return JsonResponse(
             {"error": "Ya existe un cliente con ese documento."},
             status=409,
