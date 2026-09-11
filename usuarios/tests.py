@@ -3,6 +3,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
@@ -12,6 +13,7 @@ import requests
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.conf import settings
 from django.http import HttpResponseRedirect
+from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from jwt.exceptions import (
@@ -26,9 +28,14 @@ from jwt.exceptions import (
 from .services.keycloak import (
     SESSION_AUTENTICADO,
     SESSION_EXPIRA_EN,
+    SESSION_REFRESH_EXPIRA_EN,
+    SESSION_REFRESH_TOKEN,
     SESSION_ROLES,
     SESSION_USUARIO,
+    establecer_sesion_oidc,
     extraer_roles_sistema,
+    renovar_sesion_oidc,
+    sesion_oidc_vigente,
     validar_access_token,
 )
 from .keycloak import KeycloakError
@@ -197,7 +204,11 @@ class LoginUsuarioTests(FlujoOIDCMixin, TestCase):
     ):
         _, _, state, flow = self.iniciar_flujo("usuarios:login")
         mock_post.return_value.status_code = 200
-        mock_post.return_value.json.return_value = {"access_token": "token-prueba"}
+        mock_post.return_value.json.return_value = {
+            "access_token": "token-prueba",
+            "refresh_token": "refresh-prueba",
+            "refresh_expires_in": 1800,
+        }
         mock_validar_token.return_value = self.claims_validos(["USUARIO"])
 
         response = self.client.get(
@@ -220,7 +231,12 @@ class LoginUsuarioTests(FlujoOIDCMixin, TestCase):
         session = self.client.session
         self.assertTrue(session[SESSION_AUTENTICADO])
         self.assertGreater(session[SESSION_EXPIRA_EN], time.time())
+        self.assertEqual(session[SESSION_REFRESH_TOKEN], "refresh-prueba")
+        self.assertGreater(session[SESSION_REFRESH_EXPIRA_EN], time.time())
+        self.assertGreater(session.get_expiry_age(), 300)
         self.assertNotIn("kc_access_token", session)
+        self.assertNotIn("refresh_token", response.json())
+        self.assertNotIn("refresh-prueba", response.content.decode())
 
     @patch("usuarios.views.requests.post")
     def test_callback_informa_keycloak_no_disponible(self, mock_post):
@@ -369,6 +385,226 @@ class AutorizacionBackendTests(TestCase):
         self.assertEqual(response.json()["error"], "Autenticación requerida")
 
 
+@override_settings(OIDC_REFRESH_MARGIN_SECONDS=60)
+class RenovacionSesionOIDCTests(FlujoOIDCMixin, TestCase):
+    def preparar_request(self, *, expira_en=None, refresh_expira_en=None):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "usuario-keycloak-1",
+            "username": "usuario.prueba",
+            "email": "usuario@example.com",
+        }
+        session[SESSION_ROLES] = ["USUARIO"]
+        session[SESSION_EXPIRA_EN] = expira_en or int(time.time()) + 300
+        session[SESSION_REFRESH_TOKEN] = "refresh-original"
+        session[SESSION_REFRESH_EXPIRA_EN] = (
+            refresh_expira_en or int(time.time()) + 1800
+        )
+        session["kc_user"] = self.claims_validos(["USUARIO"])
+        session["kc_id_token"] = "id-token-original"
+        session.save()
+        return SimpleNamespace(session=session)
+
+    def test_refresh_token_invalido_no_deja_contexto_parcial(self):
+        request = SimpleNamespace(session=self.client.session)
+
+        with self.assertRaises(InvalidTokenError):
+            establecer_sesion_oidc(
+                request,
+                self.claims_validos(["USUARIO"]),
+                refresh_token=123,
+                refresh_expires_in=1800,
+            )
+
+        self.assertNotIn(SESSION_AUTENTICADO, request.session)
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+
+    def test_login_sin_refresh_elimina_refresh_anterior(self):
+        request = self.preparar_request()
+
+        establecer_sesion_oidc(
+            request,
+            self.claims_validos(["USUARIO"]),
+            rotar_clave=False,
+        )
+
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+        self.assertNotIn(SESSION_REFRESH_EXPIRA_EN, request.session)
+
+    @patch("usuarios.services.keycloak.renovar_sesion_oidc")
+    def test_token_vigente_no_hace_refresh(self, mock_renovar):
+        request = self.preparar_request(expira_en=int(time.time()) + 120)
+
+        self.assertTrue(sesion_oidc_vigente(request))
+        mock_renovar.assert_not_called()
+
+    @patch("usuarios.services.keycloak.renovar_sesion_oidc", return_value=True)
+    def test_token_proximo_a_expirar_hace_refresh(self, mock_renovar):
+        request = self.preparar_request(expira_en=int(time.time()) + 30)
+
+        self.assertTrue(sesion_oidc_vigente(request))
+        mock_renovar.assert_called_once_with(request)
+
+    @patch("usuarios.services.keycloak.renovar_sesion_oidc", return_value=True)
+    def test_token_expirado_intenta_refresh_y_mantiene_sesion(self, mock_renovar):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+
+        self.assertTrue(sesion_oidc_vigente(request))
+        mock_renovar.assert_called_once_with(request)
+
+    @patch("usuarios.services.keycloak.validar_access_token")
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_refresh_actualiza_claims_expiracion_roles_y_rota_token(
+        self, mock_post, mock_validar_token
+    ):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        claims_nuevos = self.claims_validos(["USUARIO", "CAJERO"])
+        claims_nuevos["exp"] = int(time.time()) + 300
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "access_token": "access-nuevo",
+            "refresh_token": "refresh-rotado",
+            "refresh_expires_in": 1700,
+            "id_token": "id-token-nuevo",
+        }
+        mock_validar_token.return_value = claims_nuevos
+
+        self.assertTrue(renovar_sesion_oidc(request))
+
+        data = mock_post.call_args.kwargs["data"]
+        self.assertEqual(data["grant_type"], "refresh_token")
+        self.assertEqual(data["refresh_token"], "refresh-original")
+        self.assertEqual(data["client_id"], settings.KEYCLOAK_CLIENT_ID)
+        mock_validar_token.assert_called_once_with("access-nuevo")
+        self.assertEqual(request.session[SESSION_REFRESH_TOKEN], "refresh-rotado")
+        self.assertEqual(request.session[SESSION_ROLES], ["CAJERO", "USUARIO"])
+        self.assertEqual(request.session[SESSION_EXPIRA_EN], claims_nuevos["exp"])
+        self.assertEqual(request.session["kc_user"], claims_nuevos)
+        self.assertEqual(request.session["kc_id_token"], "id-token-nuevo")
+        self.assertNotIn("kc_access_token", request.session)
+
+    @patch("usuarios.services.keycloak.validar_access_token")
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_endpoint_renueva_sesion_sin_exponer_tokens(
+        self, mock_post, mock_validar_token
+    ):
+        self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "access_token": "access-secreto-renovado",
+            "refresh_token": "refresh-secreto-rotado",
+            "refresh_expires_in": 1700,
+        }
+        mock_validar_token.return_value = self.claims_validos(
+            ["USUARIO", "ANALISTA_CAMBIARIO"]
+        )
+
+        response = self.client.get(reverse("usuarios:perfil_usuario"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            set(response.json()["roles"]), {"USUARIO", "ANALISTA_CAMBIARIO"}
+        )
+        contenido = response.content.decode()
+        self.assertNotIn("access-secreto-renovado", contenido)
+        self.assertNotIn("refresh-secreto-rotado", contenido)
+        self.assertNotIn("access_token", contenido)
+        self.assertNotIn("refresh_token", contenido)
+
+    @patch("usuarios.services.keycloak.validar_access_token")
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_refresh_sin_rotacion_conserva_refresh_token_actual(
+        self, mock_post, mock_validar_token
+    ):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"access_token": "access-nuevo"}
+        mock_validar_token.return_value = self.claims_validos(["USUARIO"])
+
+        self.assertTrue(renovar_sesion_oidc(request))
+
+        self.assertEqual(request.session[SESSION_REFRESH_TOKEN], "refresh-original")
+        self.assertEqual(request.session["kc_id_token"], "id-token-original")
+
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_invalid_grant_limpia_todo_el_contexto_oidc(self, mock_post):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.return_value.status_code = 400
+        mock_post.return_value.json.return_value = {
+            "error": "invalid_grant",
+            "error_description": "Session not active",
+        }
+
+        self.assertFalse(renovar_sesion_oidc(request))
+
+        for clave in (
+            SESSION_AUTENTICADO,
+            SESSION_USUARIO,
+            SESSION_ROLES,
+            SESSION_EXPIRA_EN,
+            SESSION_REFRESH_TOKEN,
+            SESSION_REFRESH_EXPIRA_EN,
+            "kc_user",
+            "kc_id_token",
+        ):
+            self.assertNotIn(clave, request.session)
+
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_respuesta_http_inesperada_limpia_sesion(self, mock_post):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.return_value.status_code = 503
+
+        self.assertFalse(renovar_sesion_oidc(request))
+        mock_post.return_value.json.assert_not_called()
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+        self.assertNotIn(SESSION_AUTENTICADO, request.session)
+
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_json_invalido_durante_refresh_limpia_sesion(self, mock_post):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.side_effect = ValueError("JSON inválido")
+
+        self.assertFalse(renovar_sesion_oidc(request))
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+        self.assertNotIn(SESSION_AUTENTICADO, request.session)
+
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_error_de_conexion_no_revela_token_y_limpia_sesion(self, mock_post):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.side_effect = requests.RequestException("sin conexión")
+
+        self.assertFalse(renovar_sesion_oidc(request))
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+        self.assertNotIn(SESSION_AUTENTICADO, request.session)
+
+    @patch("usuarios.services.keycloak.validar_access_token")
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_access_token_renovado_invalido_limpia_sesion(
+        self, mock_post, mock_validar_token
+    ):
+        request = self.preparar_request(expira_en=int(time.time()) - 1)
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"access_token": "invalido"}
+        mock_validar_token.side_effect = InvalidTokenError("Token inválido")
+
+        self.assertFalse(renovar_sesion_oidc(request))
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+        self.assertNotIn(SESSION_AUTENTICADO, request.session)
+
+    @patch("usuarios.services.keycloak.requests.post")
+    def test_refresh_token_expirado_localmente_no_contacta_keycloak(self, mock_post):
+        request = self.preparar_request(
+            expira_en=int(time.time()) - 1,
+            refresh_expira_en=int(time.time()) - 1,
+        )
+
+        self.assertFalse(renovar_sesion_oidc(request))
+        mock_post.assert_not_called()
+        self.assertNotIn(SESSION_REFRESH_TOKEN, request.session)
+
+
 class MetodosHTTPYLogoutTests(TestCase):
     client: Any
 
@@ -448,6 +684,8 @@ class MetodosHTTPYLogoutTests(TestCase):
         self.autenticar_con_roles(["USUARIO"])
         session = self.client.session
         session["kc_id_token"] = "id-token-prueba"
+        session[SESSION_REFRESH_TOKEN] = "refresh-token-prueba"
+        session[SESSION_REFRESH_EXPIRA_EN] = int(time.time()) + 1800
         session.save()
 
         response = cast(
@@ -462,6 +700,9 @@ class MetodosHTTPYLogoutTests(TestCase):
         self.assertEqual(params["client_id"], [settings.KEYCLOAK_CLIENT_ID])
         self.assertNotIn(SESSION_AUTENTICADO, self.client.session)
         self.assertNotIn(SESSION_ROLES, self.client.session)
+        self.assertNotIn(SESSION_REFRESH_TOKEN, self.client.session)
+        self.assertNotIn(SESSION_REFRESH_EXPIRA_EN, self.client.session)
+        self.assertNotIn("kc_id_token", self.client.session)
 
 
 class RolesKeycloakTests(TestCase):
@@ -485,6 +726,41 @@ class RolesKeycloakTests(TestCase):
         claims = {"realm_access": {"roles": ["USUARIO"]}}
 
         self.assertEqual(extraer_roles_sistema(claims), ["USUARIO"])
+
+    def test_nuevo_usuario_solo_recibe_usuario_como_rol_de_negocio_efectivo(self):
+        claims = {
+            "realm_access": {
+                "roles": [
+                    "default-roles-global-exchange",
+                    "offline_access",
+                    "uma_authorization",
+                    "USUARIO",
+                ]
+            }
+        }
+
+        self.assertEqual(extraer_roles_sistema(claims), ["USUARIO"])
+
+    def test_roles_directos_se_suman_a_usuario_heredado(self):
+        for rol_directo in (
+            "CAJERO",
+            "ANALISTA_CAMBIARIO",
+            "ADMINISTRADOR",
+        ):
+            with self.subTest(rol_directo=rol_directo):
+                claims = {
+                    "realm_access": {
+                        "roles": [
+                            "default-roles-global-exchange",
+                            "USUARIO",
+                            rol_directo,
+                        ]
+                    }
+                }
+
+                self.assertEqual(
+                    set(extraer_roles_sistema(claims)), {"USUARIO", rol_directo}
+                )
 
 
 class ValidacionTokenTests(TestCase):
@@ -676,6 +952,25 @@ class GestionUsuariosBackendTests(TestCase):
         )
         mock_actualizar_roles.assert_called_once_with("kc-user-creado", ["CAJERO"])
 
+    @patch("usuarios.views.actualizar_roles_usuario")
+    @patch("usuarios.views.admin_request")
+    def test_creacion_sin_roles_confia_en_usuario_heredado(
+        self, mock_admin_request, mock_actualizar_roles
+    ):
+        mock_admin_request.side_effect = [None, [{"id": "kc-user-default"}]]
+
+        response = self.client.post(
+            reverse("usuarios:create"),
+            {
+                "username": "usuario.default",
+                "email": "default@example.com",
+                "password": "temporal-segura",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        mock_actualizar_roles.assert_not_called()
+
     @patch("usuarios.views.roles_usuario", return_value=["USUARIO"])
     @patch("usuarios.views.admin_request")
     def test_edicion_get_usa_objeto_de_keycloak(
@@ -756,6 +1051,19 @@ class ConfiguracionRealmTests(TestCase):
                 {"ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO"}
             )
         )
+
+    def test_default_role_del_realm_apunta_al_composite_global_exchange(self):
+        default_role = next(
+            role
+            for role in self.realm["roles"]["realm"]
+            if role["name"] == "default-roles-global-exchange"
+        )
+
+        self.assertEqual(self.realm["defaultRole"]["id"], default_role["id"])
+        self.assertEqual(
+            self.realm["defaultRole"]["name"], "default-roles-global-exchange"
+        )
+        self.assertTrue(default_role["composite"])
 
     def test_cliente_exige_pkce_s256(self):
         cliente = next(
@@ -868,3 +1176,769 @@ class AsignarRolTests(TestCase):
             response.json()["error"],
             "El usuario ya posee ese rol.",
         )
+
+
+class RolesPermisosViewTests(TestCase):
+    """Comprueba la consulta administrativa de roles de Keycloak."""
+
+    def _autenticar_como(self, roles):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "admin-roles",
+            "username": "admin.roles",
+            "email": "admin.roles@example.com",
+        }
+        session[SESSION_ROLES] = roles
+        session[SESSION_EXPIRA_EN] = time.time() + 3600
+        session["kc_user"] = {
+            "sub": "admin-roles",
+            "preferred_username": "admin.roles",
+        }
+        session.save()
+
+    def test_usuario_anonimo_es_redirigido_al_login(self):
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/login/")
+
+    def test_usuario_sin_rol_administrador_recibe_403(self):
+        self._autenticar_como(["USUARIO"])
+
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTemplateUsed(response, "usuarios/forbidden.html")
+
+    @patch("usuarios.views.admin_request")
+    def test_administrador_consulta_los_roles_de_keycloak(self, mock_admin_request):
+        self._autenticar_como(["ADMINISTRADOR"])
+        mock_admin_request.return_value = [
+            {"name": "ADMINISTRADOR"},
+            {"name": "CAJERO"},
+            {"name": "ANALISTA_CAMBIARIO"},
+            {"name": "USUARIO"},
+            {"name": "offline_access"},
+        ]
+
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/roles_permisos.html")
+        self.assertEqual(len(response.context["roles_sistema"]), 4)
+        self.assertTrue(
+            all(role["configurado"] for role in response.context["roles_sistema"])
+        )
+        mock_admin_request.assert_called_once_with("/roles")
+
+    @patch("usuarios.views.admin_request")
+    def test_error_de_keycloak_conserva_la_vista_informativa(
+        self,
+        mock_admin_request,
+    ):
+        self._autenticar_como(["ADMINISTRADOR"])
+        mock_admin_request.side_effect = KeycloakError(
+            "No se pudo conectar con Keycloak."
+        )
+
+        response = self.client.get(reverse("usuarios:roles_permisos"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sin verificar", count=4)
+        self.assertContains(response, "No se pudo verificar Keycloak")
+
+
+class FrontendApiScreensTests(TestCase):
+    """Verifica que las pantallas conectadas exponen su configuración de API."""
+
+    def _autenticar_como(self, roles):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "frontend-api-user",
+            "username": "frontend.api",
+            "email": "frontend.api@example.com",
+        }
+        session[SESSION_ROLES] = roles
+        session[SESSION_EXPIRA_EN] = time.time() + 3600
+        session["kc_user"] = {
+            "sub": "frontend-api-user",
+            "preferred_username": "frontend.api",
+        }
+        session.save()
+
+    def test_monedas_carga_la_configuracion_de_api(self):
+        self._autenticar_como(["ADMINISTRADOR"])
+
+        response = self.client.get(reverse("usuarios:monedas"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/monedas.html")
+        self.assertContains(response, 'data-ge-api="currencies"')
+        self.assertContains(response, reverse("monedas:listar_monedas"))
+
+    def test_tasas_comerciales_carga_la_configuracion_de_api(self):
+        self._autenticar_como(["ANALISTA_CAMBIARIO"])
+
+        response = self.client.get(reverse("usuarios:tasas_comerciales"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/tasas_comerciales.html")
+        self.assertContains(response, 'data-ge-api="rates"')
+        self.assertContains(response, reverse("tasas:historial_tasas_comerciales"))
+        self.assertContains(response, "Tasas comerciales")
+        self.assertContains(response, "Nueva tasa comercial")
+        self.assertContains(response, "cada modificación crea una nueva versión")
+        self.assertContains(response, 'data-can-manage="true"')
+        self.assertContains(response, "data-deactivate-url=")
+
+    def test_pagos_carga_la_configuracion_de_api(self):
+        self._autenticar_como(["ADMINISTRADOR"])
+
+        response = self.client.get(reverse("usuarios:pagos"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/pagos.html")
+        self.assertContains(response, 'data-ge-api="payments"')
+        self.assertContains(response, reverse("metodos_pago:inicio_metodos_pago"))
+
+    @patch("usuarios.views.admin_request", return_value=[])
+    def test_navegacion_frontend_del_administrador_renderiza(self, _mock_admin_request):
+        self._autenticar_como(["ADMINISTRADOR"])
+        rutas = (
+            reverse("usuarios:dashboard"),
+            reverse("usuarios:list"),
+            reverse("consultar_clientes"),
+            reverse("usuarios:monedas"),
+            reverse("usuarios:tasas"),
+            reverse("usuarios:tasas_comerciales"),
+            reverse("usuarios:pagos"),
+            reverse("usuarios:roles_permisos"),
+        )
+
+        for ruta in rutas:
+            with self.subTest(ruta=ruta):
+                response = self.client.get(ruta)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "<svg")
+                self.assertNotContains(response, "Divisas")
+
+    def test_navegacion_frontend_del_analista_renderiza(self):
+        self._autenticar_como(["ANALISTA_CAMBIARIO"])
+        rutas = (
+            reverse("usuarios:dashboard"),
+            reverse("usuarios:tasas"),
+            reverse("usuarios:tasas_comerciales"),
+            reverse("usuarios:monedas"),
+        )
+
+        for ruta in rutas:
+            with self.subTest(ruta=ruta):
+                response = self.client.get(ruta)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "<svg")
+                self.assertNotContains(response, "Divisas")
+
+
+class NavegacionUsuarioTests(TestCase):
+    """Protege la navegación honesta y los permisos visibles de USUARIO."""
+
+    def _autenticar_como(self, roles=("USUARIO",), selected_client=None):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "usuario-navigation",
+            "username": "usuario.navigation",
+            "email": "usuario.navigation@example.com",
+        }
+        session[SESSION_ROLES] = list(roles)
+        session[SESSION_EXPIRA_EN] = time.time() + 3600
+        session["kc_user"] = {
+            "sub": "usuario-navigation",
+            "preferred_username": "usuario.navigation",
+        }
+        if selected_client:
+            session["selected_client"] = selected_client
+        session.save()
+
+    @staticmethod
+    def _sidebar(response):
+        html = response.content.decode()
+        return html.split('<nav class="ge-frontend-nav">', 1)[1].split("</nav>", 1)[0]
+
+    def test_cada_ruta_real_tiene_un_unico_item_activo_en_sidebar(self):
+        self._autenticar_como()
+        rutas = {
+            "usuarios:dashboard": "Resumen",
+            "usuarios:tasas": "Tasas",
+            "usuarios:simulador": "Conversor",
+            "usuarios:monedas": "Monedas",
+            "consultar_clientes": "Mi cliente",
+        }
+
+        for nombre, etiqueta in rutas.items():
+            with self.subTest(nombre=nombre):
+                response = self.client.get(reverse(nombre))
+                self.assertEqual(response.status_code, 200)
+                sidebar = self._sidebar(response)
+                self.assertEqual(sidebar.count('aria-current="page"'), 1)
+                self.assertIn(etiqueta, sidebar)
+
+    def test_sidebar_separa_destinos_reales_de_funciones_pendientes(self):
+        self._autenticar_como()
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+        sidebar = self._sidebar(response)
+
+        for nombre in (
+            "usuarios:dashboard",
+            "usuarios:tasas",
+            "usuarios:simulador",
+            "usuarios:monedas",
+            "consultar_clientes",
+        ):
+            self.assertIn(f'href="{reverse(nombre)}"', sidebar)
+        self.assertEqual(sidebar.count('class="ge-frontend-nav-pending"'), 5)
+        self.assertEqual(sidebar.count(">Pendiente</span>"), 5)
+        self.assertNotIn(reverse("usuarios:pagos"), sidebar)
+
+    def test_dashboard_no_presenta_datos_ni_operaciones_simuladas(self):
+        self._autenticar_como(selected_client={"id": 9, "name": "Cliente Real SA"})
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cliente Real SA")
+        self.assertContains(response, "FUNCIONES EN PREPARACIÓN")
+        for contenido_falso in (
+            "KNG S.A.",
+            "TXN-2026-",
+            "FAC-2026-",
+            "31 de agosto de 2026",
+            "Confirmar operación",
+        ):
+            self.assertNotContains(response, contenido_falso)
+
+    def test_dashboard_explica_ausencia_de_cliente_seleccionado(self):
+        self._autenticar_como()
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+
+        self.assertContains(response, "No seleccionaste un cliente")
+        self.assertContains(response, "Ver clientes asociados")
+
+    def test_mi_cliente_muestra_estado_vacio_sin_controles_administrativos(self):
+        self._autenticar_como()
+
+        response = self.client.get(reverse("consultar_clientes"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<title>Mi cliente · Global Exchange</title>", html=True)
+        self.assertContains(response, "No tenés clientes asociados disponibles.")
+        self.assertNotContains(response, "+ Nuevo cliente")
+        self.assertNotContains(response, "data-crear-url=")
+        self.assertNotContains(response, "data-editar-url=")
+        self.assertNotContains(response, "data-baja-url=")
+
+    def test_pagos_de_configuracion_es_solo_para_administrador(self):
+        self._autenticar_como()
+        self.assertEqual(self.client.get(reverse("usuarios:pagos")).status_code, 403)
+
+        self._autenticar_como(("ADMINISTRADOR",))
+        response = self.client.get(reverse("usuarios:pagos"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/pagos.html")
+
+    def test_navbar_autenticado_apunta_a_rutas_reales_y_seguridad_existe(self):
+        self._autenticar_como()
+
+        response = self.client.get(reverse("usuarios:seguridad"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/seguridad.html")
+        for nombre in (
+            "usuarios:dashboard",
+            "usuarios:tasas",
+            "usuarios:simulador",
+            "usuarios:seguridad",
+        ):
+            self.assertContains(response, f'href="{reverse(nombre)}"')
+        self.assertNotContains(response, 'data-nav-section="seguridad"')
+
+    def test_usuario_solo_ve_consulta_de_monedas_activas(self):
+        self._autenticar_como()
+
+        response = self.client.get(reverse("usuarios:monedas"))
+
+        self.assertContains(response, 'data-can-manage="false"')
+        self.assertContains(response, reverse("monedas:listar_monedas_activas"))
+        self.assertNotContains(response, "+ Nueva moneda")
+        self.assertNotContains(response, ">Acciones</th>")
+        self.assertNotContains(response, "data-create-url=")
+        self.assertNotContains(response, "data-edit-url=")
+        self.assertNotContains(response, "data-state-url=")
+
+    def test_tasas_y_conversor_exponen_endpoints_independientes_y_reales(self):
+        self._autenticar_como()
+
+        tasas = self.client.get(reverse("usuarios:tasas"))
+        conversor = self.client.get(reverse("usuarios:simulador"))
+
+        self.assertContains(tasas, 'data-ge-api="reference-rates"')
+        self.assertContains(tasas, reverse("tasas:consultar"))
+        self.assertContains(tasas, "Tasas de referencia")
+        self.assertContains(tasas, "Tasas comerciales vigentes")
+        self.assertContains(tasas, "data-commercial-rates")
+        self.assertNotContains(tasas, 'data-ge-api="simulator"')
+        self.assertContains(conversor, 'data-ge-api="simulator"')
+        self.assertContains(conversor, reverse("tasas:simular_conversion"))
+        self.assertContains(conversor, reverse("monedas:listar_monedas_activas"))
+        self.assertContains(conversor, "data-sim-delivered")
+        self.assertContains(conversor, "data-sim-rate-type")
+        self.assertNotContains(conversor, "data-sim-operation")
+        self.assertNotContains(conversor, 'data-ge-api="reference-rates"')
+
+    def test_menu_legacy_solo_muestra_medios_de_pago_al_admin(self):
+        enlace = f'href="{reverse("usuarios:pagos")}"'
+
+        for role in ("ADMINISTRADOR", "USUARIO", "CAJERO", "ANALISTA_CAMBIARIO"):
+            with self.subTest(role=role):
+                html = render_to_string(
+                    "usuarios/forbidden.html",
+                    {
+                        "kc_user": {"preferred_username": "prueba"},
+                        "kc_roles": [role],
+                        "kc_display_name": "Prueba",
+                        "request": SimpleNamespace(
+                            resolver_match=SimpleNamespace(
+                                url_name="forbidden",
+                                app_name="usuarios",
+                            )
+                        ),
+                        "required_roles": [],
+                    },
+                )
+                if role == "ADMINISTRADOR":
+                    self.assertIn(enlace, html)
+                    self.assertIn("Medios de pago", html)
+                else:
+                    self.assertNotIn(enlace, html)
+                    self.assertNotIn("Medios de pago", html)
+
+    def test_conversor_no_integra_cliente_aunque_exista_una_seleccion(self):
+        from clientes.models import Cliente, UsuarioCliente
+
+        cliente = Cliente.objects.create(
+            nombre_razon_social="Cliente Contextual Real",
+            tipo_persona="JURIDICA",
+            documento="CTX-REAL-001",
+        )
+        UsuarioCliente.objects.create(
+            cliente=cliente,
+            keycloak_user_id="usuario-navigation",
+            username="usuario.navigation",
+        )
+        self._autenticar_como()
+
+        seleccion = self.client.post(
+            reverse("seleccionar_cliente", args=[cliente.id])
+        )
+        response = self.client.get(reverse("usuarios:simulador"))
+
+        self.assertEqual(seleccion.status_code, 302)
+        self.assertNotContains(response, "CLIENTE ACTUAL")
+        self.assertNotContains(response, "CTX-REAL-001")
+        self.assertNotContains(response, "Cambiar cliente")
+        self.assertNotContains(response, "data-simulator-client-context")
+
+    def test_conversor_no_requiere_cliente_ni_presenta_operacion(self):
+        self._autenticar_como()
+
+        response = self.client.get(reverse("usuarios:simulador"))
+
+        self.assertNotContains(response, "cliente seleccionado")
+        self.assertNotContains(response, "Seleccionar cliente")
+        self.assertNotContains(response, "Continuar operación")
+        self.assertNotContains(response, "Compra")
+        self.assertNotContains(response, "Venta")
+
+    def test_smoke_de_dashboards_para_los_cuatro_roles(self):
+        for role in ("USUARIO", "CAJERO", "ANALISTA_CAMBIARIO", "ADMINISTRADOR"):
+            with self.subTest(role=role):
+                self._autenticar_como((role,))
+                response = self.client.get(reverse("usuarios:dashboard"))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "<svg")
+
+    def test_landing_publica_usa_endpoints_reales_y_no_carga_datos_demo(self):
+        response = self.client.get(reverse("usuarios:home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("tasas:consultar"))
+        self.assertContains(response, reverse("tasas:simular_conversion"))
+        self.assertContains(response, reverse("monedas:listar_monedas_activas"))
+        self.assertContains(response, "data-converter-type")
+        self.assertContains(response, "landing.js?v=rf09-hu19-20260910")
+        self.assertNotContains(response, "js/ge-data.js")
+        for contenido_falso in ("7.480", "8.120", "Datos demo", "KNG S.A."):
+            self.assertNotContains(response, contenido_falso)
+
+    def test_landing_preserva_la_composicion_visual_original(self):
+        response = self.client.get(reverse("usuarios:home"))
+
+        self.assertContains(response, "Líderes en")
+        self.assertContains(response, 'class="ge-market-board"')
+        self.assertContains(response, "Global Market")
+        self.assertContains(response, "data-market-chart")
+        self.assertContains(response, "Histórico · Próximamente")
+        self.assertContains(response, 'class="frontend-currency-list"')
+
+    def test_sidebars_por_rol_no_exponen_destinos_prohibidos(self):
+        self._autenticar_como(("ADMINISTRADOR",))
+        admin = self._sidebar(self.client.get(reverse("usuarios:dashboard")))
+        self.assertIn(f'href="{reverse("usuarios:pagos")}"', admin)
+        self.assertIn("Métodos de pago", admin)
+
+        self._autenticar_como(("ANALISTA_CAMBIARIO",))
+        response_analista = self.client.get(reverse("usuarios:dashboard"))
+        analista = self._sidebar(response_analista)
+        self.assertNotIn(reverse("usuarios:pagos"), analista)
+        self.assertNotIn(reverse("usuarios:simulador"), analista)
+        self.assertNotIn(reverse("consultar_clientes"), analista)
+        for etiqueta in ("Tasas", "Tasas comerciales", "Monedas"):
+            self.assertIn(etiqueta, analista)
+        self.assertNotContains(
+            response_analista, f'href="{reverse("usuarios:simulador")}"'
+        )
+
+        self._autenticar_como(("CAJERO",))
+        response_cajero = self.client.get(reverse("usuarios:dashboard"))
+        cajero = self._sidebar(response_cajero)
+        self.assertEqual(cajero.count('class="ge-frontend-nav-pending"'), 6)
+        self.assertEqual(cajero.count(f'href="{reverse("usuarios:dashboard")}"'), 1)
+        self.assertNotIn(reverse("usuarios:simulador"), cajero)
+        self.assertNotIn(reverse("consultar_clientes"), cajero)
+        self.assertNotContains(
+            response_cajero, f'href="{reverse("usuarios:simulador")}"'
+        )
+
+    def test_usuario_conserva_conversor_y_mi_cliente_en_sidebar_y_navbar(self):
+        self._autenticar_como(("USUARIO",))
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+        sidebar = self._sidebar(response)
+
+        self.assertIn(f'href="{reverse("usuarios:simulador")}"', sidebar)
+        self.assertIn(f'href="{reverse("consultar_clientes")}"', sidebar)
+        self.assertContains(
+            response,
+            f'href="{reverse("usuarios:simulador")}"',
+            count=4,
+        )
+
+    def test_rutas_compartidas_no_cambian_permisos_para_cajero_y_analista(self):
+        for role in ("CAJERO", "ANALISTA_CAMBIARIO"):
+            with self.subTest(role=role):
+                self._autenticar_como((role,))
+                self.assertEqual(
+                    self.client.get(reverse("usuarios:simulador")).status_code,
+                    200,
+                )
+                self.assertEqual(
+                    self.client.get(reverse("consultar_clientes")).status_code,
+                    200,
+                )
+
+    def test_admin_solo_consulta_tasas_comerciales_en_la_interfaz(self):
+        self._autenticar_como(("ADMINISTRADOR",))
+
+        response = self.client.get(reverse("usuarios:tasas_comerciales"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-can-manage="false"')
+        self.assertNotContains(response, ">Nueva tasa comercial</button>")
+        self.assertNotContains(response, "data-deactivate-url=")
+        self.assertContains(response, reverse("tasas:historial_tasas_comerciales"))
+
+    def test_dashboards_no_muestran_kpis_ficticios(self):
+        falsos = ("KNG S.A.", "TXN-2026-", "48.2M", "614", "31 de agosto de 2026")
+        for role in ("CAJERO", "ANALISTA_CAMBIARIO", "ADMINISTRADOR"):
+            with self.subTest(role=role):
+                self._autenticar_como((role,))
+                response = self.client.get(reverse("usuarios:dashboard"))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Próximamente")
+                for contenido in falsos:
+                    self.assertNotContains(response, contenido)
+
+    def test_dashboard_admin_preserva_kpis_graficos_y_actividad(self):
+        self._autenticar_como(("ADMINISTRADOR",))
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+        html = response.content.decode()
+
+        self.assertEqual(html.count("ge-kpi--icon"), 8)
+        self.assertEqual(html.count("ge-chart-box"), 2)
+        self.assertContains(response, "Actividad reciente")
+        self.assertContains(response, "Actividad operativa · Próximamente")
+
+    def test_dashboard_analista_preserva_kpis_y_graficos(self):
+        self._autenticar_como(("ANALISTA_CAMBIARIO",))
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+        html = response.content.decode()
+
+        self.assertEqual(html.count("ge-kpi--icon"), 4)
+        self.assertEqual(html.count("ge-chart-box"), 2)
+        self.assertContains(response, "Histórico de tasas")
+        self.assertContains(response, "Ganancia diaria · PYG")
+
+    def test_dashboard_cajero_preserva_modulos_visuales_inactivos(self):
+        self._autenticar_como(("CAJERO",))
+
+        response = self.client.get(reverse("usuarios:dashboard"))
+        html = response.content.decode()
+
+        self.assertEqual(html.count("ge-card ge-balance"), 4)
+        self.assertEqual(html.count("data-caja-panel="), 3)
+        self.assertEqual(html.count("data-bill-currency="), 4)
+        self.assertContains(response, 'id="cierre-caja"')
+        self.assertEqual(html.count('class="ge-balance-state">PRÓXIMAMENTE'), 4)
+        self.assertContains(response, "data-bill-currency-select disabled")
+
+
+class UsuariosFrontendApiTest(TestCase):
+    """Pruebas de los endpoints JSON utilizados por la interfaz Frontend."""
+
+    def _autenticar_como(self, roles):
+        session = self.client.session
+        session[SESSION_AUTENTICADO] = True
+        session[SESSION_USUARIO] = {
+            "sub": "admin-gestion",
+            "username": "admin.gestion",
+            "email": "admin@example.com",
+        }
+        session[SESSION_ROLES] = roles
+        session[SESSION_EXPIRA_EN] = time.time() + 300
+        session["kc_user"] = {
+            "sub": "admin-gestion",
+            "preferred_username": "admin.gestion",
+        }
+        session.save()
+
+    def setUp(self):
+        self._autenticar_como(["ADMINISTRADOR"])
+
+    @patch("usuarios.views.actualizar_roles_usuario")
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api(self, mock_admin_request, mock_actualizar_roles):
+        mock_admin_request.side_effect = [
+            None,
+            [{"id": "kc-usuario-api", "username": "usuario.api", "email": "api@example.com"}],
+        ]
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "usuario.api",
+                "email": "api@example.com",
+                "first_name": "Usuario",
+                "last_name": "API",
+                "password": "temporal-segura",
+                "roles": ["CAJERO"],
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(mock_admin_request.call_count, 2)
+        primera, segunda = mock_admin_request.call_args_list
+        self.assertEqual(primera.args[0], "/users")
+        self.assertEqual(primera.kwargs["method"], "POST")
+        self.assertEqual(primera.kwargs["payload"]["username"], "usuario.api")
+        self.assertIn("exact=true", segunda.args[0])
+        mock_actualizar_roles.assert_called_once_with("kc-usuario-api", ["CAJERO"])
+
+    @patch("usuarios.views.actualizar_roles_usuario")
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api_no_asigna_usuario_directamente(
+        self, mock_admin_request, mock_actualizar_roles
+    ):
+        mock_admin_request.side_effect = [None, [{"id": "kc-usuario-default"}]]
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "usuario.default",
+                "email": "default@example.com",
+                "password": "temporal-segura",
+                "roles": ["USUARIO"],
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        mock_actualizar_roles.assert_not_called()
+
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api_datos_invalidos(self, mock_admin_request):
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "",
+                "email": "incompleto@example.com",
+                "password": "corta",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        mock_admin_request.assert_not_called()
+
+    @patch("usuarios.views.admin_request")
+    def test_crear_usuario_api_error_keycloak(self, mock_admin_request):
+        mock_admin_request.side_effect = KeycloakError("Keycloak rechazó la creación.")
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "usuario.api",
+                "email": "api@example.com",
+                "password": "temporal-segura",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["error"],
+            "Keycloak rechazó la creación.",
+        )
+
+    @patch("usuarios.views.roles_usuario", return_value=["ADMINISTRADOR"])
+    @patch("usuarios.views.admin_request")
+    def test_detalle_usuario_api(self, mock_admin_request, mock_roles_usuario):
+        mock_admin_request.return_value = {
+            "id": "kc-detalle",
+            "username": "usuario.detalle",
+            "email": "detalle@example.com",
+            "firstName": "Detalle",
+            "lastName": "User",
+            "enabled": True,
+        }
+
+        response = self.client.get(reverse("usuarios_api:detalle_usuario", args=["kc-detalle"]))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["username"], "usuario.detalle")
+        self.assertEqual(data["email"], "detalle@example.com")
+        self.assertTrue(data["enabled"])
+        self.assertEqual(data["roles"], ["ADMINISTRADOR"])
+
+    @patch("usuarios.views.actualizar_roles_usuario")
+    @patch("usuarios.views.admin_request")
+    def test_editar_usuario_api(self, mock_admin_request, mock_actualizar_roles):
+        usuario = {
+            "id": "kc-editar",
+            "username": "usuario.editar",
+            "email": "antes@example.com",
+            "firstName": "Antes",
+            "lastName": "",
+            "enabled": True,
+        }
+        mock_admin_request.side_effect = [usuario, None]
+
+        response = self.client.post(
+            reverse("usuarios_api:editar_usuario", args=["kc-editar"]),
+            data=json.dumps({
+                "first_name": "Despues",
+                "last_name": "Editado",
+                "email": "despues@example.com",
+                "enabled": False,
+                "roles": ["USUARIO", "CAJERO"],
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        actualizacion = mock_admin_request.call_args_list[1]
+        self.assertEqual(actualizacion.kwargs["method"], "PUT")
+        self.assertEqual(actualizacion.kwargs["payload"]["enabled"], False)
+        self.assertEqual(actualizacion.kwargs["payload"]["email"], "despues@example.com")
+        mock_actualizar_roles.assert_called_once_with("kc-editar", ["USUARIO", "CAJERO"])
+
+    @patch("usuarios.views.admin_request")
+    def test_editar_usuario_api_inexistente(self, mock_admin_request):
+        mock_admin_request.side_effect = KeycloakError("User cannot be found")
+
+        response = self.client.post(
+            reverse("usuarios_api:editar_usuario", args=["kc-no-existe"]),
+            data=json.dumps({"first_name": "Nadie", "roles": []}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    @patch("usuarios.views.admin_request")
+    def test_baja_usuario_api(self, mock_admin_request):
+        usuario = {"id": "kc-baja", "username": "usuario.baja", "enabled": True}
+        mock_admin_request.side_effect = [usuario, None]
+
+        response = self.client.post(
+            reverse("usuarios_api:baja_usuario", args=["kc-baja"]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        actualizacion = mock_admin_request.call_args_list[1]
+        self.assertEqual(actualizacion.kwargs["method"], "PUT")
+        self.assertEqual(actualizacion.kwargs["payload"]["enabled"], False)
+
+    @patch("usuarios.views.admin_request")
+    def test_baja_usuario_api_inexistente(self, mock_admin_request):
+        mock_admin_request.side_effect = KeycloakError("User cannot be found")
+
+        response = self.client.post(
+            reverse("usuarios_api:baja_usuario", args=["kc-no-existe"]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_crear_usuario_requiere_administrador(self):
+        self._autenticar_como(["USUARIO"])
+
+        response = self.client.post(
+            reverse("usuarios_api:crear_usuario"),
+            data=json.dumps({
+                "username": "sin.permiso",
+                "email": "sin@example.com",
+                "password": "temporal-segura",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_metodos_restringidos(self):
+        urls_mutacion = [
+            reverse("usuarios_api:crear_usuario"),
+            reverse("usuarios_api:editar_usuario", args=["kc-405"]),
+            reverse("usuarios_api:baja_usuario", args=["kc-405"]),
+        ]
+
+        for url in urls_mutacion:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 405)
+
+        with self.subTest(url="detalle"):
+            response = self.client.post(
+                reverse("usuarios_api:detalle_usuario", args=["kc-405"]),
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 405)

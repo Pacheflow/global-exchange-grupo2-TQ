@@ -1,31 +1,87 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Clientes · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace">
-  <header class="workspace-header">
-    <div class="page-intro"><h1>Clientes</h1><p>Administrá y seleccioná las personas y empresas que operan en la plataforma.</p></div>
-    {% if 'ADMINISTRADOR' in request.session.roles %}<a class="button button-dark" href="{% url 'registrar_cliente' %}"><span class="material-symbols" aria-hidden="true">person_add</span>Nuevo cliente</a>{% endif %}
-  </header>
-  {% if request.session.selected_client %}<div class="selected-client-banner"><span class="material-symbols" aria-hidden="true">check_circle</span><span><small>Cliente seleccionado</small><strong>{{ request.session.selected_client.name }}</strong></span><form method="post" action="{% url 'deseleccionar_cliente' %}">{% csrf_token %}<button class="button button-quiet" type="submit"><span class="material-symbols" aria-hidden="true">close</span>Dejar de seleccionar</button></form></div>{% endif %}
-  <form class="client-search" method="get" role="search">
-    <div class="search-field"><label class="sr-only" for="buscar-cliente">Buscar cliente</label><span class="material-symbols" aria-hidden="true">search</span><input id="buscar-cliente" type="search" name="buscar" placeholder="Buscar por nombre o razón social" value="{{ busqueda }}"></div>
-    <button class="button button-dark" type="submit"><span class="material-symbols" aria-hidden="true">search</span>Buscar</button>
-    {% if busqueda %}<a class="button button-quiet" href="{% url 'consultar_clientes' %}">Limpiar</a>{% endif %}
-  </form>
-  <div class="data-table client-table"><table>
-    <thead><tr><th>Cliente</th><th>Documento</th><th>Categoría</th><th>Estado</th><th>Acciones</th></tr></thead>
-    <tbody>{% for cliente in clientes %}<tr {% if request.session.selected_client.id == cliente.id %}class="selected-row"{% endif %}>
-      <td><strong>{{ cliente.nombre_razon_social }}</strong><span>{{ cliente.get_tipo_persona_display }}</span></td>
-      <td>{{ cliente.documento }}</td><td>{{ cliente.categoria.nombre|default:'Sin categoría' }}</td>
-      <td><span class="state {% if cliente.estado != 'ACTIVO' %}disabled{% endif %}">{% if request.session.selected_client.id == cliente.id %}Seleccionado{% else %}{{ cliente.get_estado_display }}{% endif %}</span></td>
-      <td class="client-actions">
-        {% if cliente.estado == 'ACTIVO' and request.session.selected_client.id != cliente.id %}<form method="post" action="{% url 'seleccionar_cliente' cliente.id %}">{% csrf_token %}<button class="table-action primary" type="submit" aria-label="Seleccionar cliente" title="Seleccionar cliente" data-tooltip="Seleccionar cliente"><span class="material-symbols" aria-hidden="true">check_circle</span></button></form>{% endif %}
-        {% if 'ADMINISTRADOR' in request.session.roles %}<a class="table-action" href="{% url 'editar_cliente' cliente.id %}" aria-label="Editar cliente" title="Editar cliente" data-tooltip="Editar cliente"><span class="material-symbols" aria-hidden="true">edit</span></a>{% endif %}
-        {% if 'ADMINISTRADOR' in request.session.roles or 'ANALISTA_CAMBIARIO' in request.session.roles %}<a class="table-action" href="{% url 'segmentar_cliente' cliente.id %}" aria-label="Segmentar cliente" title="Segmentar cliente" data-tooltip="Segmentar cliente"><span class="material-symbols" aria-hidden="true">category</span></a>{% endif %}
-        {% if 'ADMINISTRADOR' in request.session.roles %}<a class="table-action" href="{% url 'asignaciones_cliente' cliente.id %}" aria-label="Asignar usuarios" title="Asignar usuarios" data-tooltip="Asignar usuarios"><span class="material-symbols" aria-hidden="true">group_add</span></a>{% endif %}
-        {% if cliente.estado == 'ACTIVO' and 'ADMINISTRADOR' in request.session.roles %}<a class="table-action danger" href="{% url 'dar_de_baja_cliente' cliente.id %}" aria-label="Dar de baja" title="Dar de baja" data-tooltip="Dar de baja"><span class="material-symbols" aria-hidden="true">person_off</span></a>{% endif %}
-      </td>
-    </tr>{% empty %}<tr><td class="no-data" colspan="5">No se encontraron clientes.{% if busqueda %} Probá con otra búsqueda.{% endif %}</td></tr>{% endfor %}</tbody>
-  </table></div>
-</section>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Clientes</h1>
+        <p>Administrá y seleccioná las personas y empresas que operan en la plataforma.</p>
+      </div>
+      {% if 'ADMINISTRADOR' in request.session.roles %}
+      <div class="ge-page-header-actions">
+        <a class="ge-btn-primary ge-btn-sm" href="{% url 'registrar_cliente' %}">+ Nuevo cliente</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if request.session.selected_client %}
+    <div class="ge-card ge-card--pad24" style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px">
+      <span style="color: var(--success); font-size: 20px" aria-hidden="true">✓</span>
+      <div style="flex: 1">
+        <div class="ge-note-label ge-note-label--10">Cliente seleccionado</div>
+        <strong style="color: var(--text); font-size: 15px">{{ request.session.selected_client.name }}</strong>
+      </div>
+      <form method="post" action="{% url 'deseleccionar_cliente' %}">{% csrf_token %}
+        <button class="ge-btn-ghost" type="submit">Dejar de seleccionar</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <form class="ge-header-with-search" method="get" role="search">
+      <div class="ge-search">
+        <span class="ge-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" name="buscar" placeholder="Buscar por nombre o razón social" value="{{ busqueda }}" class="ge-input">
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px">
+        <button class="ge-btn-outline ge-btn-sm" type="submit">Buscar</button>
+        {% if busqueda %}<a class="ge-btn-ghost ge-btn-sm" href="{% url 'consultar_clientes' %}">Limpiar</a>{% endif %}
+      </div>
+    </form>
+
+    <div class="ge-card ge-table-wrap">
+      <table class="ge-table">
+        <thead>
+          <tr><th>Cliente</th><th>Documento</th><th>Categoría</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr>
+        </thead>
+        <tbody>
+          {% for cliente in clientes %}
+          <tr {% if request.session.selected_client.id == cliente.id %}style="background: var(--primary-muted)"{% endif %}>
+            <td>
+              <div class="ge-cell-user">
+                <span class="ge-avatar ge-avatar--sm">{{ cliente.nombre_razon_social|first|upper }}</span>
+                <span><strong>{{ cliente.nombre_razon_social }}</strong><small>{{ cliente.get_tipo_persona_display }}</small></span>
+              </div>
+            </td>
+            <td><span class="mono">{{ cliente.documento }}</span></td>
+            <td>{{ cliente.categoria.nombre|default:'Sin categoría' }}</td>
+            <td><span class="ge-badge {% if cliente.estado != 'ACTIVO' %}ge-badge--neutral{% else %}ge-badge--success{% endif %}">{% if request.session.selected_client.id == cliente.id %}Seleccionado{% else %}{{ cliente.get_estado_display }}{% endif %}</span></td>
+            <td>
+              <div class="ge-actions-row">
+                {% if cliente.estado == 'ACTIVO' and request.session.selected_client.id != cliente.id %}
+                <form method="post" action="{% url 'seleccionar_cliente' cliente.id %}">{% csrf_token %}<button class="ge-btn-ghost ge-btn-xs" type="submit" aria-label="Seleccionar cliente" title="Seleccionar cliente">✓ Seleccionar</button></form>
+                {% endif %}
+                {% if 'ADMINISTRADOR' in request.session.roles %}
+                <a class="ge-btn-ghost ge-btn-xs" href="{% url 'editar_cliente' cliente.id %}" aria-label="Editar cliente" title="Editar cliente">Editar</a>
+                {% endif %}
+                {% if 'ADMINISTRADOR' in request.session.roles or 'ANALISTA_CAMBIARIO' in request.session.roles %}
+                <a class="ge-btn-ghost ge-btn-xs" href="{% url 'segmentar_cliente' cliente.id %}" aria-label="Segmentar cliente" title="Segmentar cliente">Segmentar</a>
+                {% endif %}
+                {% if 'ADMINISTRADOR' in request.session.roles %}
+                <a class="ge-btn-ghost ge-btn-xs" href="{% url 'asignaciones_cliente' cliente.id %}" aria-label="Asignar usuarios" title="Asignar usuarios">Usuarios</a>
+                {% endif %}
+                {% if cliente.estado == 'ACTIVO' and 'ADMINISTRADOR' in request.session.roles %}
+                <a class="ge-btn-ghost ge-btn-xs ge-btn-ghost--danger" href="{% url 'dar_de_baja_cliente' cliente.id %}" aria-label="Dar de baja" title="Dar de baja">Baja</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td class="no-data" colspan="5">No se encontraron clientes.{% if busqueda %} Probá con otra búsqueda.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}

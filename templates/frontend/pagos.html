@@ -1,0 +1,35 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Medios de pago del cliente · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad" data-ge-api="payments"
+       data-list-url="{% url 'metodos_pago:inicio_metodos_pago' %}"
+       data-create-url="{% url 'metodos_pago:registrar_metodo_pago' %}"
+       data-edit-url="{% url 'metodos_pago:editar_metodo_pago' 0 %}"
+       data-state-url="{% url 'metodos_pago:cambiar_estado_metodo_pago' 0 %}">
+    {% csrf_token %}
+    <div class="ge-frontend-section-head">
+      <h2 class="ge-frontend-h2">Medios de pago del cliente</h2>
+      <div class="ge-btn-row">
+        <div class="ge-search-box">
+          <span aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
+          <input type="text" class="ge-input" placeholder="Buscar cliente o medio..." style="width:220px;font-size:12px;padding:8px 12px 8px 30px">
+        </div>
+        <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">+ Nuevo medio de pago</button>
+      </div>
+    </div>
+
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead>
+          <tr><th>Cliente</th><th>Entidad</th><th>Tipo</th><th>Cuenta</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody data-api-body>
+          <tr><td colspan="6" class="ge-frontend-note">Cargando medios de pago...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}

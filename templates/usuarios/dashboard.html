@@ -1,45 +1,105 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Panel · Global Exchange{% endblock %}
 {% block content %}
-<section class="platform-dashboard">
-  <details class="dashboard-profile-menu">
-    <summary class="account-menu" aria-label="Abrir menú de perfil">
-      <span class="material-symbols" aria-hidden="true">account_circle</span>
-      <span><strong>{% if request.session.selected_client %}{{ request.session.selected_client.name }}{% else %}Global Exchange{% endif %}</strong><small>{{ display_name }}</small></span>
-      <span class="material-symbols dropdown-chevron" aria-hidden="true">expand_more</span>
-    </summary>
-    <div class="profile-dropdown">
-      <div><strong>{{ display_name }}</strong><small>{{ request.session.kc_user.email|default:request.session.kc_user.preferred_username }}</small></div>
-      <a href="{% url 'usuarios:logout' %}"><span class="material-symbols" aria-hidden="true">logout</span>Cerrar sesión</a>
-    </div>
-  </details>
-  <div class="dashboard-content">
-    <div class="dashboard-intro">
-      <div><h1>Hola, {{ display_name }}</h1><p>Consultá el mercado y administrá tu espacio de trabajo.</p></div>
-      <div class="dashboard-header-actions">
-        <a class="button platform-primary" href="{% url 'consultar_clientes' %}"><span class="material-symbols" aria-hidden="true">add</span>{% if request.session.selected_client %}Cambiar cliente{% else %}Seleccionar cliente{% endif %}</a>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Hola, {{ display_name }}</h1>
+        <p>Consultá el mercado y administrá tu espacio de trabajo.</p>
+      </div>
+      <div class="ge-page-header-actions">
+        <a class="ge-btn-primary" href="{% url 'consultar_clientes' %}">
+          {% if selected_client %}Cambiar cliente{% else %}Seleccionar cliente{% endif %}
+        </a>
       </div>
     </div>
 
-    <section class="currency-panel" aria-labelledby="currency-heading">
-      <div class="dashboard-section-heading"><div><span>Mercado</span><h2 id="currency-heading">Cuentas de divisas</h2></div><a href="{% url 'usuarios:home' %}#tasas">Ver todas</a></div>
-      <div class="currency-carousel" tabindex="0" aria-label="Cotizaciones de monedas">
-        <article class="currency-account-card"><span class="currency-flag usd">US</span><small>Dólar estadounidense</small><strong>USD</strong><div><span>Compra <b>7.280</b></span><span>Venta <b>7.360</b></span></div></article>
-        <article class="currency-account-card"><span class="currency-flag eur">EU</span><small>Euro</small><strong>EUR</strong><div><span>Compra <b>8.540</b></span><span>Venta <b>8.680</b></span></div></article>
-        <article class="currency-account-card"><span class="currency-flag brl">BR</span><small>Real brasileño</small><strong>BRL</strong><div><span>Compra <b>1.320</b></span><span>Venta <b>1.370</b></span></div></article>
-        <article class="currency-account-card active-context"><span class="currency-flag pyg">PY</span><small>Moneda base</small><strong>PYG</strong><div><span>Cliente <b>{% if request.session.selected_client %}Activo{% else %}Sin seleccionar{% endif %}</b></span></div></article>
-      </div>
-      <p class="dashboard-market-note"><span class="material-symbols" aria-hidden="true">info</span>Valores de referencia. Las operaciones se confirman con la cotización vigente.</p>
-    </section>
+    <div class="ge-page-title" style="margin-top: 28px">
+      <span class="ge-note-label">Mercado</span>
+      <h1 style="margin-top: 6px">Cuentas de monedas</h1>
+    </div>
 
-    <section class="quick-actions" aria-labelledby="quick-actions-heading">
-      <div class="dashboard-section-heading"><div><span>Accesos</span><h2 id="quick-actions-heading">Acciones rápidas</h2></div></div>
-      <div class="quick-actions-grid">
-        {% if 'ADMINISTRADOR' in request.session.roles %}<a href="{% url 'usuarios:list' %}"><span class="quick-icon material-symbols" aria-hidden="true">group</span><span><strong>Gestionar usuarios</strong><small>Crear, editar, asignar roles y dar de baja</small></span><span class="material-symbols" aria-hidden="true">arrow_forward</span></a>{% endif %}
-        <a href="{% url 'consultar_clientes' %}"><span class="quick-icon material-symbols" aria-hidden="true">domain</span><span><strong>Gestionar clientes</strong><small>Registrar, editar y seleccionar el contexto</small></span><span class="material-symbols" aria-hidden="true">arrow_forward</span></a>
-        <a href="{% url 'usuarios:home' %}#cotizaciones"><span class="quick-icon material-symbols" aria-hidden="true">currency_exchange</span><span><strong>Conversor de divisas</strong><small>Simular conversiones de referencia</small></span><span class="material-symbols" aria-hidden="true">arrow_forward</span></a>
-      </div>
-    </section>
+    <div class="ge-currencies-grid">
+      <article class="ge-card ge-currency-card">
+        <div class="ge-currency-head">
+          <div class="ge-currency-id">
+            <span class="ge-currency-flag">US</span>
+            <div><div class="ge-currency-code">USD</div><div class="ge-currency-name">Dólar estadounidense</div></div>
+          </div>
+        </div>
+        <div class="ge-buy-sell">
+          <div><span class="ge-note-label">Compra</span><strong>7.280</strong></div>
+          <div class="ge-divider"></div>
+          <div><span class="ge-note-label">Venta</span><strong>7.360</strong></div>
+        </div>
+        <div class="ge-currency-footer">Valores de referencia</div>
+      </article>
+      <article class="ge-card ge-currency-card">
+        <div class="ge-currency-head">
+          <div class="ge-currency-id">
+            <span class="ge-currency-flag">EU</span>
+            <div><div class="ge-currency-code">EUR</div><div class="ge-currency-name">Euro</div></div>
+          </div>
+        </div>
+        <div class="ge-buy-sell">
+          <div><span class="ge-note-label">Compra</span><strong>8.540</strong></div>
+          <div class="ge-divider"></div>
+          <div><span class="ge-note-label">Venta</span><strong>8.680</strong></div>
+        </div>
+        <div class="ge-currency-footer">Valores de referencia</div>
+      </article>
+      <article class="ge-card ge-currency-card">
+        <div class="ge-currency-head">
+          <div class="ge-currency-id">
+            <span class="ge-currency-flag">BR</span>
+            <div><div class="ge-currency-code">BRL</div><div class="ge-currency-name">Real brasileño</div></div>
+          </div>
+        </div>
+        <div class="ge-buy-sell">
+          <div><span class="ge-note-label">Compra</span><strong>1.320</strong></div>
+          <div class="ge-divider"></div>
+          <div><span class="ge-note-label">Venta</span><strong>1.370</strong></div>
+        </div>
+        <div class="ge-currency-footer">Valores de referencia</div>
+      </article>
+      <article class="ge-card ge-currency-card">
+        <div class="ge-currency-head">
+          <div class="ge-currency-id">
+            <span class="ge-currency-flag">PY</span>
+            <div><div class="ge-currency-code">PYG</div><div class="ge-currency-name">Moneda base</div></div>
+          </div>
+        </div>
+        <div class="ge-buy-sell">
+          <div><span class="ge-note-label">Cliente</span><strong>{% if selected_client %}Activo{% else %}Sin seleccionar{% endif %}</strong></div>
+          <div class="ge-divider"></div>
+          <div><span class="ge-note-label">Contexto</span><strong>{% if selected_client %}{{ selected_client.name|truncatechars:16 }}{% else %}—{% endif %}</strong></div>
+        </div>
+        <div class="ge-currency-footer">Valores de referencia</div>
+      </article>
+    </div>
+    <p class="ge-source-note" style="margin-top: 14px">Valores de referencia. Las operaciones se confirman con la cotización vigente.</p>
+
+    <div class="ge-page-title" style="margin-top: 40px">
+      <span class="ge-note-label">Accesos</span>
+      <h1 style="margin-top: 6px">Acciones rápidas</h1>
+    </div>
+    <div class="ge-quick-actions-grid">
+      {% if 'ADMINISTRADOR' in kc_roles %}
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:list' %}">
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='users' size=20 %}</span>
+        <span><strong>Gestionar usuarios</strong><small>Crear, editar, asignar roles y dar de baja</small></span>
+      </a>
+      {% endif %}
+      <a class="ge-card ge-quick-card" href="{% url 'consultar_clientes' %}">
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='clients' size=20 %}</span>
+        <span><strong>Gestionar clientes</strong><small>Registrar, editar y seleccionar el contexto</small></span>
+      </a>
+      <a class="ge-card ge-quick-card" href="{% url 'usuarios:home' %}#cotizaciones">
+        <span class="ge-quick-icon" aria-hidden="true">{% include 'components/icon.html' with name='operations' size=20 %}</span>
+        <span><strong>Conversor de monedas</strong><small>Simular conversiones de referencia</small></span>
+      </a>
+    </div>
   </div>
-</section>
+</div>
 {% endblock %}

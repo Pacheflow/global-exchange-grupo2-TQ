@@ -1,50 +1,50 @@
 {% extends 'usuarios/base.html' %}
-{% block title %}Global Exchange · Conversor y cotizaciones{% endblock %}
+{% load static %}
+{% block title %}Global Exchange · Cambios en Paraguay{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/landing.css' %}">{% endblock %}
 {% block content %}
-<section class="exchange-hero" id="cotizaciones">
-  <div class="exchange-hero-inner">
-    <span class="hero-badge"><span class="material-symbols" aria-hidden="true">currency_exchange</span>Casa de cambios en Paraguay</span>
-    <h1>Conversor de divisas</h1>
-    <p>Consultá valores de referencia de forma rápida, clara y segura.</p>
-
-    <div class="converter-card">
-      <form class="converter-grid" data-converter>
-        <label class="currency-field">
-          <span>De</span>
-          <div><input type="number" min="0" step="0.01" value="1" data-converter-amount aria-label="Importe a convertir"><select data-converter-from aria-label="Moneda de origen"><option value="USD">USD · Dólar estadounidense</option><option value="EUR">EUR · Euro</option><option value="BRL">BRL · Real brasileño</option><option value="PYG">PYG · Guaraní paraguayo</option></select></div>
-        </label>
-        <button class="swap-currencies material-symbols" type="button" data-converter-swap aria-label="Intercambiar monedas" title="Intercambiar monedas">swap_horiz</button>
-        <label class="currency-field">
-          <span>A</span>
-          <div><output data-converter-result>7.360</output><select data-converter-to aria-label="Moneda de destino"><option value="PYG">PYG · Guaraní paraguayo</option><option value="USD">USD · Dólar estadounidense</option><option value="EUR">EUR · Euro</option><option value="BRL">BRL · Real brasileño</option></select></div>
-        </label>
-      </form>
-      <div class="converter-summary">
-        <div><strong data-converter-rate>1 USD = 7.360 PYG</strong><span>Conversión informativa basada en nuestras tasas de referencia.</span></div>
-        <a class="button button-public-primary button-large" href="{% url 'usuarios:login' %}"><span class="material-symbols" aria-hidden="true">login</span>Iniciar para operar</a>
+<div id="global-landing" class="ge-frontend-landing" data-django-landing data-rates-url="{% url 'tasas:consultar' %}" data-currencies-url="{% url 'monedas:listar_monedas_activas' %}" data-simulate-url="{% url 'tasas:simular_conversion' %}">
+  <span hidden>{% csrf_token %}</span>
+  <section id="inicio" class="landing-hero">
+    <div class="landing-dot-grid" aria-hidden="true"></div>
+    <div class="landing-hero-content">
+      <div class="landing-hero-copy">
+        <div class="landing-badge animate-fade-up"><i></i> Cotizaciones en tiempo real</div>
+        <h1 class="animate-fade-up delay-200 font-display"><span class="landing-hero-heading-line">Líderes en</span><span class="landing-hero-heading-line landing-hero-heading-strong">cambios</span><span class="landing-hero-heading-line landing-hero-country-line">en <em class="gradient-text landing-hero-country">Paraguay</em></span></h1>
+        <div class="landing-accent animate-fade-up delay-300"></div>
+        <p class="animate-fade-up delay-400">Operaciones seguras y transparentes. La plataforma de cambio de monedas más confiable del mercado paraguayo.</p>
+        <div class="landing-actions animate-fade-up delay-600"><a href="#cotizaciones" class="ge-btn-primary">Ver cotizaciones</a><a href="#conversor" class="ge-btn-outline">Convertir moneda</a></div>
       </div>
+      <div class="landing-hero-board animate-fade-in delay-300">{% include 'components/market_board.html' %}</div>
     </div>
-    <p class="converter-disclaimer"><span class="material-symbols" aria-hidden="true">info</span>Los valores son informativos. La cotización final se confirma al momento de la operación.</p>
-  </div>
-</section>
+    <a href="#cotizaciones" aria-label="Ir a Cotizaciones del Día" class="landing-hero-chevron"><span class="material-symbols" aria-hidden="true">keyboard_arrow_down</span><i></i></a>
+  </section>
 
-<section class="rates-section public-section" id="tasas">
-  <div class="public-section-heading"><span class="section-label">Mercado</span><h2>Cotizaciones de referencia</h2><p>Compra y venta de las principales monedas operadas por Global Exchange.</p></div>
-  <div class="rates-grid">
-    <article><span class="currency-avatar">US</span><div><strong>Dólar estadounidense</strong><small>USD</small></div><dl><div><dt>Compra</dt><dd>7.280</dd></div><div><dt>Venta</dt><dd>7.360</dd></div></dl></article>
-    <article><span class="currency-avatar">EU</span><div><strong>Euro</strong><small>EUR</small></div><dl><div><dt>Compra</dt><dd>8.540</dd></div><div><dt>Venta</dt><dd>8.680</dd></div></dl></article>
-    <article><span class="currency-avatar">BR</span><div><strong>Real brasileño</strong><small>BRL</small></div><dl><div><dt>Compra</dt><dd>1.320</dd></div><div><dt>Venta</dt><dd>1.370</dd></div></dl></article>
-  </div>
-</section>
+  <section id="cotizaciones" class="frontend-section frontend-section--base" data-rates-section><div class="reveal"><div class="frontend-content">
+    <header class="frontend-section-heading frontend-section-heading--split"><div><span>Mercado</span><h2>Cotizaciones del Día</h2><p>Cotizaciones actualizadas en tiempo real desde el servicio de referencia.</p></div><div class="frontend-filters" data-rate-periods aria-label="Histórico disponible próximamente"><button type="button" disabled>Hoy</button><button type="button" disabled>7D</button><button type="button" disabled>30D</button><button type="button" disabled class="active">90D</button><button type="button" disabled>1A</button></div></header>
+    <div class="frontend-rates-table-wrap"><table class="frontend-rates-table"><thead><tr><th>Moneda</th><th>Referencia</th><th>Fuente</th><th>Histórico</th><th>Estado</th><th>Actualización</th></tr></thead><tbody data-public-rates-body>
+      <tr><td><strong>—</strong><small>Cargando</small></td><td><span class="ge-animated-price">—</span></td><td>—</td><td><div class="frontend-table-chart">Próximamente</div></td><td>—</td><td><small>—</small></td></tr>
+      <tr><td><strong>—</strong><small>Cargando</small></td><td><span class="ge-animated-price">—</span></td><td>—</td><td><div class="frontend-table-chart">Próximamente</div></td><td>—</td><td><small>—</small></td></tr>
+      <tr><td><strong>—</strong><small>Cargando</small></td><td><span class="ge-animated-price">—</span></td><td>—</td><td><div class="frontend-table-chart">Próximamente</div></td><td>—</td><td><small>—</small></td></tr>
+      <tr><td><strong>—</strong><small>Cargando</small></td><td><span class="ge-animated-price">—</span></td><td>—</td><td><div class="frontend-table-chart">Próximamente</div></td><td>—</td><td><small>—</small></td></tr>
+    </tbody></table></div><div class="frontend-table-footer"><span data-rates-status>Cargando tasas reales…</span><span>Histórico · Próximamente <span class="material-symbols">arrow_forward</span></span></div>
+  </div></div></section>
 
-<section class="public-section services-section" id="servicios">
-  <div class="public-section-heading"><span class="section-label">Servicios</span><h2>Una experiencia simple y segura</h2></div>
-  <div class="service-grid">
-    <article><span class="material-symbols" aria-hidden="true">currency_exchange</span><h3>Cambio de divisas</h3><p>Consultá cotizaciones claras para las principales monedas de la región.</p></article>
-    <article><span class="material-symbols" aria-hidden="true">support_agent</span><h3>Atención personalizada</h3><p>Gestionamos cada solicitud con acompañamiento y trazabilidad.</p></article>
-    <article><span class="material-symbols" aria-hidden="true">verified_user</span><h3>Acceso protegido</h3><p>La identidad y los permisos se administran mediante autenticación segura.</p></article>
-  </div>
-</section>
+  <section id="conversor" class="frontend-section frontend-section--alternate"><div class="reveal"><div class="frontend-converter-layout">
+    <div class="frontend-copy"><span>Herramienta pública</span><h2>Conversor de Monedas</h2><p>Simula la conversión entre monedas usando las tasas actualizadas del mercado. Disponible para todos, sin necesidad de registro.</p><ul><li><span class="material-symbols landing-feature-icon">bolt</span>Tasas reales obtenidas del backend</li><li><span class="material-symbols landing-feature-icon">language</span>USD, EUR, BRL, ARS y PYG</li><li><span class="material-symbols landing-feature-icon">monitoring</span>Solo simulación — no genera transacciones</li></ul></div>
+    <div class="ge-frontend-card ge-frontend-converter" data-public-converter><div class="ge-frontend-field"><label for="ge-converter-amount">Tú entregas</label><div><input id="ge-converter-amount" inputmode="decimal" placeholder="0" aria-label="Monto a convertir"><select data-converter-from aria-label="Moneda de origen"><option value="">Cargando…</option></select></div></div><div class="ge-frontend-swap"><span></span><button type="button" data-converter-swap title="Intercambiar monedas" aria-label="Intercambiar monedas"><span class="material-symbols">swap_horiz</span></button><span></span></div><div class="ge-frontend-field ge-frontend-field--result"><label>Recibes aproximadamente</label><div><output aria-live="polite" data-converter-output>—</output><select data-converter-to aria-label="Moneda de destino"><option value="">Cargando…</option></select></div></div><div class="ge-frontend-rate"><div><small>Tasa utilizada</small><strong data-converter-rate>—</strong></div><div><small>Tipo de tasa</small><span data-converter-type>—</span></div><div><small>Última actualización</small><span data-converter-updated>—</span></div></div><div class="ge-inline-banner" data-converter-error hidden></div><div class="ge-frontend-simulation"><span class="material-symbols">info</span>Simulación gratuita · No genera ninguna transacción ni compromiso.</div></div>
+  </div></div></section>
 
-<section class="about-section" id="nosotros"><div><span class="section-label">Global Exchange</span><h2>Una casa de cambios diseñada para operar con claridad.</h2></div><p>Centralizamos usuarios, clientes y operaciones en un entorno confiable. Las funcionalidades transaccionales están disponibles únicamente después de iniciar sesión.</p></section>
+  <section class="frontend-section frontend-section--base"><div class="reveal"><div class="frontend-content"><header class="frontend-section-heading frontend-section-heading--center"><span>Proceso</span><h2>Cómo funciona Global Exchange</h2></header><div class="frontend-process"><article><strong>01</strong><i></i><h3>Consulta la cotización</h3><p>Revisa las tasas del día para las monedas que necesitas.</p></article><article><strong>02</strong><i></i><h3>Simula tu conversión</h3><p>Usa nuestro conversor para estimar cuánto recibirás antes de operar.</p></article><article><strong>03</strong><i></i><h3>Confirma tu operación</h3><p>Elige el medio de pago y confirma cuando el módulo esté disponible.</p></article><article><strong>04</strong><i></i><h3>Recibe la confirmación</h3><p>Accede al comprobante desde tu panel cuando esta función esté implementada.</p></article></div></div></div></section>
+
+  <section class="frontend-section frontend-section--alternate"><div class="reveal"><div class="frontend-benefits"><div class="frontend-copy"><span>Ventajas</span><h2>Por qué elegir Global Exchange</h2><i></i><p>Una experiencia cambiaria paraguaya respaldada por acceso seguro e información clara.</p></div><div class="frontend-benefits-grid"><article><span class="material-symbols landing-card-icon">monitoring</span><h3>Cotizaciones actualizadas</h3><p>Tasas del mercado actualizadas continuamente a lo largo del día.</p></article><article><span class="material-symbols landing-card-icon">encrypted</span><h3>Operaciones seguras</h3><p>Autenticación robusta, control de acceso por roles y trazabilidad completa.</p></article><article><span class="material-symbols landing-card-icon">history</span><h3>Historial centralizado</h3><p>Accedé a todas tus transacciones, facturas y comprobantes en un solo lugar.</p></article><article><span class="material-symbols landing-card-icon">person</span><h3>Atención profesional</h3><p>Soporte especializado con conocimiento cambiario real.</p></article><article><span class="material-symbols landing-card-icon">auto_awesome</span><h3>Información clara</h3><p>Cada operación mostrará exactamente lo que recibirás antes de confirmarla.</p></article><article><span class="material-symbols landing-card-icon">language</span><h3>Multi-moneda</h3><p>USD, EUR, BRL, ARS y PYG, con posibilidad de ampliar el catálogo.</p></article></div></div></div></section>
+
+  <section id="seguridad" class="frontend-section frontend-section--base"><div class="reveal"><div class="frontend-security"><div class="frontend-copy"><span>Confianza</span><h2>Tu seguridad es nuestra prioridad</h2><p>Cada acceso a Global Exchange conserva las capas de seguridad y autorización del sistema real.</p><div class="frontend-security-list"><article><span><span class="material-symbols">key</span></span><div><h3>Autenticación segura</h3><p>Identidad administrada mediante Django y Keycloak.</p></div></article><article><span><span class="material-symbols">shield_lock</span></span><div><h3>Roles y permisos</h3><p>Cada usuario accede únicamente a las funciones correspondientes a su rol.</p></div></article><article><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.7l2.8 2.8L16.2 9.6"></path></svg></span><div><h3>Confirmación de operaciones</h3><p>Interfaz prevista para confirmaciones explícitas cuando el módulo esté disponible.</p></div></article><article><span><span class="material-symbols">activity_zone</span></span><div><h3>Trazabilidad completa</h3><p>Interfaz prevista para el historial auditado de acciones.</p></div></article></div></div><div class="ge-frontend-card frontend-system-status"><i></i><div><span>Estado del sistema</span><div class="frontend-status-row"><span>Autenticación</span><strong class="ready"><i></i>Operativo</strong></div><div class="frontend-status-row"><span>Roles y permisos</span><strong class="ready"><i></i>Operativo</strong></div><div class="frontend-status-row"><span>API de tasas</span><strong class="pending"><i></i>En desarrollo</strong></div><div class="frontend-status-row"><span>Procesamiento de órdenes</span><strong class="pending"><i></i>En desarrollo</strong></div><div class="frontend-status-row"><span>Facturación electrónica</span><strong class="pending"><i></i>En desarrollo</strong></div><div class="frontend-status-row"><span>Notificaciones</span><strong class="pending"><i></i>En desarrollo</strong></div></div></div></div></div></section>
+
+  <section class="frontend-section frontend-section--alternate frontend-currencies"><div class="reveal"><div class="frontend-content"><header class="frontend-section-heading frontend-section-heading--center"><span>Catálogo</span><h2>Monedas disponibles</h2></header><div class="frontend-currency-list"><article class="ge-frontend-card"><span class="material-symbols landing-currency-icon">paid</span><strong>PYG</strong><small>Guaraní paraguayo</small></article><article class="ge-frontend-card"><span class="material-symbols landing-currency-icon">paid</span><strong>USD</strong><small>Dólar estadounidense</small></article><article class="ge-frontend-card"><span class="material-symbols landing-currency-icon">paid</span><strong>EUR</strong><small>Euro</small></article><article class="ge-frontend-card"><span class="material-symbols landing-currency-icon">paid</span><strong>BRL</strong><small>Real brasileño</small></article><article class="ge-frontend-card"><span class="material-symbols landing-currency-icon">paid</span><strong>ARS</strong><small>Peso argentino</small></article><article class="ge-frontend-card future"><span class="material-symbols landing-currency-icon">add</span><strong>Próximamente</strong><small>Más monedas</small></article></div></div></div></section>
+
+  <footer class="frontend-footer"><div class="frontend-footer-grid"><div><div class="frontend-footer-brand"><span class="material-symbols">language</span><strong>GLOBAL EXCHANGE</strong></div><p>Casa de cambios líder en Paraguay. Cotizaciones transparentes y operaciones seguras.</p></div><nav up-nav="false" aria-label="Navegación del pie"><strong>Navegación</strong><a up-follow="false" href="#inicio">Inicio</a><a up-follow="false" href="#cotizaciones">Cotizaciones</a><a up-follow="false" href="#conversor">Conversor</a><a up-follow="false" href="#seguridad">Seguridad</a></nav><div><strong>Legal</strong><span>Términos de uso · En desarrollo</span><span>Privacidad · En desarrollo</span></div><div><strong>Contacto</strong><span>Asunción, Paraguay</span><span>info@globalexchange.com.py</span></div></div><div class="frontend-footer-bottom"><span>© 2026 Global Exchange. Todos los derechos reservados.</span><span>Asunción, Paraguay</span></div></footer>
+</div>
 {% endblock %}
+{% block public_footer %}{% endblock %}
+{% block extra_js %}<script src="{% static 'js/landing.js' %}?v=rf09-hu19-20260910"></script>{% endblock %}

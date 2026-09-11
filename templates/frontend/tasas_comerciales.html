@@ -1,0 +1,45 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Tasas comerciales · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad" data-ge-api="rates"
+       data-list-url="{% url 'tasas:historial_tasas_comerciales' %}"
+       data-create-url="{% url 'tasas:administrar_tasa_comercial' %}"
+       {% if 'ANALISTA_CAMBIARIO' in kc_roles %}data-deactivate-url="{% url 'tasas:desactivar_tasa_comercial' 0 %}"{% endif %}
+       data-can-manage="{% if 'ANALISTA_CAMBIARIO' in kc_roles %}true{% else %}false{% endif %}">
+    {% csrf_token %}
+    <div class="ge-frontend-section-head">
+      <div>
+        <h2 class="ge-frontend-h2">Tasas comerciales</h2>
+        <p class="ge-frontend-note">Valores propios de Global Exchange. Las tasas de referencia externas se consultan en “Tasas”.</p>
+      </div>
+      <div class="ge-frontend-section-actions">
+        <div class="ge-search-box">
+          <span aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
+          <input type="text" class="ge-input" placeholder="Buscar moneda..." style="width:200px;font-size:12px;padding:8px 12px 8px 30px">
+        </div>
+        {% if 'ANALISTA_CAMBIARIO' in kc_roles %}
+          <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">Nueva tasa comercial</button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="ge-inline-banner">
+      <span aria-hidden="true">{% include 'components/icon.html' with name='history' size=18 %}</span>
+      <span>Las tasas comerciales no se eliminan: cada modificación crea una nueva versión y conserva la anterior en el historial.</span>
+    </div>
+
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead>
+          <tr><th>Moneda</th><th>Compra</th><th>Venta</th><th>Tendencia</th><th>Estado</th><th>Última act.</th><th>Acciones</th></tr>
+        </thead>
+        <tbody data-api-body>
+          <tr><td colspan="7" class="ge-frontend-note">Cargando tasas...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}

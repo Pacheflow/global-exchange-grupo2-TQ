@@ -1,0 +1,254 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Panel de Caja · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar.html' with rol='cajero' rol_label='Cajero / Operador' %}{% endblock %}
+{% block content %}
+  <!-- Header -->
+  <div class="ge-frontend-pagehead">
+    <div>
+      <h1 class="ge-frontend-h1">Panel de Caja</h1>
+      <div class="ge-frontend-phest">
+        <span class="ge-frontend-sub">Módulo de caja</span>
+        <span class="ge-frontend-label">·</span>
+        <span class="ge-frontend-sub">Disponible en un próximo Sprint</span>
+        <span class="ge-status-badge ge-status-badge--warning">PRÓXIMAMENTE</span>
+      </div>
+    </div>
+    <div class="ge-btn-row">
+      <div class="ge-switch">
+        <button type="button" data-caja-view="caja" class="is-active" disabled title="Disponible próximamente">Caja</button>
+        <button type="button" data-caja-view="arqueo" disabled title="Disponible próximamente">Arqueo</button>
+        <button type="button" data-caja-view="billetes" disabled title="Disponible próximamente">Billetes</button>
+      </div>
+      <button type="button" class="ge-btn-outline" data-ge-modal-open="cierre-caja" disabled title="Disponible próximamente" style="font-size:13px;color:var(--danger);border-color:var(--danger)">Cerrar caja</button>
+    </div>
+  </div>
+
+  <div class="ge-frontend-main-pad">
+
+    <!-- ── Caja / Resumen de saldos ── -->
+    <section data-caja-panel="caja">
+      <div class="ge-frontend-balances">
+        <article class="ge-card ge-balance">
+          <div class="ge-balance-head"><span class="ge-balance-flag">🇵🇾</span><span class="ge-balance-state">PRÓXIMAMENTE</span></div>
+          <div class="ge-balance-amount">—</div>
+          <div class="ge-balance-label">PYG · Saldo actual</div>
+        </article>
+        <article class="ge-card ge-balance">
+          <div class="ge-balance-head"><span class="ge-balance-flag">🇺🇸</span><span class="ge-balance-state">PRÓXIMAMENTE</span></div>
+          <div class="ge-balance-amount">—</div>
+          <div class="ge-balance-label">USD · Saldo actual</div>
+        </article>
+        <article class="ge-card ge-balance">
+          <div class="ge-balance-head"><span class="ge-balance-flag">🇪🇺</span><span class="ge-balance-state">PRÓXIMAMENTE</span></div>
+          <div class="ge-balance-amount">—</div>
+          <div class="ge-balance-label">EUR · Saldo actual</div>
+        </article>
+        <article class="ge-card ge-balance">
+          <div class="ge-balance-head"><span class="ge-balance-flag">🇧🇷</span><span class="ge-balance-state">PRÓXIMAMENTE</span></div>
+          <div class="ge-balance-amount">—</div>
+          <div class="ge-balance-label">BRL · Saldo actual</div>
+        </article>
+      </div>
+
+      <div class="ge-card" style="overflow:hidden">
+        <div class="ge-card-head">
+          <span class="ge-card-title">Movimientos del turno</span>
+          <button class="ge-btn-ghost" style="font-size:12px" disabled title="Disponible próximamente">Ver todo →</button>
+        </div>
+        <table class="ge-table">
+          <thead>
+            <tr><th>ID</th><th>Fecha</th><th>Tipo</th><th>Moneda</th><th>Entrada</th><th>Salida</th><th>Saldo</th><th>Referencia</th></tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="8" class="ge-frontend-note">Movimientos de caja · Próximamente</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Arqueo ── -->
+    <section data-caja-panel="arqueo" hidden>
+      <div class="ge-frontend-col-narrow">
+        <h2 class="ge-frontend-h2">Arqueo de caja <span class="ge-chip">Próximamente</span></h2>
+        <article class="ge-card" style="padding:28px;margin-bottom:20px">
+          <div class="ge-card-title" style="margin-bottom:20px">Ingresar saldo real por moneda</div>
+          <div class="ge-arqueo-row">
+            <span class="ge-arqueo-moneda">🇵🇾 <strong class="ge-mono">PYG</strong></span>
+            <div><div class="ge-field-label-sm">ESPERADO</div><div class="ge-mono">—</div></div>
+            <input type="number" class="ge-input" value="" disabled placeholder="—" style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 10px">
+          </div>
+          <div class="ge-arqueo-row">
+            <span class="ge-arqueo-moneda">🇺🇸 <strong class="ge-mono">USD</strong></span>
+            <div><div class="ge-field-label-sm">ESPERADO</div><div class="ge-mono">—</div></div>
+            <input type="number" class="ge-input" value="" disabled placeholder="—" style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 10px">
+          </div>
+          <div class="ge-arqueo-row">
+            <span class="ge-arqueo-moneda">🇪🇺 <strong class="ge-mono">EUR</strong></span>
+            <div><div class="ge-field-label-sm">ESPERADO</div><div class="ge-mono">—</div></div>
+            <input type="number" class="ge-input" value="" disabled placeholder="—" style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 10px">
+          </div>
+          <div class="ge-arqueo-row">
+            <span class="ge-arqueo-moneda">🇧🇷 <strong class="ge-mono">BRL</strong></span>
+            <div><div class="ge-field-label-sm">ESPERADO</div><div class="ge-mono">—</div></div>
+            <input type="number" class="ge-input" value="" disabled placeholder="—" style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 10px">
+          </div>
+        </article>
+
+        <article class="ge-card" style="padding:24px">
+          <div class="ge-card-title" style="margin-bottom:16px">Resultado del arqueo</div>
+          <div class="ge-arqueo-result">
+            <span class="ge-mono" style="font-weight:700">PYG</span>
+            <div class="ge-arqueo-diff"><div class="ge-field-label-sm">Diferencia</div><strong class="ge-note-label ge-note-label--12 ge-trend-flat">—</strong></div>
+            <span class="ge-diff-state ge-trend-flat">Próximamente</span>
+          </div>
+          <div class="ge-arqueo-result">
+            <span class="ge-mono" style="font-weight:700">USD</span>
+            <div class="ge-arqueo-diff"><div class="ge-field-label-sm">Diferencia</div><strong class="ge-note-label ge-note-label--12 ge-trend-flat">—</strong></div>
+            <span class="ge-diff-state ge-trend-flat">Próximamente</span>
+          </div>
+          <div class="ge-arqueo-result">
+            <span class="ge-mono" style="font-weight:700">EUR</span>
+            <div class="ge-arqueo-diff"><div class="ge-field-label-sm">Diferencia</div><strong class="ge-note-label ge-note-label--12 ge-trend-flat">—</strong></div>
+            <span class="ge-diff-state ge-trend-flat">Próximamente</span>
+          </div>
+          <div class="ge-arqueo-result">
+            <span class="ge-mono" style="font-weight:700">BRL</span>
+            <div class="ge-arqueo-diff"><div class="ge-field-label-sm">Diferencia</div><strong class="ge-note-label ge-note-label--12 ge-trend-flat">—</strong></div>
+            <span class="ge-diff-state ge-trend-flat">Próximamente</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ── Control de billetes ── -->
+    <section data-caja-panel="billetes" hidden>
+      <div style="max-width:500px">
+        <div class="ge-frontend-section-head">
+          <h2 class="ge-frontend-h2">Control de billetes <span class="ge-chip">Próximamente</span></h2>
+          <select class="ge-input" data-bill-currency-select disabled title="Disponible próximamente" style="width:auto;font-family:'JetBrains Mono',monospace;font-weight:700;cursor:pointer">
+            <option value="USD" selected>USD</option>
+            <option value="EUR">EUR</option>
+            <option value="BRL">BRL</option>
+            <option value="PYG">PYG</option>
+          </select>
+        </div>
+        <div class="ge-card" style="overflow:hidden" data-bill-currency="USD">
+          <div class="ge-den-head"><span>DENOMINACIÓN</span><span class="ge-den-center">CANTIDAD</span><span class="ge-den-right">SUBTOTAL</span></div>
+          <div class="ge-den-row" data-denom="100" data-count="0"><span class="ge-mono ge-den-val">100</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="50" data-count="0"><span class="ge-mono ge-den-val">50</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="20" data-count="0"><span class="ge-mono ge-den-val">20</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="10" data-count="0"><span class="ge-mono ge-den-val">10</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="5" data-count="0"><span class="ge-mono ge-den-val">5</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="1" data-count="0"><span class="ge-mono ge-den-val">1</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-total"><span class="ge-card-title">TOTAL USD</span><span class="ge-den-total-amount ge-mono" data-bill-total>0</span></div>
+        </div>
+        <div class="ge-card" style="overflow:hidden" data-bill-currency="EUR" hidden>
+          <div class="ge-den-head"><span>DENOMINACIÓN</span><span class="ge-den-center">CANTIDAD</span><span class="ge-den-right">SUBTOTAL</span></div>
+          <div class="ge-den-row" data-denom="100" data-count="0"><span class="ge-mono ge-den-val">100</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="50" data-count="0"><span class="ge-mono ge-den-val">50</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="20" data-count="0"><span class="ge-mono ge-den-val">20</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="10" data-count="0"><span class="ge-mono ge-den-val">10</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="5" data-count="0"><span class="ge-mono ge-den-val">5</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="2" data-count="0"><span class="ge-mono ge-den-val">2</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="1" data-count="0"><span class="ge-mono ge-den-val">1</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-total"><span class="ge-card-title">TOTAL EUR</span><span class="ge-den-total-amount ge-mono" data-bill-total>0</span></div>
+        </div>
+        <div class="ge-card" style="overflow:hidden" data-bill-currency="BRL" hidden>
+          <div class="ge-den-head"><span>DENOMINACIÓN</span><span class="ge-den-center">CANTIDAD</span><span class="ge-den-right">SUBTOTAL</span></div>
+          <div class="ge-den-row" data-denom="100" data-count="0"><span class="ge-mono ge-den-val">100</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="50" data-count="0"><span class="ge-mono ge-den-val">50</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="20" data-count="0"><span class="ge-mono ge-den-val">20</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="10" data-count="0"><span class="ge-mono ge-den-val">10</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="5" data-count="0"><span class="ge-mono ge-den-val">5</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="2" data-count="0"><span class="ge-mono ge-den-val">2</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="1" data-count="0"><span class="ge-mono ge-den-val">1</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-total"><span class="ge-card-title">TOTAL BRL</span><span class="ge-den-total-amount ge-mono" data-bill-total>0</span></div>
+        </div>
+        <div class="ge-card" style="overflow:hidden" data-bill-currency="PYG" hidden>
+          <div class="ge-den-head"><span>DENOMINACIÓN</span><span class="ge-den-center">CANTIDAD</span><span class="ge-den-right">SUBTOTAL</span></div>
+          <div class="ge-den-row" data-denom="100000" data-count="0"><span class="ge-mono ge-den-val">100000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="50000" data-count="0"><span class="ge-mono ge-den-val">50000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="20000" data-count="0"><span class="ge-mono ge-den-val">20000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="10000" data-count="0"><span class="ge-mono ge-den-val">10000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="5000" data-count="0"><span class="ge-mono ge-den-val">5000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="2000" data-count="0"><span class="ge-mono ge-den-val">2000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-row" data-denom="1000" data-count="0"><span class="ge-mono ge-den-val">1000</span>
+            <div class="ge-den-ctl"><button type="button" data-dec disabled class="ge-den-btn">−</button><span data-count-label class="ge-mono">0</span><button type="button" data-inc disabled class="ge-den-btn">+</button></div>
+            <span class="ge-den-subt ge-mono" data-subtotal>0</span></div>
+          <div class="ge-den-total"><span class="ge-card-title">TOTAL PYG</span><span class="ge-den-total-amount ge-mono" data-bill-total>0</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Cierre de caja modal -->
+  <div class="ge-modal-backdrop" id="cierre-caja" aria-hidden="true">
+    <div class="ge-modal">
+      <h3 class="ge-frontend-h3">Resumen de cierre</h3>
+      <div class="ge-cierre-list">
+        <div><span>Hora de apertura</span><strong class="ge-mono">—</strong></div>
+        <div><span>Hora de cierre</span><strong class="ge-mono">—</strong></div>
+        <div><span>Movimientos</span><strong class="ge-mono">Próximamente</strong></div>
+        <div><span>USD esperado</span><strong class="ge-mono">—</strong></div>
+        <div><span>USD real</span><strong class="ge-mono">—</strong></div>
+        <div><span>Diferencia USD</span><strong class="ge-mono">—</strong></div>
+      </div>
+      <div class="ge-btn-row" style="justify-content:stretch">
+        <button class="ge-btn-outline" style="flex:1" data-ge-modal-close="cierre-caja">Cancelar</button>
+        <button class="ge-btn-primary" style="flex:1" data-ge-modal-close="cierre-caja" disabled>Próximamente</button>
+      </div>
+    </div>
+  </div>
+{% endblock %}

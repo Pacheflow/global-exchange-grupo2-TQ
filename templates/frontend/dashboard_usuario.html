@@ -1,0 +1,44 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Resumen · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar.html' with rol='usuario' rol_label='Usuario' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad">
+    <div class="ge-frontend-pagehead">
+      <div>
+        <span class="ge-frontend-eyebrow">Resumen personal</span>
+        <h1 class="ge-frontend-h1">Bienvenido, {{ display_name }}</h1>
+        <p class="ge-frontend-sub">{% now "j \d\e F \d\e Y" %} · Asunción, Paraguay</p>
+      </div>
+      <span class="ge-chip">Rol efectivo: USUARIO</span>
+    </div>
+
+    <div class="ge-frontend-grid2" style="margin-top:24px">
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-title" style="margin-bottom:12px">Mi cliente</div>
+        {% if selected_client %}
+          <p class="ge-frontend-note" style="margin-bottom:8px">Cliente activo para las funciones que requieren contexto.</p>
+          <strong style="display:block;color:var(--text);font-size:18px;margin-bottom:16px">{{ selected_client.name }}</strong>
+        {% else %}
+          <p class="ge-frontend-note" style="margin-bottom:16px">No seleccionaste un cliente. Podés elegir uno entre los clientes asociados a tu cuenta.</p>
+        {% endif %}
+        <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">{% if selected_client %}Cambiar cliente{% else %}Ver clientes asociados{% endif %}</a>
+      </article>
+
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-title" style="margin-bottom:12px">Servicios disponibles</div>
+        <p class="ge-frontend-note" style="margin-bottom:16px">Estas opciones consultan información real del backend.</p>
+        <div class="ge-frontend-quick-grid">
+          <a class="ge-frontend-quick" href="{% url 'usuarios:tasas' %}">{% include 'components/icon.html' with name='rates' size=16 %}<span>Ver cotizaciones</span></a>
+          <a class="ge-frontend-quick" href="{% url 'usuarios:simulador' %}">{% include 'components/icon.html' with name='transfer' size=16 %}<span>Usar conversor</span></a>
+          <a class="ge-frontend-quick" href="{% url 'usuarios:monedas' %}">{% include 'components/icon.html' with name='currencies' size=16 %}<span>Consultar monedas</span></a>
+          <a class="ge-frontend-quick" href="{% url 'usuarios:seguridad' %}">{% include 'components/icon.html' with name='roles' size=16 %}<span>Ver seguridad</span></a>
+        </div>
+      </article>
+    </div>
+
+    <article class="ge-card ge-roles-note" style="margin-top:24px">
+      <strong>FUNCIONES EN PREPARACIÓN</strong>
+      <p>Operaciones de compra y venta, historial de transacciones, procesamiento de pagos, notificaciones y configuración personal todavía no están implementados. Se muestran como pendientes en el menú para no confundirlos con funciones disponibles.</p>
+    </article>
+  </div>
+{% endblock %}

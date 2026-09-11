@@ -1,14 +1,59 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Usuarios · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace">
-  <header class="workspace-header"><div class="page-intro"><h1>Usuarios</h1><p>Identidades registradas en Global Exchange.</p></div><a class="button button-dark" href="{% url 'usuarios:create' %}"><span class="material-symbols" aria-hidden="true">person_add</span>Nuevo usuario</a></header>
-  {% if api_error %}
-    <c-card.outlined class="empty-state"><span>!</span><h2>Acceso restringido</h2><p>{{ api_error }}</p><p>Solicitá los permisos <code>view-users</code> y <code>manage-users</code>.</p></c-card.outlined>
-  {% else %}
-    <c-card.outlined class="data-table material-table"><table><thead><tr><th>Usuario</th><th>Email</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody>
-    {% for user in users %}<tr><td><strong>{{ user.firstName }} {{ user.lastName }}</strong><span>@{{ user.username }}</span></td><td>{{ user.email|default:'Sin email' }}</td><td><span class="state {% if not user.enabled %}disabled{% endif %}">{% if user.enabled %}Activo{% else %}Inactivo{% endif %}</span></td><td class="row-actions"><a href="{% url 'usuarios:edit' user.id %}">Editar</a>{% if user.enabled %}<form method="post" action="{% url 'usuarios:disable' user.id %}" data-confirm="¿Dar de baja a este usuario?">{% csrf_token %}<c-button.text type="submit" color="error">Dar de baja</c-button.text></form>{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="no-data">No hay usuarios.</td></tr>{% endfor %}
-    </tbody></table></c-card.outlined>
-  {% endif %}
-</section>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-header">
+      <div>
+        <h1>Usuarios</h1>
+        <p>Identidades registradas en Global Exchange.</p>
+      </div>
+      <div class="ge-page-header-actions">
+        <a class="ge-btn-primary ge-btn-sm" href="{% url 'usuarios:create' %}">+ Nuevo usuario</a>
+      </div>
+    </div>
+
+    {% if api_error %}
+      <div class="ge-card ge-empty">
+        <strong>Acceso restringido</strong>
+        <p>{{ api_error }}</p>
+        <p>Solicitá los permisos <code>view-users</code> y <code>manage-users</code>.</p>
+      </div>
+    {% else %}
+      <div class="ge-card ge-table-wrap">
+        <table class="ge-table">
+          <thead>
+            <tr><th>Usuario</th><th>Email</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+            <tr>
+              <td>
+                <div class="ge-cell-user">
+                  <span class="ge-avatar ge-avatar--sm">{{ user.firstName|first|default:'U'|upper }}{{ user.lastName|first|default:''|upper }}</span>
+                  <span><strong>{{ user.firstName }} {{ user.lastName }}</strong><small>@{{ user.username }}</small></span>
+                </div>
+              </td>
+              <td>{{ user.email|default:'Sin email' }}</td>
+              <td><span class="ge-badge {% if user.enabled %}ge-badge--success{% else %}ge-badge--neutral{% endif %}">{% if user.enabled %}Activo{% else %}Inactivo{% endif %}</span></td>
+              <td>
+                <div class="ge-actions-row">
+                  <a class="ge-btn-ghost ge-btn-xs" href="{% url 'usuarios:edit' user.id %}">Editar</a>
+                  {% if user.enabled %}
+                  <form method="post" action="{% url 'usuarios:disable' user.id %}" data-confirm="¿Dar de baja a este usuario?">{% csrf_token %}
+                    <button type="submit" class="ge-btn-ghost ge-btn-xs ge-btn-ghost--danger">Dar de baja</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="no-data">No hay usuarios.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

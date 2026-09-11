@@ -1,0 +1,107 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Cotizaciones actuales · Global Exchange{% endblock %}
+{% block extra_head %}
+  <style>
+    .ge-quote-cards > .ge-card,
+    .ge-quote-head,
+    .ge-quote-id,
+    .ge-quote-id > div,
+    .ge-quote-rates,
+    .ge-quote-rates > div:not(.ge-quote-divider) {
+      min-width: 0;
+    }
+    .ge-quote-cards > .ge-card {
+      max-width: 100%;
+    }
+    .ge-quote-head > .ge-quote-id {
+      flex: 1 1 auto;
+    }
+    .ge-quote-head > :last-child {
+      flex-shrink: 0;
+    }
+    .ge-quote-id strong,
+    .ge-quote-rates strong {
+      white-space: nowrap;
+    }
+    .ge-quote-rates {
+      gap: 12px;
+    }
+    .ge-quote-rates > div:not(.ge-quote-divider) {
+      min-width: 0;
+    }
+    .ge-quote-rates > div:first-child {
+      flex: 1 1 auto;
+      text-align: left;
+    }
+    .ge-quote-rates > div:last-child {
+      flex: 0 0 auto;
+      text-align: right;
+    }
+    .ge-quote-rates strong.ge-mono {
+      font-size: 18px;
+    }
+    .ge-quote-rates strong:not(.ge-mono) {
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .ge-card > .ge-frontend-note {
+      max-width: 100%;
+      text-align: center;
+      text-wrap: balance;
+      line-height: 1.45;
+    }
+    .ge-rates-group + .ge-rates-group {
+      margin-top: 32px;
+    }
+    .ge-rates-group-title {
+      margin: 0 0 14px;
+    }
+    @media (min-width: 1281px) and (max-width: 1500px) {
+      .ge-quote-rates strong.ge-mono { font-size: 16px; }
+    }
+    @media (max-width: 1280px) {
+      .ge-quote-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .ge-quote-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad"
+       data-ge-api="reference-rates"
+       data-list-url="{% url 'tasas:consultar' %}">
+    <div class="ge-frontend-section-head">
+      <div>
+        <h2 class="ge-frontend-h2">Cotizaciones actuales</h2>
+        <p class="ge-frontend-note">Referencia externa y tasas comerciales vigentes de Global Exchange.</p>
+      </div>
+      <span class="ge-chip" data-reference-status>Consultando</span>
+    </div>
+
+    <div class="ge-inline-banner" data-reference-message hidden role="status"></div>
+    <section class="ge-rates-group" aria-labelledby="reference-rates-title">
+      <h3 class="ge-frontend-h3 ge-rates-group-title" id="reference-rates-title">Tasas de referencia</h3>
+      <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
+        <article class="ge-card" style="padding:24px">
+          <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+          <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+          <div class="ge-skeleton" style="height:12px;width:65%"></div>
+        </article>
+      </div>
+    </section>
+    <section class="ge-rates-group" aria-labelledby="commercial-rates-title">
+      <h3 class="ge-frontend-h3 ge-rates-group-title" id="commercial-rates-title">Tasas comerciales vigentes</h3>
+      <div class="ge-quote-cards" data-commercial-rates aria-live="polite" aria-busy="true">
+        <article class="ge-card" style="padding:24px">
+          <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+          <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+          <div class="ge-skeleton" style="height:12px;width:65%"></div>
+        </article>
+      </div>
+    </section>
+  </div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}

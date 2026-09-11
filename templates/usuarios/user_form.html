@@ -1,15 +1,64 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}{% if mode == 'create' %}Nuevo{% else %}Editar{% endif %} usuario · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace"><div class="content-narrow">
-  <header class="workspace-header"><div class="page-intro"><h1>{% if mode == 'create' %}Nuevo usuario{% else %}Editar usuario{% endif %}</h1><p>{% if mode == 'create' %}Creá una identidad administrada por Keycloak.{% else %}Actualizá los datos de la cuenta.{% endif %}</p></div></header>
-  <c-card.outlined class="form-surface material-surface"><form method="post" class="clean-form">{% csrf_token %}
-    {% if mode == 'create' %}<c-forms.text.outlined id="username" name="username" value="{{ form_values.username }}" required leading_icon="person">Usuario</c-forms.text.outlined>{% endif %}
-    <div class="two-columns"><c-forms.text.outlined id="first_name" name="first_name" value="{{ form_values.first_name }}">Nombre</c-forms.text.outlined><c-forms.text.outlined id="last_name" name="last_name" value="{{ form_values.last_name }}">Apellido</c-forms.text.outlined></div>
-    <c-forms.text.outlined id="email" type="email" name="email" value="{{ form_values.email }}" required leading_icon="mail">Email</c-forms.text.outlined>
-    {% if mode == 'create' %}<c-forms.text.outlined id="password" type="password" name="password" required leading_icon="lock" help_text="Mínimo 8 caracteres; el usuario deberá cambiarla al ingresar.">Contraseña temporal</c-forms.text.outlined>{% else %}<c-forms.checkbox id="enabled" name="enabled" :checked="managed_user.enabled">Usuario habilitado</c-forms.checkbox>{% endif %}
-    <fieldset class="role-fieldset"><legend>Roles del sistema</legend><p>Definen las funciones habilitadas para esta identidad.</p><div class="role-options">{% for role in business_roles %}<label><input type="checkbox" name="roles" value="{{ role }}" {% if role in selected_roles %}checked{% endif %}><span class="material-symbols" aria-hidden="true">badge</span><strong>{{ role }}</strong></label>{% endfor %}</div></fieldset>
-    <div class="form-buttons"><a class="button button-quiet" href="{% url 'usuarios:list' %}"><span class="material-symbols" aria-hidden="true">close</span>Cancelar</a><c-button.filled type="submit" icon="save">Guardar</c-button.filled></div>
-  </form></c-card.outlined>
-</div></section>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-back-row">
+      <a class="ge-btn-ghost" href="{% url 'usuarios:list' %}">← Volver</a>
+      <h1 class="ge-title-h2">{% if mode == 'create' %}Nuevo usuario{% else %}Editar usuario{% endif %}</h1>
+    </div>
+    <div class="ge-card ge-card--pad32" style="max-width: 640px">
+      <form method="post" novalidate>{% csrf_token %}
+        {% if mode == 'create' %}
+        <div class="ge-field">
+          <label for="username">Usuario</label>
+          <input id="username" name="username" value="{{ form_values.username }}" required>
+        </div>
+        {% endif %}
+        <div class="ge-form-grid">
+          <div class="ge-field">
+            <label for="first_name">Nombre</label>
+            <input id="first_name" name="first_name" value="{{ form_values.first_name }}">
+          </div>
+          <div class="ge-field">
+            <label for="last_name">Apellido</label>
+            <input id="last_name" name="last_name" value="{{ form_values.last_name }}">
+          </div>
+        </div>
+        <div class="ge-field">
+          <label for="email">Email</label>
+          <input id="email" type="email" name="email" value="{{ form_values.email }}" required>
+        </div>
+        {% if mode == 'create' %}
+        <div class="ge-field">
+          <label for="password">Contraseña temporal</label>
+          <input id="password" type="password" name="password" required>
+          <small>Mínimo 8 caracteres; el usuario deberá cambiarla al ingresar.</small>
+        </div>
+        {% else %}
+        <div class="ge-field">
+          <label class="ge-check-field" for="enabled">
+            <input id="enabled" type="checkbox" name="enabled" {% if managed_user.enabled %}checked{% endif %}>
+            <span>Usuario habilitado</span>
+          </label>
+        </div>
+        {% endif %}
+        <div class="ge-field">
+          <label>Roles del sistema</label>
+          <small style="margin-bottom: 10px; display: block">Definen las funciones habilitadas para esta identidad.</small>
+          {% for role in business_roles %}
+          <label class="ge-check-field" style="display: flex; align-items: center; gap: 10px; padding: 8px 0">
+            <input type="checkbox" name="roles" value="{{ role }}" {% if role in selected_roles %}checked{% endif %}>
+            <span>{{ role }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="ge-form-actions">
+          <a class="ge-btn-outline" href="{% url 'usuarios:list' %}">Cancelar</a>
+          <button class="ge-btn-primary" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

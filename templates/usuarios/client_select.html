@@ -1,11 +1,36 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Cliente · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace"><div class="content-narrow">
-  <header class="workspace-header"><div class="page-intro"><h1>Elegí un cliente</h1><p>El contexto define la información disponible.</p></div></header>
-  {% if clients %}<c-card.outlined class="form-surface material-surface"><form method="post" class="clean-form">{% csrf_token %}<div class="choice-list">
-    {% for client in clients %}<label><input type="radio" name="cliente" value="{{ client.id }}" {% if request.session.selected_client.id == client.id %}checked{% endif %} required><span><i>{{ client.name|first|upper }}</i><strong>{{ client.name }}</strong><b>✓</b></span></label>{% endfor %}
-  </div><c-button.filled type="submit" class="button-block" icon="arrow_forward">Continuar</c-button.filled></form></c-card.outlined>
-  {% else %}<c-card.outlined class="empty-state surface"><span>0</span><h2>Sin clientes asociados</h2><p>Cuando tengas un cliente asignado aparecerá en esta lista.</p></c-card.outlined>{% endif %}
-</div></section>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-page-title">
+      <h1>Elegí un cliente</h1>
+      <p>El contexto define la información disponible.</p>
+    </div>
+    {% if clients %}
+    <div class="ge-card ge-card--pad32" style="max-width: 560px">
+      <form method="post" novalidate>{% csrf_token %}
+        {% for client in clients %}
+        <label style="display: flex; align-items: center; gap: 14px; padding: 14px 0; cursor: pointer; border-bottom: 1px solid var(--border-subtle)">
+          <input type="radio" name="cliente" value="{{ client.id }}" {% if selected_client and selected_client.id == client.id %}checked{% endif %} required style="accent-color: var(--primary); width: 18px; height: 18px">
+          <span class="ge-avatar">{{ client.name|first|upper }}</span>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: space-between">
+            <strong style="color: var(--text); font-size: 14px">{{ client.name }}</strong>
+            {% if selected_client and selected_client.id == client.id %}<span style="color: var(--success); font-weight: 700">✓</span>{% endif %}
+          </div>
+        </label>
+        {% endfor %}
+        <div style="margin-top: 24px">
+          <button type="submit" class="ge-btn-primary" style="width: 100%">Continuar</button>
+        </div>
+      </form>
+    </div>
+    {% else %}
+    <div class="ge-card ge-empty" style="max-width: 560px">
+      <strong>Sin clientes asociados</strong>
+      <p>Cuando tengas un cliente asignado aparecerá en esta lista.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

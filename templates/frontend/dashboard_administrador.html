@@ -1,0 +1,91 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Panel Administrador · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar.html' with rol='administrador' rol_label='Administrador' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-pagehead">
+    <div>
+      <h1 class="ge-frontend-h1">Panel Administrador</h1>
+      <p class="ge-frontend-sub">Estado actual · Visión global del sistema</p>
+    </div>
+  </div>
+
+  <div class="ge-frontend-main-pad">
+    <!-- KPIs row 1 -->
+    <div class="ge-frontend-kpis">
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='users' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">USUARIOS ACTIVOS</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Consultar gestión real</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='clients' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">CLIENTES</span><span class="ge-kpi--simple-value">{{ clientes_count }}</span><span class="ge-kpi--simple-sub">registrados</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">OPERACIONES HOY</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+    </div>
+
+    <!-- KPIs row 2 -->
+    <div class="ge-frontend-kpis" style="margin-bottom:28px">
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='reconciliation' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">CAJAS ACTIVAS</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='history' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">PENDIENTES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">OPERACIONES MES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+    </div>
+
+    <div class="ge-frontend-grid2" style="margin-bottom:24px">
+      <!-- Ganancia mensual -->
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-title" style="margin-bottom:20px">Ganancia mensual (PYG)</div>
+        <div class="ge-chart-box" aria-label="Ganancia mensual disponible próximamente"><span class="ge-chip">Próximamente</span></div>
+      </article>
+
+      <!-- Ganancia por moneda -->
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-title" style="margin-bottom:20px">Ganancia por moneda (%)</div>
+        <div class="ge-donut-wrap">
+          <div class="ge-chart-box" aria-label="Ganancia por moneda disponible próximamente"><span class="ge-chip">Próximamente</span></div>
+          <div class="ge-donut-legend">
+            <div><span style="background:#3B5BFF"></span><span>USD</span><strong>—</strong></div>
+            <div><span style="background:#22C55E"></span><span>EUR</span><strong>—</strong></div>
+            <div><span style="background:#FBBF24"></span><span>BRL</span><strong>—</strong></div>
+            <div><span style="background:#F87171"></span><span>ARS</span><strong>—</strong></div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <!-- Actividad reciente -->
+    <div class="ge-card" style="overflow:hidden">
+      <div class="ge-card-head">
+        <span class="ge-card-title">Actividad reciente</span>
+        <button class="ge-btn-ghost" style="font-size:12px" disabled title="Disponible próximamente">Ver todo →</button>
+      </div>
+      <table class="ge-table">
+        <thead>
+          <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="6" class="ge-frontend-note">Actividad operativa · Próximamente</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

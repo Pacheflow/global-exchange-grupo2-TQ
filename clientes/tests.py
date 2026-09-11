@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from .forms import ClienteForm
 from unittest.mock import patch
+import json
 import time
 
 from usuarios.services.keycloak import (
@@ -309,7 +310,7 @@ class ConsultarClienteViewTest(TestCase):
             self.cliente.nombre_razon_social,
             status_code=200,
         )
-        self.assertContains(response, "No se encontraron clientes.")
+        self.assertContains(response, "No tenés clientes asociados disponibles.")
 
     def test_sesion_no_administradora_sin_sub_se_rechaza(self):
         autenticar_con_roles(
@@ -557,7 +558,7 @@ class SegmentarClienteViewTest(TestCase):
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
 
-    def test_analista_asociado_puede_segmentar_cliente(self):
+    def test_analista_asociado_no_puede_segmentar_cliente(self):
         UsuarioCliente.objects.create(
             cliente=self.cliente,
             keycloak_user_id="kc-analista-1",
@@ -574,9 +575,9 @@ class SegmentarClienteViewTest(TestCase):
             {"categoria": self.categoria.id},
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.categoria, self.categoria)
+        self.assertIsNone(self.cliente.categoria)
 
     def test_analista_no_asociado_no_puede_segmentar_cliente_ajeno(self):
         cliente_permitido = Cliente.objects.create(
@@ -600,7 +601,7 @@ class SegmentarClienteViewTest(TestCase):
             {"categoria": self.categoria.id},
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
 
@@ -622,7 +623,7 @@ class SegmentarClienteViewTest(TestCase):
             {"categoria": self.categoria.id},
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
 
@@ -854,3 +855,230 @@ class SeguridadYMetodosClientesTest(TestCase):
         self.assertTrue(
             UsuarioCliente.objects.filter(id=self.asignacion.id).exists()
         )
+
+
+class ClientesFrontendApiTest(TestCase):
+    """Pruebas de los endpoints JSON utilizados por la interfaz Frontend."""
+
+    def setUp(self):
+        autenticar_admin(self)
+        self.cliente = Cliente.objects.create(
+            nombre_razon_social="Cliente API",
+            tipo_persona="FISICA",
+            documento="API-001",
+        )
+
+    def test_crear_cliente(self):
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
+                "nombre_razon_social": "Cliente Nuevo API",
+                "tipo_persona": "JURIDICA",
+                "documento": "API-002",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(
+            Cliente.objects.filter(documento="API-002").exists()
+        )
+        self.assertEqual(
+            response.json()["cliente"]["estado"],
+            "ACTIVO",
+        )
+
+    def test_crear_cliente_con_documento_duplicado(self):
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
+                "nombre_razon_social": "Duplicado",
+                "tipo_persona": "FISICA",
+                "documento": "API-001",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            Cliente.objects.filter(nombre_razon_social="Duplicado").count(),
+            0,
+        )
+
+    def test_crear_cliente_con_datos_invalidos(self):
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
+                "nombre_razon_social": "",
+                "tipo_persona": "INVALIDO",
+                "documento": "",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_crear_cliente_con_cuerpo_invalido(self):
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data="no es json",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_crear_cliente_requiere_administrador(self):
+        autenticar_con_roles(self, ["USUARIO"], sub="usuario-basico")
+
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
+                "nombre_razon_social": "Sin Permiso",
+                "tipo_persona": "FISICA",
+                "documento": "API-003",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Cliente.objects.filter(documento="API-003").exists())
+
+    def test_editar_cliente(self):
+        response = self.client.post(
+            reverse("clientes_api:editar_cliente", args=[self.cliente.id]),
+            data=json.dumps({
+                "nombre_razon_social": "Cliente API Editado",
+                "tipo_persona": "JURIDICA",
+                "documento": "API-004",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.nombre_razon_social, "Cliente API Editado")
+        self.assertEqual(self.cliente.tipo_persona, "JURIDICA")
+        self.assertEqual(self.cliente.documento, "API-004")
+
+    def test_editar_cliente_inexistente(self):
+        response = self.client.post(
+            reverse("clientes_api:editar_cliente", args=[999999]),
+            data=json.dumps({
+                "nombre_razon_social": "No Existe",
+                "tipo_persona": "FISICA",
+                "documento": "API-005",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_dar_de_baja_cliente(self):
+        response = self.client.post(
+            reverse("clientes_api:dar_de_baja_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.estado, "INACTIVO")
+        self.assertTrue(Cliente.objects.filter(id=self.cliente.id).exists())
+
+    def test_dar_de_baja_cliente_inexistente(self):
+        response = self.client.post(
+            reverse("clientes_api:dar_de_baja_cliente", args=[999999]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_dar_de_baja_cliente_deselecciona_si_era_el_activo(self):
+        session = self.client.session
+        session["selected_client"] = {
+            "id": self.cliente.id,
+            "name": self.cliente.nombre_razon_social,
+        }
+        session.save()
+
+        response = self.client.post(
+            reverse("clientes_api:dar_de_baja_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("selected_client", self.client.session)
+
+    def test_seleccionar_cliente_activo(self):
+        response = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self.client.session["selected_client"],
+            {"id": self.cliente.id, "name": "Cliente API"},
+        )
+
+    def test_seleccionar_cliente_inactivo(self):
+        self.cliente.dar_de_baja()
+
+        response = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn("selected_client", self.client.session)
+
+    def test_no_administrador_selecciona_solo_cliente_asignado(self):
+        UsuarioCliente.objects.create(
+            cliente=self.cliente,
+            keycloak_user_id="kc-api-1",
+            username="api-cajero",
+        )
+        autenticar_con_roles(self, ["CAJERO"], sub="kc-api-1")
+        cliente_no_asignado = Cliente.objects.create(
+            nombre_razon_social="Cliente Ajeno API",
+            tipo_persona="JURIDICA",
+            documento="API-006",
+        )
+
+        response_ok = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        response_sin_acceso = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[cliente_no_asignado.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response_ok.status_code, 200)
+        self.assertEqual(
+            self.client.session["selected_client"]["id"],
+            self.cliente.id,
+        )
+        self.assertEqual(response_sin_acceso.status_code, 404)
+        self.assertEqual(
+            self.client.session["selected_client"]["id"],
+            self.cliente.id,
+        )
+
+    def test_api_mutaciones_rechazan_get(self):
+        urls = [
+            reverse("clientes_api:crear_cliente"),
+            reverse("clientes_api:editar_cliente", args=[self.cliente.id]),
+            reverse("clientes_api:dar_de_baja_cliente", args=[self.cliente.id]),
+            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
+        ]
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 405)

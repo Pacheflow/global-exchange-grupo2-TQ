@@ -138,6 +138,29 @@ docker compose exec -T web python manage.py test
 Las cuentas de la aplicación se administran mediante Keycloak. No es necesario
 crear superusuarios de Django para utilizar Global Exchange.
 
+## Documentación automática del código (pdoc)
+
+La documentación API en HTML se genera con `pdoc` a partir de los módulos
+reales de las aplicaciones `usuarios`, `clientes`, `monedas`, `metodos_pago`,
+`tasas` y de `config`.
+
+Para regenerarla dentro del contenedor oficial:
+
+```powershell
+docker compose exec web python scripts/generate_docs.py
+```
+
+La documentación cubre modelos, vistas, servicios, funciones auxiliares y
+clases principales. No documenta migraciones, archivos generados,
+`__pycache__` ni archivos temporales. La salida queda en:
+
+```text
+docs/generated/
+```
+
+El script configura el entorno Django antes de invocar `pdoc.pdoc()`, por lo
+que no requiere PostgreSQL ni Keycloak para importar los módulos.
+
 ## Ambiente de producción local
 
 El ambiente productivo está separado del Compose de desarrollo. Utiliza

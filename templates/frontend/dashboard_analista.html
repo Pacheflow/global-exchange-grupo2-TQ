@@ -1,0 +1,60 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Panel Analista Cambiario · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar.html' with rol='analista' rol_label='Analista cambiario' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-pagehead">
+    <div>
+      <h1 class="ge-frontend-h1">Panel Analista Cambiario</h1>
+      <p class="ge-frontend-sub">Tasas y análisis de mercado</p>
+    </div>
+  </div>
+
+  <div class="ge-frontend-main-pad">
+    <!-- KPIs -->
+    <div class="ge-frontend-kpis">
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='currencies' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">USD/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_usd_pyg %}{{ tasa_usd_pyg.tasa|floatformat:6 }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_usd_pyg %}Referencia vigente{% else %}Sin tasa disponible{% endif %}</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='euro' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">EUR/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_eur_pyg %}{{ tasa_eur_pyg.tasa|floatformat:6 }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_eur_pyg %}Referencia vigente{% else %}Sin tasa disponible{% endif %}</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value" style="color:var(--primary)">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value" style="color:var(--primary)">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+      </article>
+    </div>
+
+    <div class="ge-frontend-grid2">
+      <!-- Histórico de tasas -->
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-head-chart">
+          <span class="ge-card-title">Histórico de tasas <span class="ge-chip">Próximamente</span></span>
+          <div class="ge-legend">
+            <span><em style="background:#3B5BFF"></em>USD</span>
+            <span><em style="background:#22C55E"></em>EUR</span>
+          </div>
+        </div>
+        <div class="ge-chart-box" aria-label="Histórico de tasas disponible próximamente"></div>
+      </article>
+
+      <!-- Ganancia diaria -->
+      <article class="ge-card" style="padding:24px">
+        <div class="ge-card-head-chart">
+          <span class="ge-card-title">Ganancia diaria · PYG <span class="ge-chip">Próximamente</span></span>
+          <div class="ge-switch">
+            <button type="button" class="is-active" disabled>Semana</button>
+            <button type="button" disabled>Mes</button>
+            <button type="button" disabled>Año</button>
+          </div>
+        </div>
+        <div class="ge-chart-box" aria-label="Ganancias disponibles próximamente"></div>
+      </article>
+    </div>
+  </div>
+{% endblock %}

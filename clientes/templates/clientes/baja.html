@@ -1,3 +1,30 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Dar de baja cliente · Global Exchange{% endblock %}
-{% block content %}<section class="workspace"><div class="content-narrow"><header class="workspace-header workspace-header-stacked"><div class="page-intro"><a class="back-link" href="{% url 'consultar_clientes' %}">← Volver a clientes</a><h1>Dar de baja</h1><p>El registro se conservará, pero el cliente ya no podrá seleccionarse para operar.</p></div></header>{% if cliente_no_encontrado %}<div class="empty-state surface"><h2>Cliente no encontrado</h2></div>{% else %}<div class="form-surface confirmation-card"><span class="material-symbols" aria-hidden="true">warning</span><h2>{{ cliente.nombre_razon_social }}</h2><p>Documento {{ cliente.documento }}</p><form method="post">{% csrf_token %}<div class="form-buttons"><a class="button button-quiet" href="{% url 'consultar_clientes' %}">Cancelar</a><button class="button button-dark" type="submit">Confirmar baja</button></div></form></div>{% endif %}</div></section>{% endblock %}
+{% block content %}
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-back-row">
+      <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">← Volver a clientes</a>
+      <h1 class="ge-title-h2">Dar de baja</h1>
+    </div>
+    <p style="font-size: 13px; color: var(--text-2); margin: -16px 0 24px 68px">El registro se conservará, pero el cliente ya no podrá seleccionarse para operar.</p>
+    {% if cliente_no_encontrado %}
+      <div class="ge-card ge-empty"><strong>Cliente no encontrado</strong></div>
+    {% else %}
+      <div class="ge-card ge-card--pad32" style="max-width: 560px">
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 6px">
+          <span style="font-size: 22px" aria-hidden="true">⚠️</span>
+          <h2 style="font-size: 18px; color: var(--text); font-weight: 600">{{ cliente.nombre_razon_social }}</h2>
+        </div>
+        <p style="font-size: 14px; color: var(--text-2)">Documento <span class="mono" style="font-family: 'JetBrains Mono', monospace">{{ cliente.documento }}</span></p>
+        <form method="post">{% csrf_token %}
+          <div class="ge-form-actions">
+            <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">Cancelar</a>
+            <button class="ge-btn-primary ge-btn-primary--danger" type="submit">Confirmar baja</button>
+          </div>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

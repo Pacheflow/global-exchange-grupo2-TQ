@@ -1,12 +1,29 @@
 {% extends 'usuarios/base.html' %}
 {% block title %}Editar cliente · Global Exchange{% endblock %}
 {% block content %}
-<section class="workspace"><div class="content-narrow">
-  <header class="workspace-header workspace-header-stacked"><div class="page-intro"><a class="back-link" href="{% url 'consultar_clientes' %}">← Volver a clientes</a><h1>Editar cliente</h1><p>{% if cliente %}Actualizá los datos de {{ cliente.nombre_razon_social }}.{% endif %}</p></div></header>
-  {% if cliente_no_encontrado %}<div class="empty-state surface"><h2>Cliente no encontrado</h2><a class="button button-dark" href="{% url 'consultar_clientes' %}">Volver</a></div>{% else %}
-  <div class="form-surface"><form class="clean-form" method="post" novalidate>{% csrf_token %}
-    {% include 'clientes/partials/form_fields.html' %}
-    <div class="form-buttons"><a class="button button-quiet" href="{% url 'consultar_clientes' %}">Cancelar</a><button class="button button-dark" type="submit"><span class="material-symbols" aria-hidden="true">save</span>Guardar cambios</button></div>
-  </form></div>{% endif %}
-</div></section>
+<div class="ge-app">
+  <div class="ge-page">
+    <div class="ge-back-row">
+      <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">← Volver a clientes</a>
+      <h1 class="ge-title-h2">Editar cliente</h1>
+    </div>
+    <p style="font-size: 13px; color: var(--text-2); margin: -16px 0 24px 68px">{% if cliente %}Actualizá los datos de {{ cliente.nombre_razon_social }}.{% endif %}</p>
+    {% if cliente_no_encontrado %}
+      <div class="ge-card ge-empty">
+        <strong>Cliente no encontrado</strong>
+        <a class="ge-btn-outline" style="margin-top: 12px" href="{% url 'consultar_clientes' %}">Volver</a>
+      </div>
+    {% else %}
+    <div class="ge-card ge-card--pad32" style="max-width: 640px">
+      <form method="post" novalidate>{% csrf_token %}
+        {% include 'clientes/partials/form_fields.html' %}
+        <div class="ge-form-actions">
+          <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">Cancelar</a>
+          <button class="ge-btn-primary" type="submit">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

@@ -1,0 +1,95 @@
+<nav
+  class="ge-navbar{% if request.path == '/' %} ge-navbar--landing{% endif %}"
+  up-nav="false"
+  aria-label="Navegación principal"
+  data-ge-navbar
+>
+  <div class="ge-navbar__inner">
+    <a class="ge-navbar__brand" href="{% if kc_user %}{% url 'usuarios:dashboard' %}{% else %}{% url 'usuarios:home' %}{% endif %}" aria-label="Global Exchange, inicio" data-close-menus>
+      <span class="ge-navbar__brand-icon" aria-hidden="true">{% include 'components/icon.html' with name="globe" size=27 %}</span>
+      <span class="ge-navbar__wordmark"><strong>GLOBAL</strong><small>EXCHANGE</small></span>
+    </a>
+
+    <div class="ge-navbar__links">
+      {% if kc_user %}
+        <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}>Inicio</a>
+        <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}>Cotizaciones</a>
+        {% if 'USUARIO' in kc_roles and 'ADMINISTRADOR' not in kc_roles and 'ANALISTA_CAMBIARIO' not in kc_roles and 'CAJERO' not in kc_roles %}<a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}>Conversor</a>{% endif %}
+        <a href="{% url 'usuarios:seguridad' %}" {% if request.resolver_match.url_name == 'seguridad' %}class="is-active" aria-current="page"{% endif %}>Seguridad</a>
+      {% else %}
+        <a href="{% url 'usuarios:home' %}" data-nav-section="inicio">Inicio</a>
+        <a href="{% url 'usuarios:home' %}#cotizaciones" data-nav-section="cotizaciones">Cotizaciones</a>
+        <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
+        <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
+      {% endif %}
+    </div>
+
+    <div class="ge-navbar__actions">
+      {% if kc_user %}
+        <div class="ge-navbar__profile" data-ge-profile>
+          <button class="ge-navbar__profile-trigger" type="button" aria-expanded="false" aria-controls="ge-profile-menu" data-profile-trigger>
+            <span class="ge-navbar__avatar" aria-hidden="true">{{ kc_initial }}</span>
+            <span class="ge-navbar__profile-copy">
+              <strong>{{ kc_display_name }}</strong>
+              {% if 'ADMINISTRADOR' in kc_roles %}<small>Administrador</small>{% elif 'ANALISTA_CAMBIARIO' in kc_roles %}<small>Analista cambiario</small>{% elif 'CAJERO' in kc_roles %}<small>Cajero</small>{% elif 'USUARIO' in kc_roles %}<small>Usuario</small>{% endif %}
+            </span>
+            {% include 'components/icon.html' with name="chevron-down" size=14 %}
+          </button>
+
+          <div class="ge-navbar__profile-menu" id="ge-profile-menu" hidden>
+            <div class="ge-navbar__profile-summary">
+              <span class="ge-navbar__profile-title">{% include 'components/icon.html' with name="user" size=16 %}Perfil</span>
+              <strong>{{ kc_display_name }}</strong>
+              {% if kc_email %}<span>{{ kc_email }}</span>{% endif %}
+              {% if 'ADMINISTRADOR' in kc_roles %}<small>Administrador</small>{% elif 'ANALISTA_CAMBIARIO' in kc_roles %}<small>Analista cambiario</small>{% elif 'CAJERO' in kc_roles %}<small>Cajero</small>{% elif 'USUARIO' in kc_roles %}<small>Usuario</small>{% endif %}
+              {% if selected_client %}<span class="ge-navbar__client">Cliente: {{ selected_client.name }}</span>{% endif %}
+            </div>
+            <a class="ge-navbar__logout" href="{% url 'usuarios:logout' %}" data-close-menus>{% include 'components/icon.html' with name="logout" size=17 %}Cerrar sesión</a>
+          </div>
+        </div>
+      {% else %}
+        <a class="ge-navbar__login" href="{% url 'usuarios:login' %}">{% include 'components/icon.html' with name="login" size=17 %}Iniciar sesión</a>
+        <a class="ge-navbar__register" href="{% url 'usuarios:registro' %}">{% include 'components/icon.html' with name="user-plus" size=17 %}Registrarse</a>
+      {% endif %}
+    </div>
+
+    <button class="ge-navbar__mobile-trigger" type="button" aria-expanded="false" aria-controls="ge-mobile-menu" aria-label="Abrir navegación" data-mobile-trigger>
+      <span data-icon-menu>{% include 'components/icon.html' with name="menu" size=23 %}</span>
+      <span data-icon-close hidden>{% include 'components/icon.html' with name="close" size=23 %}</span>
+    </button>
+  </div>
+
+  <div class="ge-navbar__mobile-menu" id="ge-mobile-menu" hidden>
+    <div class="ge-navbar__mobile-links">
+      {% if kc_user %}
+        <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}>Inicio</a>
+        <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}>Cotizaciones</a>
+        {% if 'USUARIO' in kc_roles and 'ADMINISTRADOR' not in kc_roles and 'ANALISTA_CAMBIARIO' not in kc_roles and 'CAJERO' not in kc_roles %}<a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}>Conversor</a>{% endif %}
+        <a href="{% url 'usuarios:seguridad' %}" {% if request.resolver_match.url_name == 'seguridad' %}class="is-active" aria-current="page"{% endif %}>Seguridad</a>
+      {% else %}
+        <a href="{% url 'usuarios:home' %}" data-nav-section="inicio">Inicio</a>
+        <a href="{% url 'usuarios:home' %}#cotizaciones" data-nav-section="cotizaciones">Cotizaciones</a>
+        <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
+        <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
+      {% endif %}
+    </div>
+    {% if kc_user %}
+      <div class="ge-navbar__mobile-account">
+        <div>
+          <span class="ge-navbar__avatar" aria-hidden="true">{{ kc_initial }}</span>
+          <span>
+            <strong>{{ kc_display_name }}</strong>
+            {% if 'ADMINISTRADOR' in kc_roles %}<small>Administrador</small>{% elif 'ANALISTA_CAMBIARIO' in kc_roles %}<small>Analista cambiario</small>{% elif 'CAJERO' in kc_roles %}<small>Cajero</small>{% elif 'USUARIO' in kc_roles %}<small>Usuario</small>{% endif %}
+          </span>
+        </div>
+        {% if selected_client %}<p>Cliente: {{ selected_client.name }}</p>{% endif %}
+        <a class="ge-navbar__logout" href="{% url 'usuarios:logout' %}" data-close-menus>{% include 'components/icon.html' with name="logout" size=17 %}Cerrar sesión</a>
+      </div>
+    {% else %}
+      <div class="ge-navbar__mobile-auth">
+        <a class="ge-navbar__login" href="{% url 'usuarios:login' %}">{% include 'components/icon.html' with name="login" size=17 %}Iniciar sesión</a>
+        <a class="ge-navbar__register" href="{% url 'usuarios:registro' %}">{% include 'components/icon.html' with name="user-plus" size=17 %}Registrarse</a>
+      </div>
+    {% endif %}
+  </div>
+</nav>
