@@ -46,6 +46,12 @@
                     <a class="variable" href="#SESSION_EXPIRA_EN">SESSION_EXPIRA_EN</a>
             </li>
             <li>
+                    <a class="variable" href="#SESSION_REFRESH_TOKEN">SESSION_REFRESH_TOKEN</a>
+            </li>
+            <li>
+                    <a class="variable" href="#SESSION_REFRESH_EXPIRA_EN">SESSION_REFRESH_EXPIRA_EN</a>
+            </li>
+            <li>
                     <a class="variable" href="#ALGORITMOS_PERMITIDOS">ALGORITMOS_PERMITIDOS</a>
             </li>
             <li>
@@ -59,6 +65,9 @@
             </li>
             <li>
                     <a class="function" href="#establecer_sesion_oidc">establecer_sesion_oidc</a>
+            </li>
+            <li>
+                    <a class="function" href="#renovar_sesion_oidc">renovar_sesion_oidc</a>
             </li>
             <li>
                     <a class="function" href="#sesion_oidc_vigente">sesion_oidc_vigente</a>
@@ -100,354 +109,21 @@
                     <h1 class="modulename">
 usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
-                
-                        <input id="mod-keycloak-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 
-                        <label class="view-source-button" for="mod-keycloak-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">lru_cache</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a>
-</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">jwt</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">jwt</span><span class="w"> </span><span class="kn">import</span> <span class="n">PyJWKClient</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">jwt.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a>    <span class="n">InvalidAlgorithmError</span><span class="p">,</span>
-</span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a>    <span class="n">InvalidAudienceError</span><span class="p">,</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a>    <span class="n">InvalidTokenError</span><span class="p">,</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a>    <span class="n">PyJWKClientError</span><span class="p">,</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos"> 13</span></a><span class="p">)</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos"> 14</span></a>
-</span><span id="L-15"><a href="#L-15"><span class="linenos"> 15</span></a>
-</span><span id="L-16"><a href="#L-16"><span class="linenos"> 16</span></a><span class="n">ROLES_SISTEMA</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos"> 17</span></a>    <span class="p">{</span>
-</span><span id="L-18"><a href="#L-18"><span class="linenos"> 18</span></a>        <span class="s2">"ADMINISTRADOR"</span><span class="p">,</span>
-</span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a>        <span class="s2">"CAJERO"</span><span class="p">,</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos"> 20</span></a>        <span class="s2">"ANALISTA_CAMBIARIO"</span><span class="p">,</span>
-</span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a>        <span class="s2">"USUARIO"</span><span class="p">,</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a>    <span class="p">}</span>
-</span><span id="L-23"><a href="#L-23"><span class="linenos"> 23</span></a><span class="p">)</span>
-</span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>
-</span><span id="L-25"><a href="#L-25"><span class="linenos"> 25</span></a><span class="n">SESSION_AUTENTICADO</span> <span class="o">=</span> <span class="s2">"oidc_authenticated"</span>
-</span><span id="L-26"><a href="#L-26"><span class="linenos"> 26</span></a><span class="n">SESSION_USUARIO</span> <span class="o">=</span> <span class="s2">"oidc_user"</span>
-</span><span id="L-27"><a href="#L-27"><span class="linenos"> 27</span></a><span class="n">SESSION_ROLES</span> <span class="o">=</span> <span class="s2">"roles"</span>
-</span><span id="L-28"><a href="#L-28"><span class="linenos"> 28</span></a><span class="n">SESSION_EXPIRA_EN</span> <span class="o">=</span> <span class="s2">"oidc_expires_at"</span>
-</span><span id="L-29"><a href="#L-29"><span class="linenos"> 29</span></a>
-</span><span id="L-30"><a href="#L-30"><span class="linenos"> 30</span></a><span class="n">ALGORITMOS_PERMITIDOS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"RS256"</span><span class="p">,)</span>
-</span><span id="L-31"><a href="#L-31"><span class="linenos"> 31</span></a><span class="n">TIMEOUT_KEYCLOAK</span> <span class="o">=</span> <span class="mi">10</span>
-</span><span id="L-32"><a href="#L-32"><span class="linenos"> 32</span></a>
-</span><span id="L-33"><a href="#L-33"><span class="linenos"> 33</span></a><span class="k">def</span><span class="w"> </span><span class="nf">_realm_url</span><span class="p">(</span><span class="n">base_url</span><span class="p">):</span>
-</span><span id="L-34"><a href="#L-34"><span class="linenos"> 34</span></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a>
-</span><span id="L-36"><a href="#L-36"><span class="linenos"> 36</span></a>
-</span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a><span class="nd">@lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-</span><span id="L-38"><a href="#L-38"><span class="linenos"> 38</span></a><span class="k">def</span><span class="w"> </span><span class="nf">_obtener_cliente_jwks</span><span class="p">(</span><span class="n">jwks_url</span><span class="p">):</span>
-</span><span id="L-39"><a href="#L-39"><span class="linenos"> 39</span></a>    <span class="k">return</span> <span class="n">PyJWKClient</span><span class="p">(</span><span class="n">jwks_url</span><span class="p">)</span>
-</span><span id="L-40"><a href="#L-40"><span class="linenos"> 40</span></a>
-</span><span id="L-41"><a href="#L-41"><span class="linenos"> 41</span></a>
-</span><span id="L-42"><a href="#L-42"><span class="linenos"> 42</span></a><span class="k">def</span><span class="w"> </span><span class="nf">extraer_roles_sistema</span><span class="p">(</span><span class="n">claims</span><span class="p">):</span>
-</span><span id="L-43"><a href="#L-43"><span class="linenos"> 43</span></a><span class="w">    </span><span class="sd">"""Devuelve únicamente los roles de negocio definidos por Global Exchange."""</span>
-</span><span id="L-44"><a href="#L-44"><span class="linenos"> 44</span></a>
-</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a>    <span class="n">realm_access</span> <span class="o">=</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"realm_access"</span><span class="p">,</span> <span class="p">{})</span>
-</span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">realm_access</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a>        <span class="k">return</span> <span class="p">[]</span>
-</span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a>
-</span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a>    <span class="n">roles_token</span> <span class="o">=</span> <span class="n">realm_access</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"roles"</span><span class="p">,</span> <span class="p">[])</span>
-</span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>
-</span><span id="L-51"><a href="#L-51"><span class="linenos"> 51</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">roles_token</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-</span><span id="L-52"><a href="#L-52"><span class="linenos"> 52</span></a>        <span class="k">return</span> <span class="p">[]</span>
-</span><span id="L-53"><a href="#L-53"><span class="linenos"> 53</span></a>
-</span><span id="L-54"><a href="#L-54"><span class="linenos"> 54</span></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">roles_token</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">ROLES_SISTEMA</span><span class="p">))</span>
-</span><span id="L-55"><a href="#L-55"><span class="linenos"> 55</span></a>
-</span><span id="L-56"><a href="#L-56"><span class="linenos"> 56</span></a>
-</span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a><span class="k">def</span><span class="w"> </span><span class="nf">validar_access_token</span><span class="p">(</span><span class="n">access_token</span><span class="p">):</span>
-</span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a><span class="w">    </span><span class="sd">"""Valida firma y claims mínimos de un access token emitido por Keycloak."""</span>
-</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a>
-</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">access_token</span><span class="p">:</span>
-</span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span><span class="s2">"Keycloak no devolvió un access token."</span><span class="p">)</span>
-</span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a>
-</span><span id="L-63"><a href="#L-63"><span class="linenos"> 63</span></a>    <span class="n">header</span> <span class="o">=</span> <span class="n">jwt</span><span class="o">.</span><span class="n">get_unverified_header</span><span class="p">(</span><span class="n">access_token</span><span class="p">)</span>
-</span><span id="L-64"><a href="#L-64"><span class="linenos"> 64</span></a>    <span class="n">algoritmo</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"alg"</span><span class="p">)</span>
-</span><span id="L-65"><a href="#L-65"><span class="linenos"> 65</span></a>
-</span><span id="L-66"><a href="#L-66"><span class="linenos"> 66</span></a>    <span class="k">if</span> <span class="n">algoritmo</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ALGORITMOS_PERMITIDOS</span><span class="p">:</span>
-</span><span id="L-67"><a href="#L-67"><span class="linenos"> 67</span></a>        <span class="k">raise</span> <span class="n">InvalidAlgorithmError</span><span class="p">(</span><span class="s2">"Algoritmo de firma no permitido."</span><span class="p">)</span>
-</span><span id="L-68"><a href="#L-68"><span class="linenos"> 68</span></a>
-</span><span id="L-69"><a href="#L-69"><span class="linenos"> 69</span></a>    <span class="n">issuer</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_EXPECTED_ISSUER</span>
-</span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a>    <span class="n">jwks_url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_realm_url</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a>        <span class="s2">"/protocol/openid-connect/certs"</span>
-</span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a>    <span class="p">)</span>
-</span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a>
-</span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a>        <span class="n">signing_key</span> <span class="o">=</span> <span class="n">_obtener_cliente_jwks</span><span class="p">(</span><span class="n">jwks_url</span><span class="p">)</span><span class="o">.</span><span class="n">get_signing_key_from_jwt</span><span class="p">(</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>            <span class="n">access_token</span>
-</span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a>        <span class="p">)</span>
-</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>    <span class="k">except</span> <span class="n">PyJWKClientError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span>
-</span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a>            <span class="s2">"No fue posible obtener la clave de firma de Keycloak."</span>
-</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a>
-</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a>    <span class="n">claims</span> <span class="o">=</span> <span class="n">jwt</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-</span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a>        <span class="n">access_token</span><span class="p">,</span>
-</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>        <span class="n">signing_key</span><span class="o">.</span><span class="n">key</span><span class="p">,</span>
-</span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a>        <span class="n">algorithms</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">ALGORITMOS_PERMITIDOS</span><span class="p">),</span>
-</span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a>        <span class="n">issuer</span><span class="o">=</span><span class="n">issuer</span><span class="p">,</span>
-</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a>        <span class="n">options</span><span class="o">=</span><span class="p">{</span>
-</span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a>            <span class="s2">"verify_signature"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>            <span class="s2">"verify_exp"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a>            <span class="s2">"verify_iss"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>            <span class="s2">"verify_aud"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a>            <span class="s2">"require"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"exp"</span><span class="p">,</span> <span class="s2">"iat"</span><span class="p">,</span> <span class="s2">"iss"</span><span class="p">,</span> <span class="s2">"sub"</span><span class="p">],</span>
-</span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a>        <span class="p">},</span>
-</span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a>        <span class="n">leeway</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a>    <span class="p">)</span>
-</span><span id="L-98"><a href="#L-98"><span class="linenos"> 98</span></a>
-</span><span id="L-99"><a href="#L-99"><span class="linenos"> 99</span></a>    <span class="n">audiencias</span> <span class="o">=</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"aud"</span><span class="p">,</span> <span class="p">[])</span>
-</span><span id="L-100"><a href="#L-100"><span class="linenos">100</span></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">audiencias</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="L-101"><a href="#L-101"><span class="linenos">101</span></a>        <span class="n">audiencias</span> <span class="o">=</span> <span class="p">[</span><span class="n">audiencias</span><span class="p">]</span>
-</span><span id="L-102"><a href="#L-102"><span class="linenos">102</span></a>    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">audiencias</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">set</span><span class="p">)):</span>
-</span><span id="L-103"><a href="#L-103"><span class="linenos">103</span></a>        <span class="n">audiencias</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a>
-</span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a>    <span class="n">cliente_autorizado</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a>        <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"azp"</span><span class="p">)</span> <span class="o">==</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span>
-</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a>        <span class="ow">or</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span> <span class="ow">in</span> <span class="n">audiencias</span>
-</span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a>    <span class="p">)</span>
-</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>
-</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">cliente_autorizado</span><span class="p">:</span>
-</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a>        <span class="k">raise</span> <span class="n">InvalidAudienceError</span><span class="p">(</span>
-</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a>            <span class="s2">"El token no fue emitido para el cliente configurado."</span>
-</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a>        <span class="p">)</span>
-</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a>
-</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a>    <span class="k">if</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"email_verified"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span><span class="s2">"La cuenta de Keycloak no está verificada."</span><span class="p">)</span>
-</span><span id="L-117"><a href="#L-117"><span class="linenos">117</span></a>
-</span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a>    <span class="k">return</span> <span class="n">claims</span>
-</span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a>
-</span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a>
-</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a><span class="k">def</span><span class="w"> </span><span class="nf">establecer_sesion_oidc</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">claims</span><span class="p">):</span>
-</span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a><span class="w">    </span><span class="sd">"""Crea el contexto de autenticación usado por la autorización backend."""</span>
-</span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a>
-</span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a>    <span class="n">expira_en</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">claims</span><span class="p">[</span><span class="s2">"exp"</span><span class="p">])</span>
-</span><span id="L-125"><a href="#L-125"><span class="linenos">125</span></a>    <span class="n">segundos_restantes</span> <span class="o">=</span> <span class="n">expira_en</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span>
-</span><span id="L-126"><a href="#L-126"><span class="linenos">126</span></a>
-</span><span id="L-127"><a href="#L-127"><span class="linenos">127</span></a>    <span class="k">if</span> <span class="n">segundos_restantes</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-</span><span id="L-128"><a href="#L-128"><span class="linenos">128</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span><span class="s2">"La autenticación de Keycloak ya expiró."</span><span class="p">)</span>
-</span><span id="L-129"><a href="#L-129"><span class="linenos">129</span></a>
-</span><span id="L-130"><a href="#L-130"><span class="linenos">130</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">cycle_key</span><span class="p">()</span>
-</span><span id="L-131"><a href="#L-131"><span class="linenos">131</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_AUTENTICADO</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-</span><span id="L-132"><a href="#L-132"><span class="linenos">132</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_USUARIO</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="L-133"><a href="#L-133"><span class="linenos">133</span></a>        <span class="s2">"sub"</span><span class="p">:</span> <span class="n">claims</span><span class="p">[</span><span class="s2">"sub"</span><span class="p">],</span>
-</span><span id="L-134"><a href="#L-134"><span class="linenos">134</span></a>        <span class="s2">"username"</span><span class="p">:</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preferred_username"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-</span><span id="L-135"><a href="#L-135"><span class="linenos">135</span></a>        <span class="s2">"email"</span><span class="p">:</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-</span><span id="L-136"><a href="#L-136"><span class="linenos">136</span></a>    <span class="p">}</span>
-</span><span id="L-137"><a href="#L-137"><span class="linenos">137</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_ROLES</span><span class="p">]</span> <span class="o">=</span> <span class="n">extraer_roles_sistema</span><span class="p">(</span><span class="n">claims</span><span class="p">)</span>
-</span><span id="L-138"><a href="#L-138"><span class="linenos">138</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="s2">"kc_user"</span><span class="p">]</span> <span class="o">=</span> <span class="n">claims</span>
-</span><span id="L-139"><a href="#L-139"><span class="linenos">139</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_EXPIRA_EN</span><span class="p">]</span> <span class="o">=</span> <span class="n">expira_en</span>
-</span><span id="L-140"><a href="#L-140"><span class="linenos">140</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">set_expiry</span><span class="p">(</span><span class="n">segundos_restantes</span><span class="p">)</span>
-</span><span id="L-141"><a href="#L-141"><span class="linenos">141</span></a>
-</span><span id="L-142"><a href="#L-142"><span class="linenos">142</span></a>
-</span><span id="L-143"><a href="#L-143"><span class="linenos">143</span></a><span class="k">def</span><span class="w"> </span><span class="nf">sesion_oidc_vigente</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-</span><span id="L-144"><a href="#L-144"><span class="linenos">144</span></a><span class="w">    </span><span class="sd">"""Comprueba identidad y expiración del contexto OIDC almacenado."""</span>
-</span><span id="L-145"><a href="#L-145"><span class="linenos">145</span></a>
-</span><span id="L-146"><a href="#L-146"><span class="linenos">146</span></a>    <span class="n">usuario</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">SESSION_USUARIO</span><span class="p">,</span> <span class="p">{})</span>
-</span><span id="L-147"><a href="#L-147"><span class="linenos">147</span></a>    <span class="n">expira_en</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">SESSION_EXPIRA_EN</span><span class="p">)</span>
-</span><span id="L-148"><a href="#L-148"><span class="linenos">148</span></a>    <span class="n">vigente</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-149"><a href="#L-149"><span class="linenos">149</span></a>        <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">SESSION_AUTENTICADO</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
-</span><span id="L-150"><a href="#L-150"><span class="linenos">150</span></a>        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">usuario</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
-</span><span id="L-151"><a href="#L-151"><span class="linenos">151</span></a>        <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span><span class="n">usuario</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sub"</span><span class="p">))</span>
-</span><span id="L-152"><a href="#L-152"><span class="linenos">152</span></a>        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expira_en</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span>
-</span><span id="L-153"><a href="#L-153"><span class="linenos">153</span></a>        <span class="ow">and</span> <span class="n">expira_en</span> <span class="o">&gt;</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-</span><span id="L-154"><a href="#L-154"><span class="linenos">154</span></a>    <span class="p">)</span>
-</span><span id="L-155"><a href="#L-155"><span class="linenos">155</span></a>
-</span><span id="L-156"><a href="#L-156"><span class="linenos">156</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">vigente</span><span class="p">:</span>
-</span><span id="L-157"><a href="#L-157"><span class="linenos">157</span></a>        <span class="n">limpiar_sesion_oidc</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-</span><span id="L-158"><a href="#L-158"><span class="linenos">158</span></a>
-</span><span id="L-159"><a href="#L-159"><span class="linenos">159</span></a>    <span class="k">return</span> <span class="n">vigente</span>
-</span><span id="L-160"><a href="#L-160"><span class="linenos">160</span></a>
-</span><span id="L-161"><a href="#L-161"><span class="linenos">161</span></a>
-</span><span id="L-162"><a href="#L-162"><span class="linenos">162</span></a><span class="k">def</span><span class="w"> </span><span class="nf">limpiar_sesion_oidc</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-</span><span id="L-163"><a href="#L-163"><span class="linenos">163</span></a><span class="w">    </span><span class="sd">"""Elimina cualquier autorización OIDC previa de la sesión."""</span>
-</span><span id="L-164"><a href="#L-164"><span class="linenos">164</span></a>
-</span><span id="L-165"><a href="#L-165"><span class="linenos">165</span></a>    <span class="k">for</span> <span class="n">clave</span> <span class="ow">in</span> <span class="p">(</span>
-</span><span id="L-166"><a href="#L-166"><span class="linenos">166</span></a>        <span class="n">SESSION_AUTENTICADO</span><span class="p">,</span>
-</span><span id="L-167"><a href="#L-167"><span class="linenos">167</span></a>        <span class="n">SESSION_USUARIO</span><span class="p">,</span>
-</span><span id="L-168"><a href="#L-168"><span class="linenos">168</span></a>        <span class="n">SESSION_ROLES</span><span class="p">,</span>
-</span><span id="L-169"><a href="#L-169"><span class="linenos">169</span></a>        <span class="n">SESSION_EXPIRA_EN</span><span class="p">,</span>
-</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a>        <span class="s2">"kc_user"</span><span class="p">,</span>
-</span><span id="L-171"><a href="#L-171"><span class="linenos">171</span></a>        <span class="s2">"kc_access_token"</span><span class="p">,</span>
-</span><span id="L-172"><a href="#L-172"><span class="linenos">172</span></a>        <span class="s2">"kc_id_token"</span><span class="p">,</span>
-</span><span id="L-173"><a href="#L-173"><span class="linenos">173</span></a>    <span class="p">):</span>
-</span><span id="L-174"><a href="#L-174"><span class="linenos">174</span></a>        <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">clave</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-</span><span id="L-175"><a href="#L-175"><span class="linenos">175</span></a>
-</span><span id="L-176"><a href="#L-176"><span class="linenos">176</span></a>
-</span><span id="L-177"><a href="#L-177"><span class="linenos">177</span></a><span class="k">def</span><span class="w"> </span><span class="nf">obtener_token_admin</span><span class="p">():</span>
-</span><span id="L-178"><a href="#L-178"><span class="linenos">178</span></a><span class="w">    </span><span class="sd">"""Obtiene un token de servicio para consumir la Admin API de Keycloak."""</span>
-</span><span id="L-179"><a href="#L-179"><span class="linenos">179</span></a>
-</span><span id="L-180"><a href="#L-180"><span class="linenos">180</span></a>    <span class="n">token_url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-181"><a href="#L-181"><span class="linenos">181</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_realm_url</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="s2">"/protocol/openid-connect/token"</span>
-</span><span id="L-182"><a href="#L-182"><span class="linenos">182</span></a>    <span class="p">)</span>
-</span><span id="L-183"><a href="#L-183"><span class="linenos">183</span></a>
-</span><span id="L-184"><a href="#L-184"><span class="linenos">184</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
-</span><span id="L-185"><a href="#L-185"><span class="linenos">185</span></a>        <span class="n">token_url</span><span class="p">,</span>
-</span><span id="L-186"><a href="#L-186"><span class="linenos">186</span></a>        <span class="n">data</span><span class="o">=</span><span class="p">{</span>
-</span><span id="L-187"><a href="#L-187"><span class="linenos">187</span></a>            <span class="s2">"grant_type"</span><span class="p">:</span> <span class="s2">"client_credentials"</span><span class="p">,</span>
-</span><span id="L-188"><a href="#L-188"><span class="linenos">188</span></a>            <span class="s2">"client_id"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_ID</span><span class="p">,</span>
-</span><span id="L-189"><a href="#L-189"><span class="linenos">189</span></a>            <span class="s2">"client_secret"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_SECRET</span><span class="p">,</span>
-</span><span id="L-190"><a href="#L-190"><span class="linenos">190</span></a>        <span class="p">},</span>
-</span><span id="L-191"><a href="#L-191"><span class="linenos">191</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="L-192"><a href="#L-192"><span class="linenos">192</span></a>    <span class="p">)</span>
-</span><span id="L-193"><a href="#L-193"><span class="linenos">193</span></a>
-</span><span id="L-194"><a href="#L-194"><span class="linenos">194</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="L-195"><a href="#L-195"><span class="linenos">195</span></a>
-</span><span id="L-196"><a href="#L-196"><span class="linenos">196</span></a>    <span class="n">access_token</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"access_token"</span><span class="p">)</span>
-</span><span id="L-197"><a href="#L-197"><span class="linenos">197</span></a>
-</span><span id="L-198"><a href="#L-198"><span class="linenos">198</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">access_token</span><span class="p">:</span>
-</span><span id="L-199"><a href="#L-199"><span class="linenos">199</span></a>        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Keycloak no devolvió un access token administrativo."</span><span class="p">)</span>
-</span><span id="L-200"><a href="#L-200"><span class="linenos">200</span></a>
-</span><span id="L-201"><a href="#L-201"><span class="linenos">201</span></a>    <span class="k">return</span> <span class="n">access_token</span>
-</span><span id="L-202"><a href="#L-202"><span class="linenos">202</span></a>
-</span><span id="L-203"><a href="#L-203"><span class="linenos">203</span></a>
-</span><span id="L-204"><a href="#L-204"><span class="linenos">204</span></a><span class="k">def</span><span class="w"> </span><span class="nf">buscar_usuario_keycloak</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">):</span>
-</span><span id="L-205"><a href="#L-205"><span class="linenos">205</span></a><span class="w">    </span><span class="sd">"""Obtiene un usuario existente desde la Admin API de Keycloak."""</span>
-</span><span id="L-206"><a href="#L-206"><span class="linenos">206</span></a>
-</span><span id="L-207"><a href="#L-207"><span class="linenos">207</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="L-208"><a href="#L-208"><span class="linenos">208</span></a>
-</span><span id="L-209"><a href="#L-209"><span class="linenos">209</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-210"><a href="#L-210"><span class="linenos">210</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-211"><a href="#L-211"><span class="linenos">211</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-212"><a href="#L-212"><span class="linenos">212</span></a>        <span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">usuario_id</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-213"><a href="#L-213"><span class="linenos">213</span></a>    <span class="p">)</span>
-</span><span id="L-214"><a href="#L-214"><span class="linenos">214</span></a>
-</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">},</span>
-</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a>    <span class="p">)</span>
-</span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a>
-</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a>    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>
-</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>
-</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>    <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>
-</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>
-</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a><span class="k">def</span><span class="w"> </span><span class="nf">obtener_rol_keycloak</span><span class="p">(</span><span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a><span class="w">    </span><span class="sd">"""Obtiene un rol de realm existente desde Keycloak."""</span>
-</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>
-</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>
-</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a>        <span class="sa">f</span><span class="s2">"/roles/</span><span class="si">{</span><span class="n">nombre_rol</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>    <span class="p">)</span>
-</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>
-</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">},</span>
-</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a>    <span class="p">)</span>
-</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a>
-</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a>    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a>        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a>
-</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a>
-</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a>    <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a>
-</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a>
-</span><span id="L-254"><a href="#L-254"><span class="linenos">254</span></a><span class="k">def</span><span class="w"> </span><span class="nf">obtener_roles_usuario</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">):</span>
-</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a><span class="w">    </span><span class="sd">"""Obtiene los roles de realm asignados directamente a un usuario."""</span>
-</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a>
-</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a>
-</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a>        <span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">usuario_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span>
-</span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a>    <span class="p">)</span>
-</span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a>
-</span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">},</span>
-</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a>    <span class="p">)</span>
-</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a>
-</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a>    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-</span><span id="L-272"><a href="#L-272"><span class="linenos">272</span></a>        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="L-273"><a href="#L-273"><span class="linenos">273</span></a>
-</span><span id="L-274"><a href="#L-274"><span class="linenos">274</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="L-275"><a href="#L-275"><span class="linenos">275</span></a>
-</span><span id="L-276"><a href="#L-276"><span class="linenos">276</span></a>    <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span><span id="L-277"><a href="#L-277"><span class="linenos">277</span></a>
-</span><span id="L-278"><a href="#L-278"><span class="linenos">278</span></a>
-</span><span id="L-279"><a href="#L-279"><span class="linenos">279</span></a><span class="k">def</span><span class="w"> </span><span class="nf">usuario_tiene_rol</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">,</span> <span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="L-280"><a href="#L-280"><span class="linenos">280</span></a><span class="w">    </span><span class="sd">"""Indica si un usuario ya posee directamente un rol de realm."""</span>
-</span><span id="L-281"><a href="#L-281"><span class="linenos">281</span></a>
-</span><span id="L-282"><a href="#L-282"><span class="linenos">282</span></a>    <span class="n">roles</span> <span class="o">=</span> <span class="n">obtener_roles_usuario</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">)</span>
-</span><span id="L-283"><a href="#L-283"><span class="linenos">283</span></a>
-</span><span id="L-284"><a href="#L-284"><span class="linenos">284</span></a>    <span class="k">if</span> <span class="n">roles</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="L-285"><a href="#L-285"><span class="linenos">285</span></a>        <span class="k">return</span> <span class="kc">False</span>
-</span><span id="L-286"><a href="#L-286"><span class="linenos">286</span></a>
-</span><span id="L-287"><a href="#L-287"><span class="linenos">287</span></a>    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">rol</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="o">==</span> <span class="n">nombre_rol</span> <span class="k">for</span> <span class="n">rol</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">)</span>
-</span><span id="L-288"><a href="#L-288"><span class="linenos">288</span></a>
-</span><span id="L-289"><a href="#L-289"><span class="linenos">289</span></a>
-</span><span id="L-290"><a href="#L-290"><span class="linenos">290</span></a><span class="k">def</span><span class="w"> </span><span class="nf">asignar_rol_usuario</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">,</span> <span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="L-291"><a href="#L-291"><span class="linenos">291</span></a><span class="w">    </span><span class="sd">"""Asigna un rol de realm a un usuario existente en Keycloak."""</span>
-</span><span id="L-292"><a href="#L-292"><span class="linenos">292</span></a>
-</span><span id="L-293"><a href="#L-293"><span class="linenos">293</span></a>    <span class="n">usuario</span> <span class="o">=</span> <span class="n">buscar_usuario_keycloak</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">)</span>
-</span><span id="L-294"><a href="#L-294"><span class="linenos">294</span></a>
-</span><span id="L-295"><a href="#L-295"><span class="linenos">295</span></a>    <span class="k">if</span> <span class="n">usuario</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="L-296"><a href="#L-296"><span class="linenos">296</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El usuario no existe."</span><span class="p">)</span>
-</span><span id="L-297"><a href="#L-297"><span class="linenos">297</span></a>
-</span><span id="L-298"><a href="#L-298"><span class="linenos">298</span></a>    <span class="k">if</span> <span class="n">nombre_rol</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ROLES_SISTEMA</span><span class="p">:</span>
-</span><span id="L-299"><a href="#L-299"><span class="linenos">299</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El rol indicado no pertenece al sistema."</span><span class="p">)</span>
-</span><span id="L-300"><a href="#L-300"><span class="linenos">300</span></a>
-</span><span id="L-301"><a href="#L-301"><span class="linenos">301</span></a>    <span class="n">rol</span> <span class="o">=</span> <span class="n">obtener_rol_keycloak</span><span class="p">(</span><span class="n">nombre_rol</span><span class="p">)</span>
-</span><span id="L-302"><a href="#L-302"><span class="linenos">302</span></a>
-</span><span id="L-303"><a href="#L-303"><span class="linenos">303</span></a>    <span class="k">if</span> <span class="n">rol</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="L-304"><a href="#L-304"><span class="linenos">304</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El rol no existe en Keycloak."</span><span class="p">)</span>
-</span><span id="L-305"><a href="#L-305"><span class="linenos">305</span></a>
-</span><span id="L-306"><a href="#L-306"><span class="linenos">306</span></a>    <span class="k">if</span> <span class="n">usuario_tiene_rol</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">,</span> <span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="L-307"><a href="#L-307"><span class="linenos">307</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El usuario ya posee ese rol."</span><span class="p">)</span>
-</span><span id="L-308"><a href="#L-308"><span class="linenos">308</span></a>
-</span><span id="L-309"><a href="#L-309"><span class="linenos">309</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="L-310"><a href="#L-310"><span class="linenos">310</span></a>
-</span><span id="L-311"><a href="#L-311"><span class="linenos">311</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-312"><a href="#L-312"><span class="linenos">312</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-313"><a href="#L-313"><span class="linenos">313</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-314"><a href="#L-314"><span class="linenos">314</span></a>        <span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">usuario_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span>
-</span><span id="L-315"><a href="#L-315"><span class="linenos">315</span></a>    <span class="p">)</span>
-</span><span id="L-316"><a href="#L-316"><span class="linenos">316</span></a>
-</span><span id="L-317"><a href="#L-317"><span class="linenos">317</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
-</span><span id="L-318"><a href="#L-318"><span class="linenos">318</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="L-319"><a href="#L-319"><span class="linenos">319</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span>
-</span><span id="L-320"><a href="#L-320"><span class="linenos">320</span></a>            <span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-</span><span id="L-321"><a href="#L-321"><span class="linenos">321</span></a>            <span class="s2">"Content-Type"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">,</span>
-</span><span id="L-322"><a href="#L-322"><span class="linenos">322</span></a>        <span class="p">},</span>
-</span><span id="L-323"><a href="#L-323"><span class="linenos">323</span></a>        <span class="n">json</span><span class="o">=</span><span class="p">[</span><span class="n">rol</span><span class="p">],</span>
-</span><span id="L-324"><a href="#L-324"><span class="linenos">324</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="L-325"><a href="#L-325"><span class="linenos">325</span></a>    <span class="p">)</span>
-</span><span id="L-326"><a href="#L-326"><span class="linenos">326</span></a>
-</span><span id="L-327"><a href="#L-327"><span class="linenos">327</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="L-328"><a href="#L-328"><span class="linenos">328</span></a>
-</span><span id="L-329"><a href="#L-329"><span class="linenos">329</span></a>    <span class="k">return</span> <span class="kc">True</span>
-</span></pre></div>
 
 
             </section>
                 <section id="ROLES_SISTEMA">
                     <div class="attr variable">
             <span class="name">ROLES_SISTEMA</span>        =
-<span class="default_value">frozenset({&#39;USUARIO&#39;, &#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;})</span>
+<span class="default_value">frozenset({&#39;CAJERO&#39;, &#39;ADMINISTRADOR&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;})</span>
 
-        
+
     </div>
     <a class="headerlink" href="#ROLES_SISTEMA"></a>
-    
-    
+
+
 
                 </section>
                 <section id="SESSION_AUTENTICADO">
@@ -455,11 +131,11 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
             <span class="name">SESSION_AUTENTICADO</span>        =
 <span class="default_value">&#39;oidc_authenticated&#39;</span>
 
-        
+
     </div>
     <a class="headerlink" href="#SESSION_AUTENTICADO"></a>
-    
-    
+
+
 
                 </section>
                 <section id="SESSION_USUARIO">
@@ -467,11 +143,11 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
             <span class="name">SESSION_USUARIO</span>        =
 <span class="default_value">&#39;oidc_user&#39;</span>
 
-        
+
     </div>
     <a class="headerlink" href="#SESSION_USUARIO"></a>
-    
-    
+
+
 
                 </section>
                 <section id="SESSION_ROLES">
@@ -479,11 +155,11 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
             <span class="name">SESSION_ROLES</span>        =
 <span class="default_value">&#39;roles&#39;</span>
 
-        
+
     </div>
     <a class="headerlink" href="#SESSION_ROLES"></a>
-    
-    
+
+
 
                 </section>
                 <section id="SESSION_EXPIRA_EN">
@@ -491,11 +167,35 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
             <span class="name">SESSION_EXPIRA_EN</span>        =
 <span class="default_value">&#39;oidc_expires_at&#39;</span>
 
-        
+
     </div>
     <a class="headerlink" href="#SESSION_EXPIRA_EN"></a>
-    
-    
+
+
+
+                </section>
+                <section id="SESSION_REFRESH_TOKEN">
+                    <div class="attr variable">
+            <span class="name">SESSION_REFRESH_TOKEN</span>        =
+<span class="default_value">&#39;kc_refresh_token&#39;</span>
+
+
+    </div>
+    <a class="headerlink" href="#SESSION_REFRESH_TOKEN"></a>
+
+
+
+                </section>
+                <section id="SESSION_REFRESH_EXPIRA_EN">
+                    <div class="attr variable">
+            <span class="name">SESSION_REFRESH_EXPIRA_EN</span>        =
+<span class="default_value">&#39;kc_refresh_expires_at&#39;</span>
+
+
+    </div>
+    <a class="headerlink" href="#SESSION_REFRESH_EXPIRA_EN"></a>
+
+
 
                 </section>
                 <section id="ALGORITMOS_PERMITIDOS">
@@ -503,11 +203,11 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
             <span class="name">ALGORITMOS_PERMITIDOS</span>        =
 <span class="default_value">(&#39;RS256&#39;,)</span>
 
-        
+
     </div>
     <a class="headerlink" href="#ALGORITMOS_PERMITIDOS"></a>
-    
-    
+
+
 
                 </section>
                 <section id="TIMEOUT_KEYCLOAK">
@@ -515,39 +215,22 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
             <span class="name">TIMEOUT_KEYCLOAK</span>        =
 <span class="default_value">10</span>
 
-        
+
     </div>
     <a class="headerlink" href="#TIMEOUT_KEYCLOAK"></a>
-    
-    
+
+
 
                 </section>
                 <section id="extraer_roles_sistema">
-                            <input id="extraer_roles_sistema-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">extraer_roles_sistema</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">claims</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="extraer_roles_sistema-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#extraer_roles_sistema"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="extraer_roles_sistema-43"><a href="#extraer_roles_sistema-43"><span class="linenos">43</span></a><span class="k">def</span><span class="w"> </span><span class="nf">extraer_roles_sistema</span><span class="p">(</span><span class="n">claims</span><span class="p">):</span>
-</span><span id="extraer_roles_sistema-44"><a href="#extraer_roles_sistema-44"><span class="linenos">44</span></a><span class="w">    </span><span class="sd">"""Devuelve únicamente los roles de negocio definidos por Global Exchange."""</span>
-</span><span id="extraer_roles_sistema-45"><a href="#extraer_roles_sistema-45"><span class="linenos">45</span></a>
-</span><span id="extraer_roles_sistema-46"><a href="#extraer_roles_sistema-46"><span class="linenos">46</span></a>    <span class="n">realm_access</span> <span class="o">=</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"realm_access"</span><span class="p">,</span> <span class="p">{})</span>
-</span><span id="extraer_roles_sistema-47"><a href="#extraer_roles_sistema-47"><span class="linenos">47</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">realm_access</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="extraer_roles_sistema-48"><a href="#extraer_roles_sistema-48"><span class="linenos">48</span></a>        <span class="k">return</span> <span class="p">[]</span>
-</span><span id="extraer_roles_sistema-49"><a href="#extraer_roles_sistema-49"><span class="linenos">49</span></a>
-</span><span id="extraer_roles_sistema-50"><a href="#extraer_roles_sistema-50"><span class="linenos">50</span></a>    <span class="n">roles_token</span> <span class="o">=</span> <span class="n">realm_access</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"roles"</span><span class="p">,</span> <span class="p">[])</span>
-</span><span id="extraer_roles_sistema-51"><a href="#extraer_roles_sistema-51"><span class="linenos">51</span></a>
-</span><span id="extraer_roles_sistema-52"><a href="#extraer_roles_sistema-52"><span class="linenos">52</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">roles_token</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-</span><span id="extraer_roles_sistema-53"><a href="#extraer_roles_sistema-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">[]</span>
-</span><span id="extraer_roles_sistema-54"><a href="#extraer_roles_sistema-54"><span class="linenos">54</span></a>
-</span><span id="extraer_roles_sistema-55"><a href="#extraer_roles_sistema-55"><span class="linenos">55</span></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">roles_token</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">ROLES_SISTEMA</span><span class="p">))</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Devuelve únicamente los roles de negocio definidos por Global Exchange.</p>
 </div>
@@ -555,80 +238,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="validar_access_token">
-                            <input id="validar_access_token-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">validar_access_token</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">access_token</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="validar_access_token-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#validar_access_token"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="validar_access_token-58"><a href="#validar_access_token-58"><span class="linenos"> 58</span></a><span class="k">def</span><span class="w"> </span><span class="nf">validar_access_token</span><span class="p">(</span><span class="n">access_token</span><span class="p">):</span>
-</span><span id="validar_access_token-59"><a href="#validar_access_token-59"><span class="linenos"> 59</span></a><span class="w">    </span><span class="sd">"""Valida firma y claims mínimos de un access token emitido por Keycloak."""</span>
-</span><span id="validar_access_token-60"><a href="#validar_access_token-60"><span class="linenos"> 60</span></a>
-</span><span id="validar_access_token-61"><a href="#validar_access_token-61"><span class="linenos"> 61</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">access_token</span><span class="p">:</span>
-</span><span id="validar_access_token-62"><a href="#validar_access_token-62"><span class="linenos"> 62</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span><span class="s2">"Keycloak no devolvió un access token."</span><span class="p">)</span>
-</span><span id="validar_access_token-63"><a href="#validar_access_token-63"><span class="linenos"> 63</span></a>
-</span><span id="validar_access_token-64"><a href="#validar_access_token-64"><span class="linenos"> 64</span></a>    <span class="n">header</span> <span class="o">=</span> <span class="n">jwt</span><span class="o">.</span><span class="n">get_unverified_header</span><span class="p">(</span><span class="n">access_token</span><span class="p">)</span>
-</span><span id="validar_access_token-65"><a href="#validar_access_token-65"><span class="linenos"> 65</span></a>    <span class="n">algoritmo</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"alg"</span><span class="p">)</span>
-</span><span id="validar_access_token-66"><a href="#validar_access_token-66"><span class="linenos"> 66</span></a>
-</span><span id="validar_access_token-67"><a href="#validar_access_token-67"><span class="linenos"> 67</span></a>    <span class="k">if</span> <span class="n">algoritmo</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ALGORITMOS_PERMITIDOS</span><span class="p">:</span>
-</span><span id="validar_access_token-68"><a href="#validar_access_token-68"><span class="linenos"> 68</span></a>        <span class="k">raise</span> <span class="n">InvalidAlgorithmError</span><span class="p">(</span><span class="s2">"Algoritmo de firma no permitido."</span><span class="p">)</span>
-</span><span id="validar_access_token-69"><a href="#validar_access_token-69"><span class="linenos"> 69</span></a>
-</span><span id="validar_access_token-70"><a href="#validar_access_token-70"><span class="linenos"> 70</span></a>    <span class="n">issuer</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_EXPECTED_ISSUER</span>
-</span><span id="validar_access_token-71"><a href="#validar_access_token-71"><span class="linenos"> 71</span></a>    <span class="n">jwks_url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="validar_access_token-72"><a href="#validar_access_token-72"><span class="linenos"> 72</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_realm_url</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="validar_access_token-73"><a href="#validar_access_token-73"><span class="linenos"> 73</span></a>        <span class="s2">"/protocol/openid-connect/certs"</span>
-</span><span id="validar_access_token-74"><a href="#validar_access_token-74"><span class="linenos"> 74</span></a>    <span class="p">)</span>
-</span><span id="validar_access_token-75"><a href="#validar_access_token-75"><span class="linenos"> 75</span></a>
-</span><span id="validar_access_token-76"><a href="#validar_access_token-76"><span class="linenos"> 76</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="validar_access_token-77"><a href="#validar_access_token-77"><span class="linenos"> 77</span></a>        <span class="n">signing_key</span> <span class="o">=</span> <span class="n">_obtener_cliente_jwks</span><span class="p">(</span><span class="n">jwks_url</span><span class="p">)</span><span class="o">.</span><span class="n">get_signing_key_from_jwt</span><span class="p">(</span>
-</span><span id="validar_access_token-78"><a href="#validar_access_token-78"><span class="linenos"> 78</span></a>            <span class="n">access_token</span>
-</span><span id="validar_access_token-79"><a href="#validar_access_token-79"><span class="linenos"> 79</span></a>        <span class="p">)</span>
-</span><span id="validar_access_token-80"><a href="#validar_access_token-80"><span class="linenos"> 80</span></a>    <span class="k">except</span> <span class="n">PyJWKClientError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="validar_access_token-81"><a href="#validar_access_token-81"><span class="linenos"> 81</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span>
-</span><span id="validar_access_token-82"><a href="#validar_access_token-82"><span class="linenos"> 82</span></a>            <span class="s2">"No fue posible obtener la clave de firma de Keycloak."</span>
-</span><span id="validar_access_token-83"><a href="#validar_access_token-83"><span class="linenos"> 83</span></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="validar_access_token-84"><a href="#validar_access_token-84"><span class="linenos"> 84</span></a>
-</span><span id="validar_access_token-85"><a href="#validar_access_token-85"><span class="linenos"> 85</span></a>    <span class="n">claims</span> <span class="o">=</span> <span class="n">jwt</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
-</span><span id="validar_access_token-86"><a href="#validar_access_token-86"><span class="linenos"> 86</span></a>        <span class="n">access_token</span><span class="p">,</span>
-</span><span id="validar_access_token-87"><a href="#validar_access_token-87"><span class="linenos"> 87</span></a>        <span class="n">signing_key</span><span class="o">.</span><span class="n">key</span><span class="p">,</span>
-</span><span id="validar_access_token-88"><a href="#validar_access_token-88"><span class="linenos"> 88</span></a>        <span class="n">algorithms</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">ALGORITMOS_PERMITIDOS</span><span class="p">),</span>
-</span><span id="validar_access_token-89"><a href="#validar_access_token-89"><span class="linenos"> 89</span></a>        <span class="n">issuer</span><span class="o">=</span><span class="n">issuer</span><span class="p">,</span>
-</span><span id="validar_access_token-90"><a href="#validar_access_token-90"><span class="linenos"> 90</span></a>        <span class="n">options</span><span class="o">=</span><span class="p">{</span>
-</span><span id="validar_access_token-91"><a href="#validar_access_token-91"><span class="linenos"> 91</span></a>            <span class="s2">"verify_signature"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="validar_access_token-92"><a href="#validar_access_token-92"><span class="linenos"> 92</span></a>            <span class="s2">"verify_exp"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="validar_access_token-93"><a href="#validar_access_token-93"><span class="linenos"> 93</span></a>            <span class="s2">"verify_iss"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="validar_access_token-94"><a href="#validar_access_token-94"><span class="linenos"> 94</span></a>            <span class="s2">"verify_aud"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="validar_access_token-95"><a href="#validar_access_token-95"><span class="linenos"> 95</span></a>            <span class="s2">"require"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"exp"</span><span class="p">,</span> <span class="s2">"iat"</span><span class="p">,</span> <span class="s2">"iss"</span><span class="p">,</span> <span class="s2">"sub"</span><span class="p">],</span>
-</span><span id="validar_access_token-96"><a href="#validar_access_token-96"><span class="linenos"> 96</span></a>        <span class="p">},</span>
-</span><span id="validar_access_token-97"><a href="#validar_access_token-97"><span class="linenos"> 97</span></a>        <span class="n">leeway</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="validar_access_token-98"><a href="#validar_access_token-98"><span class="linenos"> 98</span></a>    <span class="p">)</span>
-</span><span id="validar_access_token-99"><a href="#validar_access_token-99"><span class="linenos"> 99</span></a>
-</span><span id="validar_access_token-100"><a href="#validar_access_token-100"><span class="linenos">100</span></a>    <span class="n">audiencias</span> <span class="o">=</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"aud"</span><span class="p">,</span> <span class="p">[])</span>
-</span><span id="validar_access_token-101"><a href="#validar_access_token-101"><span class="linenos">101</span></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">audiencias</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="validar_access_token-102"><a href="#validar_access_token-102"><span class="linenos">102</span></a>        <span class="n">audiencias</span> <span class="o">=</span> <span class="p">[</span><span class="n">audiencias</span><span class="p">]</span>
-</span><span id="validar_access_token-103"><a href="#validar_access_token-103"><span class="linenos">103</span></a>    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">audiencias</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">set</span><span class="p">)):</span>
-</span><span id="validar_access_token-104"><a href="#validar_access_token-104"><span class="linenos">104</span></a>        <span class="n">audiencias</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="validar_access_token-105"><a href="#validar_access_token-105"><span class="linenos">105</span></a>
-</span><span id="validar_access_token-106"><a href="#validar_access_token-106"><span class="linenos">106</span></a>    <span class="n">cliente_autorizado</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="validar_access_token-107"><a href="#validar_access_token-107"><span class="linenos">107</span></a>        <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"azp"</span><span class="p">)</span> <span class="o">==</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span>
-</span><span id="validar_access_token-108"><a href="#validar_access_token-108"><span class="linenos">108</span></a>        <span class="ow">or</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span> <span class="ow">in</span> <span class="n">audiencias</span>
-</span><span id="validar_access_token-109"><a href="#validar_access_token-109"><span class="linenos">109</span></a>    <span class="p">)</span>
-</span><span id="validar_access_token-110"><a href="#validar_access_token-110"><span class="linenos">110</span></a>
-</span><span id="validar_access_token-111"><a href="#validar_access_token-111"><span class="linenos">111</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">cliente_autorizado</span><span class="p">:</span>
-</span><span id="validar_access_token-112"><a href="#validar_access_token-112"><span class="linenos">112</span></a>        <span class="k">raise</span> <span class="n">InvalidAudienceError</span><span class="p">(</span>
-</span><span id="validar_access_token-113"><a href="#validar_access_token-113"><span class="linenos">113</span></a>            <span class="s2">"El token no fue emitido para el cliente configurado."</span>
-</span><span id="validar_access_token-114"><a href="#validar_access_token-114"><span class="linenos">114</span></a>        <span class="p">)</span>
-</span><span id="validar_access_token-115"><a href="#validar_access_token-115"><span class="linenos">115</span></a>
-</span><span id="validar_access_token-116"><a href="#validar_access_token-116"><span class="linenos">116</span></a>    <span class="k">if</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"email_verified"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="validar_access_token-117"><a href="#validar_access_token-117"><span class="linenos">117</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span><span class="s2">"La cuenta de Keycloak no está verificada."</span><span class="p">)</span>
-</span><span id="validar_access_token-118"><a href="#validar_access_token-118"><span class="linenos">118</span></a>
-</span><span id="validar_access_token-119"><a href="#validar_access_token-119"><span class="linenos">119</span></a>    <span class="k">return</span> <span class="n">claims</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Valida firma y claims mínimos de un access token emitido por Keycloak.</p>
 </div>
@@ -636,106 +253,59 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="establecer_sesion_oidc">
-                            <input id="establecer_sesion_oidc-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">establecer_sesion_oidc</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span>, </span><span class="param"><span class="n">claims</span></span><span class="return-annotation">):</span></span>
+                    <div class="attr function">
 
-                <label class="view-source-button" for="establecer_sesion_oidc-view-source"><span>View Source</span></label>
+        <span class="def">def</span>
+        <span class="name">establecer_sesion_oidc</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">request</span>,</span><span class="param">	<span class="n">claims</span>,</span><span class="param">	<span class="n">refresh_token</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">refresh_expires_in</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">rotar_clave</span><span class="o">=</span><span class="kc">True</span></span><span class="return-annotation">):</span></span>
+
 
     </div>
     <a class="headerlink" href="#establecer_sesion_oidc"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="establecer_sesion_oidc-122"><a href="#establecer_sesion_oidc-122"><span class="linenos">122</span></a><span class="k">def</span><span class="w"> </span><span class="nf">establecer_sesion_oidc</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">claims</span><span class="p">):</span>
-</span><span id="establecer_sesion_oidc-123"><a href="#establecer_sesion_oidc-123"><span class="linenos">123</span></a><span class="w">    </span><span class="sd">"""Crea el contexto de autenticación usado por la autorización backend."""</span>
-</span><span id="establecer_sesion_oidc-124"><a href="#establecer_sesion_oidc-124"><span class="linenos">124</span></a>
-</span><span id="establecer_sesion_oidc-125"><a href="#establecer_sesion_oidc-125"><span class="linenos">125</span></a>    <span class="n">expira_en</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">claims</span><span class="p">[</span><span class="s2">"exp"</span><span class="p">])</span>
-</span><span id="establecer_sesion_oidc-126"><a href="#establecer_sesion_oidc-126"><span class="linenos">126</span></a>    <span class="n">segundos_restantes</span> <span class="o">=</span> <span class="n">expira_en</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span>
-</span><span id="establecer_sesion_oidc-127"><a href="#establecer_sesion_oidc-127"><span class="linenos">127</span></a>
-</span><span id="establecer_sesion_oidc-128"><a href="#establecer_sesion_oidc-128"><span class="linenos">128</span></a>    <span class="k">if</span> <span class="n">segundos_restantes</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-</span><span id="establecer_sesion_oidc-129"><a href="#establecer_sesion_oidc-129"><span class="linenos">129</span></a>        <span class="k">raise</span> <span class="n">InvalidTokenError</span><span class="p">(</span><span class="s2">"La autenticación de Keycloak ya expiró."</span><span class="p">)</span>
-</span><span id="establecer_sesion_oidc-130"><a href="#establecer_sesion_oidc-130"><span class="linenos">130</span></a>
-</span><span id="establecer_sesion_oidc-131"><a href="#establecer_sesion_oidc-131"><span class="linenos">131</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">cycle_key</span><span class="p">()</span>
-</span><span id="establecer_sesion_oidc-132"><a href="#establecer_sesion_oidc-132"><span class="linenos">132</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_AUTENTICADO</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-</span><span id="establecer_sesion_oidc-133"><a href="#establecer_sesion_oidc-133"><span class="linenos">133</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_USUARIO</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="establecer_sesion_oidc-134"><a href="#establecer_sesion_oidc-134"><span class="linenos">134</span></a>        <span class="s2">"sub"</span><span class="p">:</span> <span class="n">claims</span><span class="p">[</span><span class="s2">"sub"</span><span class="p">],</span>
-</span><span id="establecer_sesion_oidc-135"><a href="#establecer_sesion_oidc-135"><span class="linenos">135</span></a>        <span class="s2">"username"</span><span class="p">:</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preferred_username"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-</span><span id="establecer_sesion_oidc-136"><a href="#establecer_sesion_oidc-136"><span class="linenos">136</span></a>        <span class="s2">"email"</span><span class="p">:</span> <span class="n">claims</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"email"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-</span><span id="establecer_sesion_oidc-137"><a href="#establecer_sesion_oidc-137"><span class="linenos">137</span></a>    <span class="p">}</span>
-</span><span id="establecer_sesion_oidc-138"><a href="#establecer_sesion_oidc-138"><span class="linenos">138</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_ROLES</span><span class="p">]</span> <span class="o">=</span> <span class="n">extraer_roles_sistema</span><span class="p">(</span><span class="n">claims</span><span class="p">)</span>
-</span><span id="establecer_sesion_oidc-139"><a href="#establecer_sesion_oidc-139"><span class="linenos">139</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="s2">"kc_user"</span><span class="p">]</span> <span class="o">=</span> <span class="n">claims</span>
-</span><span id="establecer_sesion_oidc-140"><a href="#establecer_sesion_oidc-140"><span class="linenos">140</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="p">[</span><span class="n">SESSION_EXPIRA_EN</span><span class="p">]</span> <span class="o">=</span> <span class="n">expira_en</span>
-</span><span id="establecer_sesion_oidc-141"><a href="#establecer_sesion_oidc-141"><span class="linenos">141</span></a>    <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">set_expiry</span><span class="p">(</span><span class="n">segundos_restantes</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Crea el contexto de autenticación usado por la autorización backend.</p>
 </div>
 
 
                 </section>
+                <section id="renovar_sesion_oidc">
+                    <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">renovar_sesion_oidc</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#renovar_sesion_oidc"></a>
+
+            <div class="docstring"><p>Renueva y revalida el contexto OIDC exclusivamente desde el backend.</p>
+</div>
+
+
+                </section>
                 <section id="sesion_oidc_vigente">
-                            <input id="sesion_oidc_vigente-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">sesion_oidc_vigente</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="sesion_oidc_vigente-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#sesion_oidc_vigente"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="sesion_oidc_vigente-144"><a href="#sesion_oidc_vigente-144"><span class="linenos">144</span></a><span class="k">def</span><span class="w"> </span><span class="nf">sesion_oidc_vigente</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-</span><span id="sesion_oidc_vigente-145"><a href="#sesion_oidc_vigente-145"><span class="linenos">145</span></a><span class="w">    </span><span class="sd">"""Comprueba identidad y expiración del contexto OIDC almacenado."""</span>
-</span><span id="sesion_oidc_vigente-146"><a href="#sesion_oidc_vigente-146"><span class="linenos">146</span></a>
-</span><span id="sesion_oidc_vigente-147"><a href="#sesion_oidc_vigente-147"><span class="linenos">147</span></a>    <span class="n">usuario</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">SESSION_USUARIO</span><span class="p">,</span> <span class="p">{})</span>
-</span><span id="sesion_oidc_vigente-148"><a href="#sesion_oidc_vigente-148"><span class="linenos">148</span></a>    <span class="n">expira_en</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">SESSION_EXPIRA_EN</span><span class="p">)</span>
-</span><span id="sesion_oidc_vigente-149"><a href="#sesion_oidc_vigente-149"><span class="linenos">149</span></a>    <span class="n">vigente</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="sesion_oidc_vigente-150"><a href="#sesion_oidc_vigente-150"><span class="linenos">150</span></a>        <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">SESSION_AUTENTICADO</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">True</span>
-</span><span id="sesion_oidc_vigente-151"><a href="#sesion_oidc_vigente-151"><span class="linenos">151</span></a>        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">usuario</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
-</span><span id="sesion_oidc_vigente-152"><a href="#sesion_oidc_vigente-152"><span class="linenos">152</span></a>        <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span><span class="n">usuario</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sub"</span><span class="p">))</span>
-</span><span id="sesion_oidc_vigente-153"><a href="#sesion_oidc_vigente-153"><span class="linenos">153</span></a>        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expira_en</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span>
-</span><span id="sesion_oidc_vigente-154"><a href="#sesion_oidc_vigente-154"><span class="linenos">154</span></a>        <span class="ow">and</span> <span class="n">expira_en</span> <span class="o">&gt;</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-</span><span id="sesion_oidc_vigente-155"><a href="#sesion_oidc_vigente-155"><span class="linenos">155</span></a>    <span class="p">)</span>
-</span><span id="sesion_oidc_vigente-156"><a href="#sesion_oidc_vigente-156"><span class="linenos">156</span></a>
-</span><span id="sesion_oidc_vigente-157"><a href="#sesion_oidc_vigente-157"><span class="linenos">157</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">vigente</span><span class="p">:</span>
-</span><span id="sesion_oidc_vigente-158"><a href="#sesion_oidc_vigente-158"><span class="linenos">158</span></a>        <span class="n">limpiar_sesion_oidc</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-</span><span id="sesion_oidc_vigente-159"><a href="#sesion_oidc_vigente-159"><span class="linenos">159</span></a>
-</span><span id="sesion_oidc_vigente-160"><a href="#sesion_oidc_vigente-160"><span class="linenos">160</span></a>    <span class="k">return</span> <span class="n">vigente</span>
-</span></pre></div>
 
-
-            <div class="docstring"><p>Comprueba identidad y expiración del contexto OIDC almacenado.</p>
+            <div class="docstring"><p>Comprueba el contexto OIDC y lo renueva cuando corresponde.</p>
 </div>
 
 
                 </section>
                 <section id="limpiar_sesion_oidc">
-                            <input id="limpiar_sesion_oidc-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">limpiar_sesion_oidc</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="limpiar_sesion_oidc-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#limpiar_sesion_oidc"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="limpiar_sesion_oidc-163"><a href="#limpiar_sesion_oidc-163"><span class="linenos">163</span></a><span class="k">def</span><span class="w"> </span><span class="nf">limpiar_sesion_oidc</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-</span><span id="limpiar_sesion_oidc-164"><a href="#limpiar_sesion_oidc-164"><span class="linenos">164</span></a><span class="w">    </span><span class="sd">"""Elimina cualquier autorización OIDC previa de la sesión."""</span>
-</span><span id="limpiar_sesion_oidc-165"><a href="#limpiar_sesion_oidc-165"><span class="linenos">165</span></a>
-</span><span id="limpiar_sesion_oidc-166"><a href="#limpiar_sesion_oidc-166"><span class="linenos">166</span></a>    <span class="k">for</span> <span class="n">clave</span> <span class="ow">in</span> <span class="p">(</span>
-</span><span id="limpiar_sesion_oidc-167"><a href="#limpiar_sesion_oidc-167"><span class="linenos">167</span></a>        <span class="n">SESSION_AUTENTICADO</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-168"><a href="#limpiar_sesion_oidc-168"><span class="linenos">168</span></a>        <span class="n">SESSION_USUARIO</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-169"><a href="#limpiar_sesion_oidc-169"><span class="linenos">169</span></a>        <span class="n">SESSION_ROLES</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-170"><a href="#limpiar_sesion_oidc-170"><span class="linenos">170</span></a>        <span class="n">SESSION_EXPIRA_EN</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-171"><a href="#limpiar_sesion_oidc-171"><span class="linenos">171</span></a>        <span class="s2">"kc_user"</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-172"><a href="#limpiar_sesion_oidc-172"><span class="linenos">172</span></a>        <span class="s2">"kc_access_token"</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-173"><a href="#limpiar_sesion_oidc-173"><span class="linenos">173</span></a>        <span class="s2">"kc_id_token"</span><span class="p">,</span>
-</span><span id="limpiar_sesion_oidc-174"><a href="#limpiar_sesion_oidc-174"><span class="linenos">174</span></a>    <span class="p">):</span>
-</span><span id="limpiar_sesion_oidc-175"><a href="#limpiar_sesion_oidc-175"><span class="linenos">175</span></a>        <span class="n">request</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">clave</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Elimina cualquier autorización OIDC previa de la sesión.</p>
 </div>
@@ -743,43 +313,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="obtener_token_admin">
-                            <input id="obtener_token_admin-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">obtener_token_admin</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="obtener_token_admin-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#obtener_token_admin"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="obtener_token_admin-178"><a href="#obtener_token_admin-178"><span class="linenos">178</span></a><span class="k">def</span><span class="w"> </span><span class="nf">obtener_token_admin</span><span class="p">():</span>
-</span><span id="obtener_token_admin-179"><a href="#obtener_token_admin-179"><span class="linenos">179</span></a><span class="w">    </span><span class="sd">"""Obtiene un token de servicio para consumir la Admin API de Keycloak."""</span>
-</span><span id="obtener_token_admin-180"><a href="#obtener_token_admin-180"><span class="linenos">180</span></a>
-</span><span id="obtener_token_admin-181"><a href="#obtener_token_admin-181"><span class="linenos">181</span></a>    <span class="n">token_url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="obtener_token_admin-182"><a href="#obtener_token_admin-182"><span class="linenos">182</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_realm_url</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="s2">"/protocol/openid-connect/token"</span>
-</span><span id="obtener_token_admin-183"><a href="#obtener_token_admin-183"><span class="linenos">183</span></a>    <span class="p">)</span>
-</span><span id="obtener_token_admin-184"><a href="#obtener_token_admin-184"><span class="linenos">184</span></a>
-</span><span id="obtener_token_admin-185"><a href="#obtener_token_admin-185"><span class="linenos">185</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
-</span><span id="obtener_token_admin-186"><a href="#obtener_token_admin-186"><span class="linenos">186</span></a>        <span class="n">token_url</span><span class="p">,</span>
-</span><span id="obtener_token_admin-187"><a href="#obtener_token_admin-187"><span class="linenos">187</span></a>        <span class="n">data</span><span class="o">=</span><span class="p">{</span>
-</span><span id="obtener_token_admin-188"><a href="#obtener_token_admin-188"><span class="linenos">188</span></a>            <span class="s2">"grant_type"</span><span class="p">:</span> <span class="s2">"client_credentials"</span><span class="p">,</span>
-</span><span id="obtener_token_admin-189"><a href="#obtener_token_admin-189"><span class="linenos">189</span></a>            <span class="s2">"client_id"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_ID</span><span class="p">,</span>
-</span><span id="obtener_token_admin-190"><a href="#obtener_token_admin-190"><span class="linenos">190</span></a>            <span class="s2">"client_secret"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_SECRET</span><span class="p">,</span>
-</span><span id="obtener_token_admin-191"><a href="#obtener_token_admin-191"><span class="linenos">191</span></a>        <span class="p">},</span>
-</span><span id="obtener_token_admin-192"><a href="#obtener_token_admin-192"><span class="linenos">192</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="obtener_token_admin-193"><a href="#obtener_token_admin-193"><span class="linenos">193</span></a>    <span class="p">)</span>
-</span><span id="obtener_token_admin-194"><a href="#obtener_token_admin-194"><span class="linenos">194</span></a>
-</span><span id="obtener_token_admin-195"><a href="#obtener_token_admin-195"><span class="linenos">195</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="obtener_token_admin-196"><a href="#obtener_token_admin-196"><span class="linenos">196</span></a>
-</span><span id="obtener_token_admin-197"><a href="#obtener_token_admin-197"><span class="linenos">197</span></a>    <span class="n">access_token</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"access_token"</span><span class="p">)</span>
-</span><span id="obtener_token_admin-198"><a href="#obtener_token_admin-198"><span class="linenos">198</span></a>
-</span><span id="obtener_token_admin-199"><a href="#obtener_token_admin-199"><span class="linenos">199</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">access_token</span><span class="p">:</span>
-</span><span id="obtener_token_admin-200"><a href="#obtener_token_admin-200"><span class="linenos">200</span></a>        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Keycloak no devolvió un access token administrativo."</span><span class="p">)</span>
-</span><span id="obtener_token_admin-201"><a href="#obtener_token_admin-201"><span class="linenos">201</span></a>
-</span><span id="obtener_token_admin-202"><a href="#obtener_token_admin-202"><span class="linenos">202</span></a>    <span class="k">return</span> <span class="n">access_token</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Obtiene un token de servicio para consumir la Admin API de Keycloak.</p>
 </div>
@@ -787,41 +328,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="buscar_usuario_keycloak">
-                            <input id="buscar_usuario_keycloak-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">buscar_usuario_keycloak</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">usuario_id</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="buscar_usuario_keycloak-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#buscar_usuario_keycloak"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="buscar_usuario_keycloak-205"><a href="#buscar_usuario_keycloak-205"><span class="linenos">205</span></a><span class="k">def</span><span class="w"> </span><span class="nf">buscar_usuario_keycloak</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">):</span>
-</span><span id="buscar_usuario_keycloak-206"><a href="#buscar_usuario_keycloak-206"><span class="linenos">206</span></a><span class="w">    </span><span class="sd">"""Obtiene un usuario existente desde la Admin API de Keycloak."""</span>
-</span><span id="buscar_usuario_keycloak-207"><a href="#buscar_usuario_keycloak-207"><span class="linenos">207</span></a>
-</span><span id="buscar_usuario_keycloak-208"><a href="#buscar_usuario_keycloak-208"><span class="linenos">208</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="buscar_usuario_keycloak-209"><a href="#buscar_usuario_keycloak-209"><span class="linenos">209</span></a>
-</span><span id="buscar_usuario_keycloak-210"><a href="#buscar_usuario_keycloak-210"><span class="linenos">210</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="buscar_usuario_keycloak-211"><a href="#buscar_usuario_keycloak-211"><span class="linenos">211</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="buscar_usuario_keycloak-212"><a href="#buscar_usuario_keycloak-212"><span class="linenos">212</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="buscar_usuario_keycloak-213"><a href="#buscar_usuario_keycloak-213"><span class="linenos">213</span></a>        <span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">usuario_id</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="buscar_usuario_keycloak-214"><a href="#buscar_usuario_keycloak-214"><span class="linenos">214</span></a>    <span class="p">)</span>
-</span><span id="buscar_usuario_keycloak-215"><a href="#buscar_usuario_keycloak-215"><span class="linenos">215</span></a>
-</span><span id="buscar_usuario_keycloak-216"><a href="#buscar_usuario_keycloak-216"><span class="linenos">216</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="buscar_usuario_keycloak-217"><a href="#buscar_usuario_keycloak-217"><span class="linenos">217</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="buscar_usuario_keycloak-218"><a href="#buscar_usuario_keycloak-218"><span class="linenos">218</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">},</span>
-</span><span id="buscar_usuario_keycloak-219"><a href="#buscar_usuario_keycloak-219"><span class="linenos">219</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="buscar_usuario_keycloak-220"><a href="#buscar_usuario_keycloak-220"><span class="linenos">220</span></a>    <span class="p">)</span>
-</span><span id="buscar_usuario_keycloak-221"><a href="#buscar_usuario_keycloak-221"><span class="linenos">221</span></a>
-</span><span id="buscar_usuario_keycloak-222"><a href="#buscar_usuario_keycloak-222"><span class="linenos">222</span></a>    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-</span><span id="buscar_usuario_keycloak-223"><a href="#buscar_usuario_keycloak-223"><span class="linenos">223</span></a>        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="buscar_usuario_keycloak-224"><a href="#buscar_usuario_keycloak-224"><span class="linenos">224</span></a>
-</span><span id="buscar_usuario_keycloak-225"><a href="#buscar_usuario_keycloak-225"><span class="linenos">225</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="buscar_usuario_keycloak-226"><a href="#buscar_usuario_keycloak-226"><span class="linenos">226</span></a>
-</span><span id="buscar_usuario_keycloak-227"><a href="#buscar_usuario_keycloak-227"><span class="linenos">227</span></a>    <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Obtiene un usuario existente desde la Admin API de Keycloak.</p>
 </div>
@@ -829,41 +343,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="obtener_rol_keycloak">
-                            <input id="obtener_rol_keycloak-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">obtener_rol_keycloak</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">nombre_rol</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="obtener_rol_keycloak-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#obtener_rol_keycloak"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="obtener_rol_keycloak-230"><a href="#obtener_rol_keycloak-230"><span class="linenos">230</span></a><span class="k">def</span><span class="w"> </span><span class="nf">obtener_rol_keycloak</span><span class="p">(</span><span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="obtener_rol_keycloak-231"><a href="#obtener_rol_keycloak-231"><span class="linenos">231</span></a><span class="w">    </span><span class="sd">"""Obtiene un rol de realm existente desde Keycloak."""</span>
-</span><span id="obtener_rol_keycloak-232"><a href="#obtener_rol_keycloak-232"><span class="linenos">232</span></a>
-</span><span id="obtener_rol_keycloak-233"><a href="#obtener_rol_keycloak-233"><span class="linenos">233</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="obtener_rol_keycloak-234"><a href="#obtener_rol_keycloak-234"><span class="linenos">234</span></a>
-</span><span id="obtener_rol_keycloak-235"><a href="#obtener_rol_keycloak-235"><span class="linenos">235</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="obtener_rol_keycloak-236"><a href="#obtener_rol_keycloak-236"><span class="linenos">236</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="obtener_rol_keycloak-237"><a href="#obtener_rol_keycloak-237"><span class="linenos">237</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="obtener_rol_keycloak-238"><a href="#obtener_rol_keycloak-238"><span class="linenos">238</span></a>        <span class="sa">f</span><span class="s2">"/roles/</span><span class="si">{</span><span class="n">nombre_rol</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="obtener_rol_keycloak-239"><a href="#obtener_rol_keycloak-239"><span class="linenos">239</span></a>    <span class="p">)</span>
-</span><span id="obtener_rol_keycloak-240"><a href="#obtener_rol_keycloak-240"><span class="linenos">240</span></a>
-</span><span id="obtener_rol_keycloak-241"><a href="#obtener_rol_keycloak-241"><span class="linenos">241</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="obtener_rol_keycloak-242"><a href="#obtener_rol_keycloak-242"><span class="linenos">242</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="obtener_rol_keycloak-243"><a href="#obtener_rol_keycloak-243"><span class="linenos">243</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">},</span>
-</span><span id="obtener_rol_keycloak-244"><a href="#obtener_rol_keycloak-244"><span class="linenos">244</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="obtener_rol_keycloak-245"><a href="#obtener_rol_keycloak-245"><span class="linenos">245</span></a>    <span class="p">)</span>
-</span><span id="obtener_rol_keycloak-246"><a href="#obtener_rol_keycloak-246"><span class="linenos">246</span></a>
-</span><span id="obtener_rol_keycloak-247"><a href="#obtener_rol_keycloak-247"><span class="linenos">247</span></a>    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-</span><span id="obtener_rol_keycloak-248"><a href="#obtener_rol_keycloak-248"><span class="linenos">248</span></a>        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="obtener_rol_keycloak-249"><a href="#obtener_rol_keycloak-249"><span class="linenos">249</span></a>
-</span><span id="obtener_rol_keycloak-250"><a href="#obtener_rol_keycloak-250"><span class="linenos">250</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="obtener_rol_keycloak-251"><a href="#obtener_rol_keycloak-251"><span class="linenos">251</span></a>
-</span><span id="obtener_rol_keycloak-252"><a href="#obtener_rol_keycloak-252"><span class="linenos">252</span></a>    <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Obtiene un rol de realm existente desde Keycloak.</p>
 </div>
@@ -871,41 +358,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="obtener_roles_usuario">
-                            <input id="obtener_roles_usuario-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">obtener_roles_usuario</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">usuario_id</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="obtener_roles_usuario-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#obtener_roles_usuario"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="obtener_roles_usuario-255"><a href="#obtener_roles_usuario-255"><span class="linenos">255</span></a><span class="k">def</span><span class="w"> </span><span class="nf">obtener_roles_usuario</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">):</span>
-</span><span id="obtener_roles_usuario-256"><a href="#obtener_roles_usuario-256"><span class="linenos">256</span></a><span class="w">    </span><span class="sd">"""Obtiene los roles de realm asignados directamente a un usuario."""</span>
-</span><span id="obtener_roles_usuario-257"><a href="#obtener_roles_usuario-257"><span class="linenos">257</span></a>
-</span><span id="obtener_roles_usuario-258"><a href="#obtener_roles_usuario-258"><span class="linenos">258</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="obtener_roles_usuario-259"><a href="#obtener_roles_usuario-259"><span class="linenos">259</span></a>
-</span><span id="obtener_roles_usuario-260"><a href="#obtener_roles_usuario-260"><span class="linenos">260</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="obtener_roles_usuario-261"><a href="#obtener_roles_usuario-261"><span class="linenos">261</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="obtener_roles_usuario-262"><a href="#obtener_roles_usuario-262"><span class="linenos">262</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="obtener_roles_usuario-263"><a href="#obtener_roles_usuario-263"><span class="linenos">263</span></a>        <span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">usuario_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span>
-</span><span id="obtener_roles_usuario-264"><a href="#obtener_roles_usuario-264"><span class="linenos">264</span></a>    <span class="p">)</span>
-</span><span id="obtener_roles_usuario-265"><a href="#obtener_roles_usuario-265"><span class="linenos">265</span></a>
-</span><span id="obtener_roles_usuario-266"><a href="#obtener_roles_usuario-266"><span class="linenos">266</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="obtener_roles_usuario-267"><a href="#obtener_roles_usuario-267"><span class="linenos">267</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="obtener_roles_usuario-268"><a href="#obtener_roles_usuario-268"><span class="linenos">268</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">},</span>
-</span><span id="obtener_roles_usuario-269"><a href="#obtener_roles_usuario-269"><span class="linenos">269</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="obtener_roles_usuario-270"><a href="#obtener_roles_usuario-270"><span class="linenos">270</span></a>    <span class="p">)</span>
-</span><span id="obtener_roles_usuario-271"><a href="#obtener_roles_usuario-271"><span class="linenos">271</span></a>
-</span><span id="obtener_roles_usuario-272"><a href="#obtener_roles_usuario-272"><span class="linenos">272</span></a>    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-</span><span id="obtener_roles_usuario-273"><a href="#obtener_roles_usuario-273"><span class="linenos">273</span></a>        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="obtener_roles_usuario-274"><a href="#obtener_roles_usuario-274"><span class="linenos">274</span></a>
-</span><span id="obtener_roles_usuario-275"><a href="#obtener_roles_usuario-275"><span class="linenos">275</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="obtener_roles_usuario-276"><a href="#obtener_roles_usuario-276"><span class="linenos">276</span></a>
-</span><span id="obtener_roles_usuario-277"><a href="#obtener_roles_usuario-277"><span class="linenos">277</span></a>    <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Obtiene los roles de realm asignados directamente a un usuario.</p>
 </div>
@@ -913,27 +373,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="usuario_tiene_rol">
-                            <input id="usuario_tiene_rol-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">usuario_tiene_rol</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">nombre_rol</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="usuario_tiene_rol-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#usuario_tiene_rol"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="usuario_tiene_rol-280"><a href="#usuario_tiene_rol-280"><span class="linenos">280</span></a><span class="k">def</span><span class="w"> </span><span class="nf">usuario_tiene_rol</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">,</span> <span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="usuario_tiene_rol-281"><a href="#usuario_tiene_rol-281"><span class="linenos">281</span></a><span class="w">    </span><span class="sd">"""Indica si un usuario ya posee directamente un rol de realm."""</span>
-</span><span id="usuario_tiene_rol-282"><a href="#usuario_tiene_rol-282"><span class="linenos">282</span></a>
-</span><span id="usuario_tiene_rol-283"><a href="#usuario_tiene_rol-283"><span class="linenos">283</span></a>    <span class="n">roles</span> <span class="o">=</span> <span class="n">obtener_roles_usuario</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">)</span>
-</span><span id="usuario_tiene_rol-284"><a href="#usuario_tiene_rol-284"><span class="linenos">284</span></a>
-</span><span id="usuario_tiene_rol-285"><a href="#usuario_tiene_rol-285"><span class="linenos">285</span></a>    <span class="k">if</span> <span class="n">roles</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="usuario_tiene_rol-286"><a href="#usuario_tiene_rol-286"><span class="linenos">286</span></a>        <span class="k">return</span> <span class="kc">False</span>
-</span><span id="usuario_tiene_rol-287"><a href="#usuario_tiene_rol-287"><span class="linenos">287</span></a>
-</span><span id="usuario_tiene_rol-288"><a href="#usuario_tiene_rol-288"><span class="linenos">288</span></a>    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">rol</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="o">==</span> <span class="n">nombre_rol</span> <span class="k">for</span> <span class="n">rol</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Indica si un usuario ya posee directamente un rol de realm.</p>
 </div>
@@ -941,58 +388,14 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
 
                 </section>
                 <section id="asignar_rol_usuario">
-                            <input id="asignar_rol_usuario-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">asignar_rol_usuario</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">nombre_rol</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="asignar_rol_usuario-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#asignar_rol_usuario"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="asignar_rol_usuario-291"><a href="#asignar_rol_usuario-291"><span class="linenos">291</span></a><span class="k">def</span><span class="w"> </span><span class="nf">asignar_rol_usuario</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">,</span> <span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="asignar_rol_usuario-292"><a href="#asignar_rol_usuario-292"><span class="linenos">292</span></a><span class="w">    </span><span class="sd">"""Asigna un rol de realm a un usuario existente en Keycloak."""</span>
-</span><span id="asignar_rol_usuario-293"><a href="#asignar_rol_usuario-293"><span class="linenos">293</span></a>
-</span><span id="asignar_rol_usuario-294"><a href="#asignar_rol_usuario-294"><span class="linenos">294</span></a>    <span class="n">usuario</span> <span class="o">=</span> <span class="n">buscar_usuario_keycloak</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">)</span>
-</span><span id="asignar_rol_usuario-295"><a href="#asignar_rol_usuario-295"><span class="linenos">295</span></a>
-</span><span id="asignar_rol_usuario-296"><a href="#asignar_rol_usuario-296"><span class="linenos">296</span></a>    <span class="k">if</span> <span class="n">usuario</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="asignar_rol_usuario-297"><a href="#asignar_rol_usuario-297"><span class="linenos">297</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El usuario no existe."</span><span class="p">)</span>
-</span><span id="asignar_rol_usuario-298"><a href="#asignar_rol_usuario-298"><span class="linenos">298</span></a>
-</span><span id="asignar_rol_usuario-299"><a href="#asignar_rol_usuario-299"><span class="linenos">299</span></a>    <span class="k">if</span> <span class="n">nombre_rol</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ROLES_SISTEMA</span><span class="p">:</span>
-</span><span id="asignar_rol_usuario-300"><a href="#asignar_rol_usuario-300"><span class="linenos">300</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El rol indicado no pertenece al sistema."</span><span class="p">)</span>
-</span><span id="asignar_rol_usuario-301"><a href="#asignar_rol_usuario-301"><span class="linenos">301</span></a>
-</span><span id="asignar_rol_usuario-302"><a href="#asignar_rol_usuario-302"><span class="linenos">302</span></a>    <span class="n">rol</span> <span class="o">=</span> <span class="n">obtener_rol_keycloak</span><span class="p">(</span><span class="n">nombre_rol</span><span class="p">)</span>
-</span><span id="asignar_rol_usuario-303"><a href="#asignar_rol_usuario-303"><span class="linenos">303</span></a>
-</span><span id="asignar_rol_usuario-304"><a href="#asignar_rol_usuario-304"><span class="linenos">304</span></a>    <span class="k">if</span> <span class="n">rol</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="asignar_rol_usuario-305"><a href="#asignar_rol_usuario-305"><span class="linenos">305</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El rol no existe en Keycloak."</span><span class="p">)</span>
-</span><span id="asignar_rol_usuario-306"><a href="#asignar_rol_usuario-306"><span class="linenos">306</span></a>
-</span><span id="asignar_rol_usuario-307"><a href="#asignar_rol_usuario-307"><span class="linenos">307</span></a>    <span class="k">if</span> <span class="n">usuario_tiene_rol</span><span class="p">(</span><span class="n">usuario_id</span><span class="p">,</span> <span class="n">nombre_rol</span><span class="p">):</span>
-</span><span id="asignar_rol_usuario-308"><a href="#asignar_rol_usuario-308"><span class="linenos">308</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"El usuario ya posee ese rol."</span><span class="p">)</span>
-</span><span id="asignar_rol_usuario-309"><a href="#asignar_rol_usuario-309"><span class="linenos">309</span></a>
-</span><span id="asignar_rol_usuario-310"><a href="#asignar_rol_usuario-310"><span class="linenos">310</span></a>    <span class="n">token</span> <span class="o">=</span> <span class="n">obtener_token_admin</span><span class="p">()</span>
-</span><span id="asignar_rol_usuario-311"><a href="#asignar_rol_usuario-311"><span class="linenos">311</span></a>
-</span><span id="asignar_rol_usuario-312"><a href="#asignar_rol_usuario-312"><span class="linenos">312</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="asignar_rol_usuario-313"><a href="#asignar_rol_usuario-313"><span class="linenos">313</span></a>        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="asignar_rol_usuario-314"><a href="#asignar_rol_usuario-314"><span class="linenos">314</span></a>        <span class="sa">f</span><span class="s2">"/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="asignar_rol_usuario-315"><a href="#asignar_rol_usuario-315"><span class="linenos">315</span></a>        <span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">usuario_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span>
-</span><span id="asignar_rol_usuario-316"><a href="#asignar_rol_usuario-316"><span class="linenos">316</span></a>    <span class="p">)</span>
-</span><span id="asignar_rol_usuario-317"><a href="#asignar_rol_usuario-317"><span class="linenos">317</span></a>
-</span><span id="asignar_rol_usuario-318"><a href="#asignar_rol_usuario-318"><span class="linenos">318</span></a>    <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
-</span><span id="asignar_rol_usuario-319"><a href="#asignar_rol_usuario-319"><span class="linenos">319</span></a>        <span class="n">url</span><span class="p">,</span>
-</span><span id="asignar_rol_usuario-320"><a href="#asignar_rol_usuario-320"><span class="linenos">320</span></a>        <span class="n">headers</span><span class="o">=</span><span class="p">{</span>
-</span><span id="asignar_rol_usuario-321"><a href="#asignar_rol_usuario-321"><span class="linenos">321</span></a>            <span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-</span><span id="asignar_rol_usuario-322"><a href="#asignar_rol_usuario-322"><span class="linenos">322</span></a>            <span class="s2">"Content-Type"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">,</span>
-</span><span id="asignar_rol_usuario-323"><a href="#asignar_rol_usuario-323"><span class="linenos">323</span></a>        <span class="p">},</span>
-</span><span id="asignar_rol_usuario-324"><a href="#asignar_rol_usuario-324"><span class="linenos">324</span></a>        <span class="n">json</span><span class="o">=</span><span class="p">[</span><span class="n">rol</span><span class="p">],</span>
-</span><span id="asignar_rol_usuario-325"><a href="#asignar_rol_usuario-325"><span class="linenos">325</span></a>        <span class="n">timeout</span><span class="o">=</span><span class="n">TIMEOUT_KEYCLOAK</span><span class="p">,</span>
-</span><span id="asignar_rol_usuario-326"><a href="#asignar_rol_usuario-326"><span class="linenos">326</span></a>    <span class="p">)</span>
-</span><span id="asignar_rol_usuario-327"><a href="#asignar_rol_usuario-327"><span class="linenos">327</span></a>
-</span><span id="asignar_rol_usuario-328"><a href="#asignar_rol_usuario-328"><span class="linenos">328</span></a>    <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="asignar_rol_usuario-329"><a href="#asignar_rol_usuario-329"><span class="linenos">329</span></a>
-</span><span id="asignar_rol_usuario-330"><a href="#asignar_rol_usuario-330"><span class="linenos">330</span></a>    <span class="k">return</span> <span class="kc">True</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Asigna un rol de realm a un usuario existente en Keycloak.</p>
 </div>

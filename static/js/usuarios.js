@@ -44,6 +44,10 @@
       },
       body: JSON.stringify(payload || {})
     }).then(function (response) {
+      var authError = window.GEApp && window.GEApp.authenticationError
+        ? window.GEApp.authenticationError(response)
+        : null;
+      if (authError) throw authError;
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok) throw new Error(data.error || 'No fue posible completar la operación.');
         return data;
@@ -56,6 +60,10 @@
       method: 'GET',
       headers: { 'Accept': 'application/json' }
     }).then(function (response) {
+      var authError = window.GEApp && window.GEApp.authenticationError
+        ? window.GEApp.authenticationError(response)
+        : null;
+      if (authError) throw authError;
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok) throw new Error(data.error || 'No fue posible cargar el usuario.');
         return data;
@@ -121,7 +129,7 @@
       field('EMAIL', '<input class="ge-input" type="email" name="email" required autocomplete="off" placeholder="usuario@globalexchange.com">') +
       field('CONTRASEÑA TEMPORAL', '<input class="ge-input" type="password" name="password" minlength="8" required placeholder="Mínimo 8 caracteres">' +
         '<small style="color:var(--text-2);font-size:11px;display:block;margin-top:6px">El usuario deberá cambiarla al ingresar.</small>') +
-      rolesSection(['USUARIO']) +
+      rolesSection([]) +
       '</form>';
     dialog('ge-usuario-nuevo', 'Nuevo usuario', content, 'Registrar usuario', function (box, close) {
       var form = box.querySelector('form');

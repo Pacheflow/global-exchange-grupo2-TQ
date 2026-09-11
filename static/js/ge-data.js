@@ -1,5 +1,5 @@
 /*
- * MOCK — Datos simulados de referencia para la capa frontend.
+ * FUTURO / NO ACTIVO — Datos del prototipo visual original.
  *
  * Separación intencional de datos demostrativos y lógica de presentación.
  * Ningún dato de este archivo proviene del backend: es un contrato tentativo
@@ -15,7 +15,8 @@
  *  - GEDEMO_UPDATED_AT   -> de la cabecera de cada respuesta.
  *
  * La lógica de conversión del simulador debe permanecer en el backend;
- * este archivo solo alimenta la UI en ausencia de servicios reales.
+ * El archivo se conserva para reutilización, pero ninguna template activa lo
+ * carga ni estos valores alimentan el runtime de Sprint 2.
  */
 window.GEData = (function () {
   'use strict';

@@ -1,0 +1,33 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Seguridad · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad">
+    <div class="ge-frontend-section-head">
+      <div>
+        <span class="ge-frontend-eyebrow">Protección de la cuenta</span>
+        <h1 class="ge-frontend-h1">Seguridad</h1>
+        <p class="ge-frontend-subtitle">Controles activos en tu acceso a Global Exchange.</p>
+      </div>
+    </div>
+
+    <div class="ge-roles-grid">
+      <article class="ge-card ge-role-card">
+        <h2 class="ge-frontend-panel-title">Identidad protegida</h2>
+        <p>El inicio de sesión se realiza mediante Keycloak con Authorization Code y PKCE. Django valida la identidad antes de habilitar el panel.</p>
+      </article>
+      <article class="ge-card ge-role-card">
+        <h2 class="ge-frontend-panel-title">Sesión server-side</h2>
+        <p>Los tokens se mantienen en el backend. El navegador utiliza una cookie de sesión HttpOnly y no almacena tokens OIDC en JavaScript.</p>
+      </article>
+      <article class="ge-card ge-role-card">
+        <h2 class="ge-frontend-panel-title">Permisos por rol</h2>
+        <p>Cada vista y API valida los roles efectivos recibidos desde Keycloak. Los controles administrativos no se habilitan para el rol USUARIO.</p>
+      </article>
+      <article class="ge-card ge-role-card">
+        <h2 class="ge-frontend-panel-title">Cierre de sesión</h2>
+        <p>Al cerrar sesión se elimina el contexto local y se continúa el cierre de sesión en Keycloak.</p>
+      </article>
+    </div>
+  </div>
+{% endblock %}

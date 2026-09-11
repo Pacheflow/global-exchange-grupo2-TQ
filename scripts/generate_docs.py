@@ -19,6 +19,19 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
+# La documentación debe ser reproducible sin incorporar credenciales del
+# entorno que ejecuta pdoc. Estos valores existen únicamente en este proceso.
+for variable in (
+    "DJANGO_SECRET_KEY",
+    "DB_NAME",
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_HOST",
+    "KEYCLOAK_ADMIN_CLIENT_SECRET",
+    "TASAS_PROVIDER_API_KEY",
+):
+    os.environ[variable] = f"[REDACTED_{variable}]"
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 import django  # noqa: E402
@@ -26,6 +39,8 @@ import django  # noqa: E402
 django.setup()
 
 import pdoc  # noqa: E402
+
+pdoc.render.configure(show_source=False)
 
 MODULOS = [
     "usuarios.models",
@@ -59,8 +74,22 @@ MODULOS = [
 OUTPUT_DIR = BASE_DIR / "docs" / "generated"
 
 
+def normalizar_salida_generada():
+    """Elimina espacios finales introducidos por las plantillas de pdoc."""
+    for archivo in OUTPUT_DIR.rglob("*"):
+        if not archivo.is_file():
+            continue
+
+        contenido = archivo.read_text(encoding="utf-8")
+        normalizado = "\n".join(linea.rstrip() for linea in contenido.splitlines())
+        if contenido.endswith(("\n", "\r")):
+            normalizado += "\n"
+        archivo.write_text(normalizado, encoding="utf-8")
+
+
 def main():
     pdoc.pdoc(*MODULOS, output_directory=OUTPUT_DIR)
+    normalizar_salida_generada()
     print(f"Documentación generada en {OUTPUT_DIR}")
 
 

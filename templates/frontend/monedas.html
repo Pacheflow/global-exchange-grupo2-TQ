@@ -1,33 +1,38 @@
 {% extends 'frontend/base.html' %}
 {% load static %}
-{% block title %}Gestión de monedas · Global Exchange{% endblock %}
+{% block title %}{% if 'ADMINISTRADOR' in kc_roles %}Gestión de monedas{% else %}Monedas disponibles{% endif %} · Global Exchange{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
   <div class="ge-frontend-main-pad" data-ge-api="currencies"
        data-list-url="{% if 'ADMINISTRADOR' in kc_roles %}{% url 'monedas:listar_monedas' %}{% else %}{% url 'monedas:listar_monedas_activas' %}{% endif %}"
-       data-create-url="{% url 'monedas:crear_moneda' %}"
-       data-edit-url="{% url 'monedas:editar_moneda' 0 %}"
-       data-state-url="{% url 'monedas:cambiar_estado_moneda' 0 %}"
+       {% if 'ADMINISTRADOR' in kc_roles %}
+         data-create-url="{% url 'monedas:crear_moneda' %}"
+         data-edit-url="{% url 'monedas:editar_moneda' 0 %}"
+         data-state-url="{% url 'monedas:cambiar_estado_moneda' 0 %}"
+       {% endif %}
        data-can-manage="{% if 'ADMINISTRADOR' in kc_roles %}true{% else %}false{% endif %}">
     {% csrf_token %}
     <div class="ge-frontend-section-head">
-      <h2 class="ge-frontend-h2">Gestión de monedas</h2>
+      <div>
+        <h2 class="ge-frontend-h2">{% if 'ADMINISTRADOR' in kc_roles %}Gestión de monedas{% else %}Monedas disponibles{% endif %}</h2>
+        {% if 'ADMINISTRADOR' not in kc_roles %}<p class="ge-frontend-subtitle">Monedas activas configuradas actualmente en Global Exchange.</p>{% endif %}
+      </div>
       <div class="ge-btn-row">
         <div class="ge-search-box">
           <span aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
           <input type="text" class="ge-input" placeholder="Buscar moneda..." style="width:200px;font-size:12px;padding:8px 12px 8px 30px">
         </div>
-        <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">+ Nueva moneda</button>
+        {% if 'ADMINISTRADOR' in kc_roles %}<button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">+ Nueva moneda</button>{% endif %}
       </div>
     </div>
 
     <div class="ge-card" style="overflow:hidden">
       <table class="ge-table">
         <thead>
-          <tr><th></th><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th><th>Acciones</th></tr>
+          <tr><th></th><th>Código</th><th>Nombre</th><th>Símbolo</th><th>Estado</th>{% if 'ADMINISTRADOR' in kc_roles %}<th>Acciones</th>{% endif %}</tr>
         </thead>
         <tbody data-api-body>
-          <tr><td colspan="6" class="ge-frontend-note">Cargando monedas...</td></tr>
+          <tr><td colspan="{% if 'ADMINISTRADOR' in kc_roles %}6{% else %}5{% endif %}" class="ge-frontend-note">Cargando monedas...</td></tr>
         </tbody>
       </table>
     </div>

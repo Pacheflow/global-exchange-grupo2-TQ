@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from usuarios.decorators import requiere_alguno_de_roles, requiere_rol
+from usuarios.decorators import requiere_rol
 
 from .forms import MonedaForm
 from .models import Moneda
@@ -21,6 +21,18 @@ def _moneda_data(moneda):
         "estado": moneda.estado,
         "fecha_registro": moneda.fecha_registro.isoformat(),
         "fecha_actualizacion": moneda.fecha_actualizacion.isoformat(),
+    }
+
+
+def _moneda_publica_data(moneda):
+    """Expone únicamente los campos necesarios para consulta y simulación."""
+
+    return {
+        "id": moneda.id,
+        "codigo": moneda.codigo,
+        "nombre": moneda.nombre,
+        "simbolo": moneda.simbolo,
+        "estado": moneda.estado,
     }
 
 
@@ -203,21 +215,15 @@ def cambiar_estado_moneda(request, moneda_id):
     )
 
 
-@requiere_alguno_de_roles(
-    "ADMINISTRADOR",
-    "CAJERO",
-    "ANALISTA_CAMBIARIO",
-    "USUARIO",
-)
 @require_GET
 def listar_monedas_activas(request):
-    """Devuelve únicamente monedas disponibles para nuevas operaciones."""
+    """Devuelve públicamente el catálogo activo usado por el conversor."""
 
     monedas = Moneda.objects.activas()
 
     return JsonResponse(
         {
-            "monedas": [_moneda_data(moneda) for moneda in monedas],
+            "monedas": [_moneda_publica_data(moneda) for moneda in monedas],
         },
         status=200,
     )

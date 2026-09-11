@@ -74,6 +74,21 @@ window.GEApp = (function () {
     return Number(value).toLocaleString('es-PY', { maximumFractionDigits: Number(value) < 100 ? 4 : 0 });
   }
 
+  var loginRedirectScheduled = false;
+
+  function authenticationError(response) {
+    if (!response || response.status !== 401) return null;
+
+    if (!loginRedirectScheduled) {
+      loginRedirectScheduled = true;
+      window.setTimeout(function () {
+        window.location.href = '/login/';
+      }, 1000);
+    }
+
+    return new Error('Tu sesión expiró. Redirigiendo al inicio de sesión…');
+  }
+
   function initTabs(container) {
     var tabs = container.querySelectorAll('[data-ge-tab]');
     var panels = container.querySelectorAll('[data-ge-panel]');
@@ -126,64 +141,20 @@ window.GEApp = (function () {
     openModal: openModal,
     closeModal: closeModal,
     sparkline: sparklineSvg,
-    formatValue: formatValue
+    formatValue: formatValue,
+    authenticationError: authenticationError
   };
 })();
 
 /*
- * Adaptador de servicios (HU-19).
- * Contrato de integración con el backend: las páginas consumen estas
- * funciones y NO implementan lógica de negocio (conversión, tasas).
- * Hoy resuelve con datos simulados; en la integración real cada función
- * debe reemplazarse por una petición al endpoint correspondiente.
+ * Adaptador preservado para prototipos futuros.
+ * Las pantallas activas de Sprint 2 usan frontend-api.js o landing.js.
  */
 window.GEServices = (function () {
   'use strict';
 
-  function currencyByCode(code) {
-    var currencies = (window.GEData && window.GEData.currencies) || [];
-    for (var i = 0; i < currencies.length; i++) {
-      if (currencies[i].code === code) return currencies[i];
-    }
-    return null;
-  }
-
-  function consultaConversion(params) {
-    var de = params.monedaOrigen;
-    var hacia = params.monedaDestino;
-
-    if (de === hacia) return Promise.resolve({
-      monto: params.monto,
-      monedaOrigen: de,
-      monedaDestino: hacia,
-      tasa: 1,
-      resultado: params.monto,
-      actualizadoEn: window.GEData.updatedAt
-    });
-
-    if (!window.GEData || typeof window.GEData.rate !== 'function') {
-      return Promise.reject(new Error('servicio_no_disponible'));
-    }
-
-    return new Promise(function (resolve, reject) {
-      window.setTimeout(function () {
-        var from = currencyByCode(de);
-        var to = currencyByCode(hacia);
-        var tasa = window.GEData.rate(de, hacia);
-        if (!from || !to || !(tasa > 0)) {
-          reject(new Error('tasa_inexistente'));
-          return;
-        }
-        resolve({
-          monto: params.monto,
-          monedaOrigen: de,
-          monedaDestino: hacia,
-          tasa: tasa,
-          resultado: params.monto * tasa,
-          actualizadoEn: window.GEData.updatedAt
-        });
-      }, 250);
-    });
+  function consultaConversion() {
+    return Promise.reject(new Error('funcionalidad_pendiente'));
   }
 
   return {

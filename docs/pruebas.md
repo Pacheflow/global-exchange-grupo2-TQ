@@ -1,30 +1,30 @@
 # Pruebas — Global Exchange
 
-> Estado verificado, rama `frontend-integration`, HEAD `590f131`.
+> Estado verificado el 11/09/2026, rama
+> `fix/keycloak-session-and-default-role`, HEAD `9085a47`.
 > Suite ejecutada: `docker compose exec -T web python manage.py test`.
 
 ## Resumen
 
 | Métrica | Valor |
 |---|---|
-| Total de tests detectados | **201** |
-| Tests pasando | **201** |
-| Tests fallando | **0** (post-corrección) |
-| Métodos `test_*` encontrados (grep) | ~174 |
-| Duración última ejecución | 7.66 s |
-
-**Nota:** el número de tests detectados (201) es mayor que el de métodos `test_*` (~174) porque algunos tests son subcasos ejecutados por unittest/parameterized.
+| Total de tests detectados | **262** |
+| Tests pasando | **262** |
+| Tests fallando | **0** |
+| Errores | **0** |
+| Tests omitidos | **0** |
+| Duración última ejecución | 14.950 s |
 
 ## Detalle por app
 
 | App | Archivo | Métodos `test_*` | Funcionalidad cubierta |
 |---|---|---|---|
-| `usuarios` | `usuarios/tests.py` | 69 | OIDC/PKCE, JWT/JWKS, roles, sesión, logout, Admin API Keycloak (mock), realm, screens frontend, API REST crear/editar/detalle/baja |
+| `usuarios` | `usuarios/tests.py` | 111 | OIDC/PKCE, JWT/JWKS, refresh de sesión, roles heredados, logout, Admin API Keycloak (mock), realm, navegación y API REST |
 | `clientes` | `clientes/tests.py` | 60 | Modelo, CRUD con baja lógica, segmentación, asignación Usuario–Cliente, API JSON (crear, editar, baja, selección), validación de documento duplicado |
-| `tasas` | `tasas/tests.py` | 12 | Permisos por rol, validación de datos, versionado/histórico de tasas comerciales |
-| `monedas` | `monedas/tests.py` | 16 | CRUD, normalización de código, estados ACTIVA/INACTIVA, migración inicial |
-| `metodos_pago` | `metodos_pago/tests.py` | 17 | CRUD, unicidad por cliente, patrón dual HTML/JSON, estados |
-| **Total** | | **~174** | |
+| `tasas` | `tasas/tests.py`, `test_reference_rates.py`, `test_simulator.py` | 54 | Proveedor y fallback, simulación, permisos, validación, versionado, histórico y baja lógica |
+| `monedas` | `monedas/tests.py` | 17 | CRUD, normalización de código, estados ACTIVA/INACTIVA, catálogo público y migración inicial |
+| `metodos_pago` | `metodos_pago/tests.py` | 20 | CRUD, unicidad por cliente, seguridad HTML/JSON y estados |
+| **Total** | | **262** | |
 
 ## Correcciones realizadas (2026-09-06)
 
@@ -68,8 +68,24 @@ docker compose exec -T web python manage.py test
 - Control de cajas
 - Auditoría, rendimiento, concurrencia, backups
 - Pruebas de integración entre apps (end-to-end real)
-- Frontend React (sin tests de frontend)
+- Flujos end-to-end reales de navegador para todos los roles
 - Compatibilidad entre navegadores
+
+## Evidencia PUD actual
+
+La suite, los checks y la documentación automática se ejecutaron el 11/09/2026
+en el entorno Docker oficial:
+
+| Verificación | Resultado |
+|---|---|
+| `python manage.py check` | Sin issues |
+| `python manage.py makemigrations --check --dry-run` | Sin cambios pendientes |
+| `python manage.py test` | 262 tests, 0 fallos, 0 errores, 0 omitidos |
+| `python scripts/generate_docs.py` | Documentación pdoc generada en `docs/generated/` |
+
+La generación automática utiliza `pdoc==16.0.0`, documenta los módulos
+configurados en `scripts/generate_docs.py` y redacta los valores sensibles del
+entorno. No se debe activar `PDOC_DISPLAY_ENV_VARS`.
 
 ## CI/CD
 

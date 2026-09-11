@@ -51,27 +51,8 @@
                     <h1 class="modulename">
 config<wbr>.urls    </h1>
 
-                
-                        <input id="mod-urls-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 
-                        <label class="view-source-button" for="mod-urls-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos"> 1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib</span><span class="w"> </span><span class="kn">import</span> <span class="n">admin</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos"> 2</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.urls</span><span class="w"> </span><span class="kn">import</span> <span class="n">include</span><span class="p">,</span> <span class="n">path</span>
-</span><span id="L-3"><a href="#L-3"><span class="linenos"> 3</span></a>
-</span><span id="L-4"><a href="#L-4"><span class="linenos"> 4</span></a><span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos"> 5</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"admin/"</span><span class="p">,</span> <span class="n">admin</span><span class="o">.</span><span class="n">site</span><span class="o">.</span><span class="n">urls</span><span class="p">),</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos"> 6</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"clientes/"</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"clientes.urls"</span><span class="p">)),</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos"> 7</span></a>
-</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"api/clientes/"</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"clientes.api_urls"</span><span class="p">)),</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"api/usuarios/"</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"usuarios.api_urls"</span><span class="p">)),</span>
-</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"api/monedas/"</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"monedas.urls"</span><span class="p">)),</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"api/metodos-pago/"</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"metodos_pago.urls"</span><span class="p">)),</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">"api/tasas/"</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"tasas.urls"</span><span class="p">)),</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a>
-</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a>    <span class="n">path</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">include</span><span class="p">(</span><span class="s2">"usuarios.urls"</span><span class="p">)),</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a><span class="p">]</span>
-</span></pre></div>
 
 
             </section>
@@ -79,13 +60,13 @@ config<wbr>.urls    </h1>
                     <div class="attr variable">
             <span class="name">urlpatterns</span>        =
 <input id="urlpatterns-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="urlpatterns-view-value"></label><span class="default_value">[&lt;URLResolver &lt;URLPattern list&gt; (admin:admin) &#39;admin/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../clientes/urls.html">clientes.urls</a>&#39; from &#39;/app/clientes/urls.py&#39;&gt; (None:None) &#39;clientes/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../clientes/api_urls.html">clientes.api_urls</a>&#39; from &#39;/app/clientes/api_urls.py&#39;&gt; (clientes_api:clientes_api) &#39;api/clientes/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../usuarios/api_urls.html">usuarios.api_urls</a>&#39; from &#39;/app/usuarios/api_urls.py&#39;&gt; (usuarios_api:usuarios_api) &#39;api/usuarios/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../monedas/urls.html">monedas.urls</a>&#39; from &#39;/app/monedas/urls.py&#39;&gt; (monedas:monedas) &#39;api/monedas/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../metodos_pago/urls.html">metodos_pago.urls</a>&#39; from &#39;/app/metodos_pago/urls.py&#39;&gt; (metodos_pago:metodos_pago) &#39;api/metodos-pago/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../tasas/urls.html">tasas.urls</a>&#39; from &#39;/app/tasas/urls.py&#39;&gt; (tasas:tasas) &#39;api/tasas/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../usuarios/urls.html">usuarios.urls</a>&#39; from &#39;/app/usuarios/urls.py&#39;&gt; (usuarios:usuarios) &#39;&#39;&gt;]</span>
+            <label class="view-value-button pdoc-button" for="urlpatterns-view-value"></label><span class="default_value">[&lt;URLResolver &lt;URLPattern list&gt; (admin:admin) &#39;admin/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../clientes/urls.html">clientes.urls</a>&#39; from &#39;/app/clientes/urls.py&#39;&gt; (None:None) &#39;clientes/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../clientes/api_urls.html">clientes.api_urls</a>&#39; from &#39;/app/clientes/api_urls.py&#39;&gt; (clientes_api:clientes_api) &#39;api/clientes/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../usuarios/api_urls.html">usuarios.api_urls</a>&#39; from &#39;/app/usuarios/api_urls.py&#39;&gt; (usuarios_api:usuarios_api) &#39;api/usuarios/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../monedas/urls.html">monedas.urls</a>&#39; from &#39;/app/monedas/urls.py&#39;&gt; (monedas:monedas) &#39;api/monedas/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../metodos_pago/urls.html">metodos_pago.urls</a>&#39; from &#39;/app/metodos_pago/urls.py&#39;&gt; (metodos_pago:metodos_pago) &#39;api/metodos-pago/&#39;&gt;, &lt;URLResolver &lt;module &#39;<a href="../tasas/urls.html">tasas.urls</a>&#39; from &#39;/app/tasas/urls.py&#39;&gt; (tasas:tasas) &#39;api/tasas/&#39;&gt;, &lt;URLPattern &#39;metodos-pago/&#39; [name=&#39;metodos_pago_pagina&#39;]&gt;, &lt;URLResolver &lt;module &#39;<a href="../usuarios/urls.html">usuarios.urls</a>&#39; from &#39;/app/usuarios/urls.py&#39;&gt; (usuarios:usuarios) &#39;&#39;&gt;]</span>
 
-        
+
     </div>
     <a class="headerlink" href="#urlpatterns"></a>
-    
-    
+
+
 
                 </section>
     </main>

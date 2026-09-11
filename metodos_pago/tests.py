@@ -77,15 +77,69 @@ class MetodoPagoBackendTests(TestCase):
     # AUTENTICACIÓN Y AUTORIZACIÓN
     # ==============================================================
 
-    def test_usuario_no_autenticado_es_redirigido_al_login(self):
+    def test_usuario_no_autenticado_recibe_401_json_en_api(self):
         """
-        Verifica que un usuario sin sesión OIDC es redirigido al inicio
-        de sesión antes de acceder al módulo.
+        Verifica que fetch no sea redirigido a Keycloak cuando no existe
+        una sesión OIDC.
         """
+        response = self.client.get(
+            "/api/metodos-pago/",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"error": "Autenticación requerida"})
+
+    def test_path_api_sin_accept_json_tambien_devuelve_401(self):
         response = self.client.get("/api/metodos-pago/")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"error": "Autenticación requerida"})
+
+    def test_usuario_no_autenticado_es_redirigido_en_vista_html(self):
+        response = self.client.get("/metodos-pago/")
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "/login/")
+
+    def test_sesion_expirada_devuelve_401_json_en_operaciones_api(self):
+        cliente = self.crear_cliente()
+        metodo = MetodoPago.objects.create(
+            cliente=cliente,
+            nombre="Efectivo",
+            tipo="EFECTIVO",
+            estado="ACTIVO",
+        )
+        rutas = (
+            ("get", "/api/metodos-pago/", None),
+            ("get", "/api/metodos-pago/consultar/", None),
+            ("post", "/api/metodos-pago/registrar/", {}),
+            ("post", f"/api/metodos-pago/editar/{metodo.id}/", {}),
+            ("post", f"/api/metodos-pago/estado/{metodo.id}/", {}),
+            ("put", f"/api/metodos-pago/editar/{metodo.id}/", {}),
+            ("delete", f"/api/metodos-pago/estado/{metodo.id}/", None),
+        )
+
+        for metodo_http, url, data in rutas:
+            with self.subTest(metodo=metodo_http, url=url):
+                session = self.client.session
+                session[SESSION_AUTENTICADO] = True
+                session[SESSION_USUARIO] = {"sub": "usuario-expirado"}
+                session[SESSION_ROLES] = ["ADMINISTRADOR"]
+                session[SESSION_EXPIRA_EN] = int(time.time()) - 1
+                session.save()
+                response = getattr(self.client, metodo_http)(
+                    url,
+                    data=data or {},
+                    content_type="application/json",
+                    HTTP_ACCEPT="application/json",
+                )
+
+                self.assertEqual(response.status_code, 401)
+                self.assertEqual(
+                    response.json(), {"error": "Autenticación requerida"}
+                )
+                self.assertNotIn(SESSION_AUTENTICADO, self.client.session)
 
     def test_usuario_sin_rol_administrador_recibe_403(self):
         """

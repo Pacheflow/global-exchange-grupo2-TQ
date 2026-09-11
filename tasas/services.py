@@ -293,15 +293,25 @@ def actualizar_tasa_comercial(
             }
         )
 
-    tasa_actual = (
+    tasas_del_par = (
         TasaComercial.objects
         .select_for_update()
         .filter(
             moneda_origen=moneda_origen,
             moneda_destino=moneda_destino,
-            vigente=True,
         )
+    )
+    tasa_actual = (
+        tasas_del_par
+        .filter(vigente=True)
         .first()
+    )
+    ultima_version = (
+        tasas_del_par
+        .order_by("-version")
+        .values_list("version", flat=True)
+        .first()
+        or 0
     )
 
     if tasa_actual is None:
@@ -319,7 +329,7 @@ def actualizar_tasa_comercial(
                 }
             )
 
-        version = 1
+        version = ultima_version + 1
 
     else:
         if compra_nueva is None:
@@ -332,9 +342,7 @@ def actualizar_tasa_comercial(
                 tasa_actual.venta
             )
 
-        version = (
-            tasa_actual.version + 1
-        )
+        version = ultima_version + 1
 
         tasa_actual.vigente = False
         tasa_actual.save(
@@ -356,3 +364,23 @@ def actualizar_tasa_comercial(
     nueva_tasa.save()
 
     return nueva_tasa
+
+
+@transaction.atomic
+def desactivar_tasa_comercial(tasa_id):
+    """Da de baja lógicamente una tasa sin eliminar su historial."""
+
+    tasa = (
+        TasaComercial.objects
+        .select_for_update()
+        .select_related("moneda_origen", "moneda_destino")
+        .get(pk=tasa_id)
+    )
+    if not tasa.vigente:
+        raise ValidationError(
+            {"tasa": "La tasa comercial ya se encuentra inactiva."}
+        )
+
+    tasa.vigente = False
+    tasa.save(update_fields=["vigente"])
+    return tasa

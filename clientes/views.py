@@ -139,16 +139,12 @@ def dar_de_baja_cliente(request, cliente_id):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "ANALISTA_CAMBIARIO")
+@requiere_roles_web("ADMINISTRADOR")
 @require_http_methods(["GET", "POST"])
 def segmentar_cliente(request, cliente_id):
     """Permite asignar o modificar la categoría de un cliente."""
 
-    roles = set(request.session.get("roles", []))
-    clientes_permitidos = Cliente.objects.all()
-    if "ADMINISTRADOR" not in roles:
-        clientes_permitidos = _clientes_asignados_a(request, clientes_permitidos)
-    cliente = get_object_or_404(clientes_permitidos, id=cliente_id)
+    cliente = get_object_or_404(Cliente, id=cliente_id)
 
     if request.method == "POST":
         form = SegmentacionClienteForm(

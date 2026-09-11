@@ -1,58 +1,22 @@
-# Sprint 1 — Estado Final
+# Sprint 1 — Estado verificado
 
-> Rama `frontend-integration`, HEAD `590f131`. Estado real verificado por código, pruebas y Jira.
+> Revisión de código y requisitos realizada el 10/09/2026 sobre la rama de corrección vigente.
 
-## Resumen
-
-El Sprint 1 está **funcionalmente completo**. Incluye la base técnica, identidad/Keycloak, usuarios, clientes, asociación Usuario–Cliente y la infraestructura Docker.
-
-## HU implementadas
-
-| HU | Funcionalidad | Estado real |
+| HU | Funcionalidad | Estado |
 |---|---|---|
-| HU-01 | Registro de usuario | Parcialmente implementado (flujo OIDC vía Keycloak; verificación de correo por Mailpit en dev) |
-| HU-02 | Verificación de correo | Parcialmente implementado (flujo funcional con Mailpit; alta admin no dispara verificación) |
-| HU-03 | Login SSO | Implementado (OIDC Authorization Code + PKCE, JWT RS256/JWKS, sesión, logout) |
-| HU-04 | Accesos/roles | Parcialmente implementado (roles backend funcionales; sin permisos granulares policies/scopes) |
-| HU-05 | Crear usuario | Implementado (vía Admin API Keycloak, mock en pruebas) |
-| HU-06 | Editar usuario | Implementado |
-| HU-07 | Baja de usuario | Implementado (deshabilitar en Keycloak) |
-| HU-08 | Asignar rol | Parcialmente implementado (funcional; depende de roles existentes en realm) |
-| HU-09 | Alta de cliente | Implementado (CRUD + API JSON) |
-| HU-10 | Consulta de clientes | Implementado |
-| HU-11 | Edición de cliente | Implementado |
-| HU-12 | Baja de cliente | Implementado (baja lógica: estado → INACTIVO) |
-| HU-13 | Segmentación | Implementado (categoría por cliente) |
-| HU-14 | Asociación Usuario–Cliente | Implementado |
-| HU-15 | Seleccionar cliente | Implementado |
-| HU-16 | Cambiar cliente | Implementado |
+| HU-01 | Autorregistro | Parcial: redirección al registro Keycloak y retorno OIDC implementados; la entrega real depende del SMTP configurado |
+| HU-02 | Verificación de correo | Parcial: `verifyEmail` y acción `VERIFY_EMAIL` están configurados; el alta administrativa deja `emailVerified=false`, pero no solicita automáticamente el envío |
+| HU-03 | Login, sesión y logout | Implementado: Authorization Code + PKCE, JWT RS256/JWKS, refresh server-side y cierre OIDC |
+| HU-04 | Acceso por rol | Implementado para el alcance RBAC comprobado; no se infiere una obligación de policies/scopes granulares |
+| HU-05 a HU-08 | Usuarios y roles | Implementado mediante Admin API de Keycloak |
+| HU-09 a HU-12 | CRUD y baja lógica de clientes | Implementado |
+| HU-13 | Segmentación de clientes | Implementado y restringido a ADMINISTRADOR según ERS/Jira |
+| HU-14 | Asociación usuario–cliente | Implementado |
+| HU-15 y HU-16 | Seleccionar/cambiar contexto | Implementado para todos los roles, limitado por asociación salvo ADMINISTRADOR |
 
-## Tareas técnicas
+## Observaciones abiertas
 
-| Elemento | Estado |
-|---|---|
-| TASK-01 Entorno de desarrollo | Configurado |
-| TASK-02 Ambiente Docker | Configurado (PostgreSQL, Keycloak, Mailpit, Django) |
-| TASK-03 GitFlow | Implementado (`feature → develop → main → tag`) |
-| TASK-04 Pruebas unitarias | 201 tests detectados, 201 pasando (post-corrección) |
-| TASK-05 Documentación técnica | Parcialmente (docs/ generada; pdoc no instalado) |
-| TASK-06 QA y cierre | Pendiente de verificación integral |
-| ASK-07 CHIA | Documentos en `docs/ia/` |
-
-## Pruebas
-
-- 201 tests ejecutados, 0 fallos (post-corrección 2026-09-06).
-- `manage.py check`: 0 incidencias.
-- `makemigrations --check --dry-run`: sin cambios.
-
-## Git
-
-- Cierre de Sprint 1 etiquetado como `v1.0.0` en commit `d7e8f8e` en rama `main`.
-- `develop` en `943375b`, ancestro de `main`.
-
-## Pendientes conocidos
-
-- Permisos granulares (policies/scopes) no implementados.
-- Verificación de correo por alta administrativa no dispara automáticamente el envío.
-- pdoc no configurado ni generado; faltan 14 docstrings.
-- E2E vivo con Keycloak real no verificado en la última sesión (servicios levantados en sesiones anteriores).
+- Mailpit permite verificar el flujo en desarrollo, pero no demuestra entrega a correo externo.
+- El reenvío explícito de correo de verificación no tiene una función propia en la aplicación; no se amplió el alcance sin un criterio de aceptación inequívoco.
+- El alta administrativa y la verificación siguen siendo pasos separados.
+- `pdoc` está incluido en dependencias, existe `scripts/generate_docs.py` y hay documentación generada; la nota histórica que lo marcaba ausente quedó obsoleta.

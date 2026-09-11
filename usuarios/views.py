@@ -9,10 +9,12 @@ from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from jwt.exceptions import InvalidTokenError
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
 from .services.keycloak import asignar_rol_usuario
 from .decorators import requiere_autenticacion, requiere_rol, requiere_roles_web
 from .keycloak import (
@@ -210,7 +212,12 @@ def callback(request):
     try:
         tokens = response.json()
         claims = validar_access_token(tokens.get("access_token"))
-        establecer_sesion_oidc(request, claims)
+        establecer_sesion_oidc(
+            request,
+            claims,
+            refresh_token=tokens.get("refresh_token"),
+            refresh_expires_in=tokens.get("refresh_expires_in"),
+        )
         id_token = tokens.get("id_token")
         if id_token:
             request.session["kc_id_token"] = id_token
@@ -270,6 +277,7 @@ def acceso_administrador(request):
     )
 
 
+@ensure_csrf_cookie
 @require_GET
 def home(request):
     if request.session.get("kc_user"):
@@ -352,7 +360,51 @@ def dashboard(request):
         (DASHBOARD_POR_ROL[rol] for rol in DASHBOARD_POR_ROL if rol in roles),
         "frontend/dashboard_usuario.html",
     )
-    return render(request, template, {"display_name": display_name})
+    context = {"display_name": display_name}
+    if "ADMINISTRADOR" in roles:
+        from clientes.models import Cliente
+        from metodos_pago.models import MetodoPago
+        from monedas.models import Moneda
+
+        context.update(
+            clientes_count=Cliente.objects.count(),
+            monedas_activas_count=Moneda.objects.activas().count(),
+            metodos_pago_count=MetodoPago.objects.count(),
+        )
+    elif roles.intersection({"CAJERO", "ANALISTA_CAMBIARIO"}):
+        from clientes.models import UsuarioCliente
+        from monedas.models import Moneda
+        from tasas.models import TasaComercial
+
+        user_id = profile.get("sub", "")
+        context.update(
+            clientes_asociados_count=UsuarioCliente.objects.filter(
+                keycloak_user_id=user_id,
+                activo=True,
+            ).count(),
+            monedas_activas_count=Moneda.objects.activas().count(),
+            tasas_comerciales_vigentes_count=TasaComercial.objects.filter(
+                vigente=True
+            ).count(),
+        )
+        if "ANALISTA_CAMBIARIO" in roles:
+            from tasas.simulador import simular_conversion
+
+            for codigo, context_key in (
+                ("USD", "tasa_usd_pyg"),
+                ("EUR", "tasa_eur_pyg"),
+            ):
+                try:
+                    origen = Moneda.objects.get(codigo=codigo, estado="ACTIVA")
+                    destino = Moneda.objects.get(codigo="PYG", estado="ACTIVA")
+                    context[context_key] = simular_conversion(
+                        moneda_origen_id=origen.id,
+                        moneda_destino_id=destino.id,
+                        monto="1",
+                    )
+                except (Moneda.DoesNotExist, ValidationError):
+                    context[context_key] = None
+    return render(request, template, context)
 
 
 @requiere_roles_web("ADMINISTRADOR")
@@ -428,8 +480,13 @@ def crear_usuario(request):
                 admin_request("/users", method="POST", payload=payload)
                 query = urlencode({"username": payload["username"], "exact": "true"})
                 created = admin_request(f"/users?{query}") or []
-                if created:
-                    actualizar_roles_usuario(created[0]["id"], request.POST.getlist("roles") or ["USUARIO"])
+                roles_directos = [
+                    rol
+                    for rol in request.POST.getlist("roles")
+                    if rol != "USUARIO"
+                ]
+                if created and roles_directos:
+                    actualizar_roles_usuario(created[0]["id"], roles_directos)
                 messages.success(request, "Usuario creado con sus roles de negocio.")
                 return redirect("usuarios:list")
             except KeycloakError as exc:
@@ -439,7 +496,7 @@ def crear_usuario(request):
         "mode": "create",
         "form_values": form_values,
         "business_roles": ROLES_NEGOCIO,
-        "selected_roles": request.POST.getlist("roles") or ["USUARIO"],
+        "selected_roles": request.POST.getlist("roles"),
     })
 
 
@@ -571,6 +628,14 @@ def simulador(request):
 
 @requiere_roles_web(*ROLES_PANEL)
 @require_GET
+def seguridad(request):
+    """Explica las protecciones activas sin exponer detalles sensibles."""
+
+    return render(request, "frontend/seguridad.html")
+
+
+@requiere_roles_web("ADMINISTRADOR")
+@require_GET
 def pagos(request):
     return render(request, "frontend/pagos.html")
 
@@ -607,7 +672,7 @@ def crear_usuario_api(request):
             status=400,
         )
 
-    roles = datos.get("roles") or ["USUARIO"]
+    roles = datos.get("roles") or []
     if not isinstance(roles, list):
         return JsonResponse(
             {"error": "El campo roles debe ser una lista."},
@@ -629,8 +694,9 @@ def crear_usuario_api(request):
         admin_request("/users", method="POST", payload=payload)
         query = urlencode({"username": username, "exact": "true"})
         created = admin_request(f"/users?{query}") or []
-        if created:
-            actualizar_roles_usuario(created[0]["id"], roles)
+        roles_directos = [rol for rol in roles if rol != "USUARIO"]
+        if created and roles_directos:
+            actualizar_roles_usuario(created[0]["id"], roles_directos)
     except KeycloakError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 

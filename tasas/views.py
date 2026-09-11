@@ -4,16 +4,16 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
-from usuarios.decorators import (
-    requiere_alguno_de_roles,
-    requiere_autenticacion,
-    requiere_rol,
-)
+from usuarios.decorators import requiere_alguno_de_roles, requiere_rol
 from usuarios.services.keycloak import SESSION_USUARIO
 
 from monedas.models import Moneda
 from .models import TasaComercial
-from .services import actualizar_tasa_comercial, consultar_tasas_referencia
+from .services import (
+    actualizar_tasa_comercial,
+    consultar_tasas_referencia,
+    desactivar_tasa_comercial,
+)
 from .simulador import simular_conversion
 
 
@@ -34,13 +34,34 @@ def _serializar_tasa_referencia(tasa, *, desactualizada):
     }
 
 
-@requiere_autenticacion
+def _serializar_tasa_comercial_vigente(tasa):
+    """Convierte una tasa comercial vigente para la consulta pública."""
+
+    return {
+        "id": tasa.id,
+        "tipo": "COMERCIAL",
+        "par": f"{tasa.moneda_origen.codigo}/{tasa.moneda_destino.codigo}",
+        "moneda_origen": tasa.moneda_origen.codigo,
+        "moneda_destino": tasa.moneda_destino.codigo,
+        "compra": str(tasa.compra),
+        "venta": str(tasa.venta),
+        "vigente": tasa.vigente,
+        "version": tasa.version,
+        "fecha_hora": tasa.fecha_registro.isoformat(),
+    }
+
+
 @require_GET
 def consultar_tasas(request):
-    """Consulta tasas de referencia e informa su estado de frescura."""
+    """Consulta tasas externas de referencia y comerciales vigentes."""
 
     resultado = consultar_tasas_referencia()
     desactualizada = resultado.estado == "desactualizado"
+    tasas_comerciales = (
+        TasaComercial.objects
+        .filter(vigente=True)
+        .select_related("moneda_origen", "moneda_destino")
+    )
     payload = {
         "estado": resultado.estado,
         "mensaje": resultado.mensaje,
@@ -51,14 +72,16 @@ def consultar_tasas(request):
             )
             for tasa in resultado.tasas
         ],
-        "tasas_comerciales": [],
+        "tasas_comerciales": [
+            _serializar_tasa_comercial_vigente(tasa)
+            for tasa in tasas_comerciales
+        ],
     }
 
     return JsonResponse(
         payload,
         status=503 if resultado.estado == "indisponible" else 200,
     )
-
 
 def _serializar_tasa(tasa):
     """Convierte una tasa comercial en datos aptos para JSON."""
@@ -142,6 +165,32 @@ def administrar_tasa_comercial(request):
             "tasa": _serializar_tasa(tasa),
         },
         status=201,
+    )
+
+
+@require_POST
+@requiere_rol("ANALISTA_CAMBIARIO")
+def desactivar_tasa_comercial_view(request, tasa_id):
+    """Desactiva una tasa comercial conservando su versión histórica."""
+
+    try:
+        tasa = desactivar_tasa_comercial(tasa_id)
+    except TasaComercial.DoesNotExist:
+        return JsonResponse(
+            {"error": "La tasa comercial no existe."},
+            status=404,
+        )
+    except ValidationError as error:
+        return JsonResponse(
+            {"errores": error.message_dict},
+            status=400,
+        )
+
+    return JsonResponse(
+        {
+            "mensaje": "Tasa comercial desactivada correctamente.",
+            "tasa": _serializar_tasa(tasa),
+        }
     )
 
 

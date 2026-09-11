@@ -1,93 +1,88 @@
 # Autenticación Keycloak — Global Exchange
 
-> Estado real verificado, rama `frontend-integration`, HEAD `590f131`.
+## Identidad y flujo OIDC
 
-## Identidad: Keycloak como proveedor único
+Keycloak es la fuente de identidad y roles. Django usa Authorization Code con
+PKCE, valida el `state` y canjea el código desde el backend. El navegador nunca
+recibe ni almacena los tokens.
 
-Global Exchange **no crea usuarios directamente**. Toda identidad (registro, login, logout, verificación de correo, roles) vive en Keycloak. Django gestiona la sesión local y valida tokens JWT.
-
-## Flujo OIDC
-
-```
-Usuario → Django (login/) → Keycloak (OIDC Authorization Code + PKCE)
-  → Keycloak autentica → redirige a callback/ con code + state
-  → Django intercambia code por token (S256 verifier)
-  → Valida token RS256: issuer, audience, expiración, JWKS
-  → Guarda claims en sesión (sub, email, nombre, roles, realm)
-  → Redirige a panel/ o destino configurado
+```text
+Navegador → Django /login/ → Keycloak
+  → callback con code + state
+  → Django canjea code + PKCE verifier
+  → valida access token (RS256, issuer, azp/audience, exp y usuario verificado)
+  → guarda identidad, roles, id token y refresh token en la sesión Django
+  → antes de vencer el access token, Django renueva y revalida los claims
 ```
 
-### PKCE (Proof Key for Code Exchange)
+## Access token, refresh token y sesión Django
 
-- `code_verifier` aleatorio generado en login, almacenado en sesión.
-- `code_challenge = S256(code_verifier)` enviado a Keycloak.
-- En callback se verifica el `state` y se intercambia el código con el `code_verifier`.
+- El access token es corto y solo se usa en el backend para validar los claims.
+  No se guarda en la sesión.
+- El refresh token se guarda exclusivamente en la sesión server-side. No se
+  incluye en HTML, JSON, JavaScript, URLs ni logs.
+- `oidc_expires_at` conserva el `exp` del access token actual. Ya no determina
+  por sí solo la duración de la sesión Django.
+- Cuando faltan `OIDC_REFRESH_MARGIN_SECONDS` o menos para `exp`, Django llama
+  al token endpoint con `grant_type=refresh_token`.
+- Cada access token renovado pasa por la misma validación JWT que el inicial;
+  la identidad y los roles se vuelven a obtener de sus claims.
+- Si Keycloak rota el refresh token, Django reemplaza el anterior. El id token
+  también se actualiza cuando la respuesta incluye uno nuevo.
 
-### Validación del token
+La política local usa `OIDC_SESSION_IDLE_SECONDS` (1800 por defecto) y la limita
+al `refresh_expires_in` informado por Keycloak. La cookie/sesión se prolonga al
+renovar correctamente, no en cada request. Keycloak conserva la autoridad real:
+su timeout idle, su lifespan máximo, el cierre de SSO, la deshabilitación del
+usuario o un refresh inválido hacen fallar la renovación. Django entonces limpia
+todo el contexto OIDC y exige autenticación nueva.
 
-- **Firma**: RS256, validada contra JWKS del realm (`/.well-known/openid-configuration` → `jwks_uri`).
-- **Issuer**: `KEYCLOAK_EXPECTED_ISSUER` (default `http://localhost:8080/realms/global-exchange`).
-- **Audience**: `KEYCLOAK_CLIENT_ID` (default `global-exchange-web`).
-- **Expiración**: verificada automáticamente por PyJWT.
+No se intenta calcular localmente el máximo absoluto de SSO: Keycloak lo aplica
+al token endpoint. Un cliente antiguo sin refresh token conserva el comportamiento
+compatible y solo es válido hasta el `exp` de su access token.
 
-## Configuración Keycloak
+| Variable | Default | Propósito |
+|---|---:|---|
+| `OIDC_REFRESH_MARGIN_SECONDS` | 60 | Anticipación para renovar |
+| `OIDC_SESSION_IDLE_SECONDS` | 1800 | Límite local renovable de inactividad |
 
-| Campo | Valor (dev) |
-|---|---|
-| Realm | `global-exchange` |
-| Client ID (web) | `global-exchange-web` |
-| Client ID (admin API) | `global-exchange-admin-api` |
-| Auth server | `http://localhost:8080` |
-| Expected issuer | `http://localhost:8080/realms/global-exchange` |
-| Realm export | `keycloak/global-exchange-realm.json` |
+## Expiración y respuestas
 
-Las credenciales están en `.env` y no se exponen en documentación pública.
+Las rutas bajo `/api/` responden `401` con
+`{"error": "Autenticación requerida"}` cuando la sesión no puede renovarse.
+No inician un redirect OIDC. El JavaScript compartido muestra un mensaje de
+sesión expirada y vuelve de forma controlada a `/login/`.
 
-## Servicio Admin API (`usuarios/services/keycloak.py`)
+Las vistas HTML protegidas mantienen el redirect `302` a login. Una falta de
+rol devuelve `403`: JSON en APIs y página HTML en vistas web.
 
-Cliente HTTP que usa `KEYCLOAK_ADMIN_CLIENT_ID` y `KEYCLOAK_ADMIN_CLIENT_SECRET` para obtener un token de servicio (client_credentials) y ejecutar operaciones administrativas:
+## Logout
 
-- Listar usuarios del realm
-- Crear usuario (con contraseña temporal)
-- Editar atributos de usuario
-- Deshabilitar usuario
-- Asignar/quitar roles de realm
+Django conserva el `id_token` como hint para el logout OIDC. Al salir ejecuta
+`request.session.flush()`, que elimina identidad, claims, roles, expiraciones,
+id token y refresh token, y luego redirige al endpoint de logout de Keycloak.
 
-## Decoradores de autorización (`usuarios/decorators.py`)
+## Roles de negocio y rol por defecto
 
-| Decorador | Comportamiento |
-|---|---|
-| `@requiere_autenticacion` | Verifica sesión activa; si no, redirige a login OIDC |
-| `@requiere_rol(rol)` | Verifica que el usuario tenga el rol indicado; 403 si no |
-| `@requiere_alguno_de_roles(*roles)` | Verifica al menos uno de los roles indicados |
-| `@requiere_roles_web` | Para endpoints web que requieren al menos un rol en panel |
+Los únicos roles de negocio son `USUARIO`, `CAJERO`, `ANALISTA_CAMBIARIO` y
+`ADMINISTRADOR`. El backend solo acepta esos valores desde
+`realm_access.roles`.
 
-Estos decoradores se aplican a vistas API y web. **Backend siempre valida**; ocultar opciones de UI no es suficiente.
+`default-roles-global-exchange` es un rol composite y contiene `USUARIO`.
+Por eso una cuenta nueva recibe `USUARIO` como rol **efectivo heredado**, aunque
+la consola no lo muestre como asignación directa. No corresponde asignarlo de
+nuevo usuario por usuario mediante Admin API.
 
-## Roles de negocio
+Un alta con `CAJERO`, `ANALISTA_CAMBIARIO` o `ADMINISTRADOR` suma ese rol directo
+al `USUARIO` heredado. Ninguno de esos tres roles elevados se hereda por defecto.
+El export `keycloak/global-exchange-realm.json` y el reconciliador
+`docker/keycloak/configure-admin-client.sh` mantienen esta composición de forma
+reproducible.
 
-| Rol | Acceso principal |
-|---|---|
-| `ADMINISTRADOR` | Todo el panel: usuarios, clientes, monedas, métodos de pago, tasas (lectura), roles |
-| `ANALISTA_CAMBIARIO` | Tasas comerciales (escritura), tasas de referencia (lectura), simulador |
-| `CAJERO` | Panel general (pendiente de cajas) |
-| `USUARIO` | Consulta básica del panel |
+## Seguridad preservada
 
-Los roles se configuran en el realm de Keycloak y se asignan a usuarios. El backend los lee del token JWT (claim `realm_access.roles`).
-
-## Sesión Django
-
-| Configuración | Valor |
-|---|---|
-| `SESSION_COOKIE_HTTPONLY` | `True` |
-| `SESSION_COOKIE_SECURE` | `False` (dev) |
-| `SESSION_COOKIE_SAMESITE` | `Lax` |
-| `CSRF_COOKIE_SECURE` | `False` (dev) |
-
-La sesión Django almacena los claims del token para acceso rápido sin reconsultar Keycloak.
-
-## Límites conocidos
-
-- **No hay permisos granulares** (policies/scopes de negocio). Solo roles a nivel de realm.
-- El alta administrativa de usuarios **no dispara automáticamente el correo de verificación**; el autorregistro externo sí.
-- No hay invalidación de sesión en Keycloak al hacer logout desde Django (solo sesión local se destruye).
+- PKCE S256 y validación de `state` siguen activos.
+- Todo access token inicial o renovado valida firma, issuer, audiencia/`azp`,
+  expiración y correo verificado.
+- Los tokens quedan fuera de respuestas, almacenamiento web y logs.
+- Los secretos administrativos se toman de settings y no están documentados.

@@ -38,6 +38,10 @@
       },
       body: JSON.stringify(payload || {})
     }).then(function (response) {
+      var authError = window.GEApp && window.GEApp.authenticationError
+        ? window.GEApp.authenticationError(response)
+        : null;
+      if (authError) throw authError;
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok) throw new Error(data.error || 'No fue posible completar la operación.');
         return data;

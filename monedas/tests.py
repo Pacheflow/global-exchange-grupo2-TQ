@@ -291,6 +291,26 @@ class MonedaBackendTests(TestCase):
         self.assertEqual(len(data["monedas"]), 1)
         self.assertEqual(data["monedas"][0]["codigo"], "USD")
 
+    def test_catalogo_activo_es_publico(self):
+        Moneda.objects.create(
+            codigo="PYG",
+            nombre="Guaraní",
+            simbolo="Gs.",
+            estado="ACTIVA",
+        )
+
+        response = self.client.get("/api/monedas/activas/")
+
+        self.assertEqual(response.status_code, 200)
+        moneda = response.json()["monedas"][0]
+        self.assertEqual(moneda["codigo"], "PYG")
+        self.assertEqual(
+            set(moneda),
+            {"id", "codigo", "nombre", "simbolo", "estado"},
+        )
+        self.assertNotIn("fecha_registro", moneda)
+        self.assertNotIn("fecha_actualizacion", moneda)
+
     @patch("usuarios.decorators.sesion_oidc_vigente", return_value=True)
     def test_editar_con_codigo_existente_devuelve_409(self, _mock_sesion):
         self.autenticar()

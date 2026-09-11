@@ -7,7 +7,7 @@
   var body = page.querySelector('[data-api-body]');
   var csrfInput = page.querySelector('input[name="csrfmiddlewaretoken"]');
   var csrfToken = csrfInput ? csrfInput.value : '';
-  var state = { items: [], clients: [], currencies: [], history: [] };
+  var state = { items: [], clients: [], currencies: [], history: [], rateQuery: '' };
 
   function esc(value) {
     return String(value == null ? '' : value)
@@ -51,6 +51,10 @@
       options.headers['X-CSRFToken'] = csrfToken;
     }
     return fetch(url, options).then(function (response) {
+      var authError = window.GEApp && window.GEApp.authenticationError
+        ? window.GEApp.authenticationError(response)
+        : null;
+      if (authError) throw authError;
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok) throw new Error(errorMessage(data, 'No fue posible completar la operación.'));
         return data;
@@ -59,7 +63,10 @@
   }
 
   function emptyRow(message) {
-    body.innerHTML = '<tr><td colspan="6" class="ge-frontend-note">' + esc(message) + '</td></tr>';
+    var columns = page.dataset.geApi === 'rates'
+      ? 7
+      : (page.dataset.geApi === 'currencies' && page.dataset.canManage !== 'true' ? 5 : 6);
+    body.innerHTML = '<tr><td colspan="' + columns + '" class="ge-frontend-note">' + esc(message) + '</td></tr>';
   }
 
   function fail(error) {
@@ -107,13 +114,15 @@
     if (!items.length) return emptyRow('No hay monedas configuradas.');
     body.innerHTML = items.map(function (item) {
       var active = item.estado === 'ACTIVA';
-      var actions = '<button class="ge-btn-ghost" data-action="edit" style="font-size:11px;padding:3px 8px">Editar</button>' +
-        '<button class="ge-btn-ghost ge-btn-ghost--danger" data-action="state" style="font-size:11px;padding:3px 8px">' + (active ? 'Desactivar' : 'Activar') + '</button>';
+      var actions = page.dataset.canManage === 'true'
+        ? '<td><div class="ge-btn-row"><button class="ge-btn-ghost" data-action="edit" style="font-size:11px;padding:3px 8px">Editar</button>' +
+          '<button class="ge-btn-ghost ge-btn-ghost--danger" data-action="state" style="font-size:11px;padding:3px 8px">' + (active ? 'Desactivar' : 'Activar') + '</button></div></td>'
+        : '';
       return '<tr data-id="' + item.id + '"><td style="font-size:22px">' + flag(item.codigo) + '</td>' +
         '<td><span class="ge-mono" style="font-weight:700">' + esc(item.codigo) + '</span></td>' +
         '<td>' + esc(item.nombre) + '</td><td class="ge-mono">' + esc(item.simbolo) + '</td>' +
         '<td><span class="ge-state-dot ' + (active ? 'ge-state-dot--on' : '') + '"><i></i>' + (active ? 'Activa' : 'Inactiva') + '</span></td>' +
-        '<td><div class="ge-btn-row">' + actions + '</div></td></tr>';
+        actions + '</tr>';
     }).join('');
   }
 
@@ -186,18 +195,33 @@
 
   function renderRates(history) {
     state.history = history;
-    var current = history.filter(function (rate) { return rate.vigente; });
-    if (!current.length) return emptyRow('No hay tasas comerciales configuradas.');
+    var ratesByPair = {};
+    history.forEach(function (rate) {
+      var key = pairKey(rate);
+      if (!ratesByPair[key] || rate.vigente) ratesByPair[key] = rate;
+    });
+    var current = Object.keys(ratesByPair).map(function (key) { return ratesByPair[key]; }).filter(function (rate) {
+      var pair = (rate.moneda_origen.codigo + '/' + rate.moneda_destino.codigo).toLowerCase();
+      return !state.rateQuery || pair.indexOf(state.rateQuery) !== -1;
+    });
+    if (!current.length) return emptyRow(state.rateQuery ? 'No hay tasas comerciales que coincidan con la búsqueda.' : 'No hay tasas comerciales configuradas.');
     body.innerHTML = current.map(function (rate) {
       var previous = history.find(function (candidate) { return pairKey(candidate) === pairKey(rate) && candidate.id !== rate.id; });
       var change = previous ? ((Number(rate.compra) - Number(previous.compra)) / Number(previous.compra)) * 100 : 0;
       var trendClass = change > 0 ? 'ge-trend-up' : change < 0 ? 'ge-trend-down' : '';
       var trend = change > 0 ? '↑ ' : change < 0 ? '↓ ' : '— ';
       var pair = rate.moneda_origen.codigo + '/' + rate.moneda_destino.codigo;
-      var edit = '<button class="ge-btn-ghost" data-action="edit" style="font-size:11px;padding:3px 8px">Editar</button>';
+      var edit = page.dataset.canManage === 'true' && rate.vigente
+        ? '<button class="ge-btn-ghost" data-action="edit" style="font-size:11px;padding:3px 8px">Editar</button>' +
+          '<button class="ge-btn-ghost ge-btn-ghost--danger" data-action="deactivate" style="font-size:11px;padding:3px 8px">Desactivar</button>'
+        : '';
+      var status = rate.vigente
+        ? '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>'
+        : '<span class="ge-state-dot"><i></i>Inactiva</span>';
       return '<tr data-id="' + rate.id + '"><td><div class="ge-mono-cell"><span style="font-size:18px">' + flag(rate.moneda_origen.codigo) + '</span><strong class="ge-mono">' + esc(pair) + '</strong></div></td>' +
         '<td class="ge-mono">' + number(rate.compra) + '</td><td class="ge-mono">' + number(rate.venta) + '</td>' +
         '<td><span class="' + trendClass + '">' + trend + (previous ? Math.abs(change).toFixed(2) + '%' : '') + '</span></td>' +
+        '<td>' + status + '</td>' +
         '<td class="ge-frontend-note">' + esc(relativeDate(rate.fecha_registro)) + '</td><td><div class="ge-btn-row">' + edit +
         '<button class="ge-btn-ghost" data-action="history" style="font-size:11px;padding:3px 8px">Historial</button></div></td></tr>';
     }).join('');
@@ -225,7 +249,7 @@
       field('MONEDA DE DESTINO', '<select class="ge-input" name="destino" required>' + currencyOptions(destination) + '</select>') + '</div><div class="ge-form-grid">' +
       field('PRECIO COMPRA', '<input class="ge-input ge-mono" type="number" min="0.000001" step="0.000001" name="compra" required value="' + esc(rate ? rate.compra : '') + '">') +
       field('PRECIO VENTA', '<input class="ge-input ge-mono" type="number" min="0.000001" step="0.000001" name="venta" required value="' + esc(rate ? rate.venta : '') + '">') + '</div></form>';
-    dialog('ge-rate-form', rate ? 'Editar tasa' : 'Actualizar tasa', content, 'Confirmar actualización', function (box, close) {
+    dialog('ge-rate-form', rate ? 'Editar tasa comercial' : 'Nueva tasa comercial', content, rate ? 'Guardar nueva versión' : 'Crear tasa comercial', function (box, close) {
       var form = box.querySelector('form');
       if (!form.reportValidity()) return false;
       if (form.elements.origen.value === form.elements.destino.value) {
@@ -242,14 +266,22 @@
   function rateHistory(rate) {
     var entries = state.history.filter(function (candidate) { return pairKey(candidate) === pairKey(rate); });
     var rows = entries.map(function (entry) {
-      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
+      var pair = entry.moneda_origen.codigo + '/' + entry.moneda_destino.codigo;
+      var status = entry.vigente ? '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>' : '<span class="ge-state-dot"><i></i>Histórica</span>';
+      var user = entry.usuario_username || entry.usuario_id || '—';
+      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + esc(pair) + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td>' + status + '</td><td>' + esc(user) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
     }).join('');
-    dialog('ge-rate-history', 'Histórico de tasas', '<div class="ge-card" style="overflow:auto"><table class="ge-table"><thead><tr><th>Versión</th><th>Compra</th><th>Venta</th><th>Fecha</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'Cerrar');
+    dialog('ge-rate-history', 'Historial de tasa comercial', '<div class="ge-card" style="overflow:auto"><table class="ge-table"><thead><tr><th>Versión</th><th>Par</th><th>Compra</th><th>Venta</th><th>Estado</th><th>Usuario</th><th>Fecha</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'Cerrar');
   }
 
   function initRates() {
     loadRates();
     var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
+    var search = page.querySelector('.ge-search-box input');
+    if (search) search.addEventListener('input', function () {
+      state.rateQuery = search.value.trim().toLowerCase();
+      renderRates(state.history);
+    });
     if (primary) primary.addEventListener('click', function () {
       if (page.dataset.canManage !== 'true') return notify('Solo un analista cambiario puede actualizar tasas.', 'warning');
       rateForm(null);
@@ -263,6 +295,17 @@
       if (button.dataset.action === 'edit') {
         if (page.dataset.canManage !== 'true') return notify('Solo un analista cambiario puede actualizar tasas.', 'warning');
         rateForm(rate);
+      }
+      if (button.dataset.action === 'deactivate') {
+        if (page.dataset.canManage !== 'true' || !rate.vigente) return notify('Solo un analista cambiario puede desactivar tasas vigentes.', 'warning');
+        dialog('ge-rate-deactivate', 'Desactivar tasa comercial',
+          '<p>La tasa <strong>' + esc(rate.moneda_origen.codigo + '/' + rate.moneda_destino.codigo) + '</strong> dejará de estar vigente y permanecerá en el historial.</p>',
+          'Desactivar', function (_box, close) {
+            request(endpoint(page.dataset.deactivateUrl, rate.id), { method: 'POST', body: JSON.stringify({}) })
+              .then(function (data) { close(); notify(data.mensaje); loadRates(); })
+              .catch(function (error) { notify(error.message, 'error'); });
+            return false;
+          }, true);
       }
       if (button.dataset.action === 'history') rateHistory(rate);
     });
@@ -341,6 +384,8 @@
     var status = page.querySelector('[data-reference-status]');
     var message = page.querySelector('[data-reference-message]');
     var items = data.tasas_referencia || [];
+    var commercialBody = page.querySelector('[data-commercial-rates]');
+    var commercialItems = data.tasas_comerciales || [];
     if (status) {
       status.textContent = {
         actualizado: 'Actualizadas',
@@ -355,6 +400,26 @@
       message.className = data.estado === 'desactualizado'
         ? 'ge-warning-banner'
         : 'ge-inline-banner';
+    }
+    if (commercialBody) {
+      commercialBody.setAttribute('aria-busy', 'false');
+      if (!commercialItems.length) {
+        commercialBody.innerHTML = '<article class="ge-card ge-empty"><strong>Sin tasas comerciales vigentes</strong>' +
+          '<p>Actualmente no existen tasas comerciales vigentes para mostrar.</p></article>';
+      } else {
+        commercialBody.innerHTML = commercialItems.map(function (item) {
+          return '<article class="ge-card" style="padding:24px">' +
+            '<div class="ge-quote-head"><div class="ge-quote-id"><span style="font-size:24px">' +
+            flag(item.moneda_origen) + '</span><div><strong class="ge-mono">' +
+            esc(item.par) + '</strong><span class="ge-frontend-note">Tasa comercial</span></div></div>' +
+            '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span></div>' +
+            '<div class="ge-quote-rates"><div><small>COMPRA</small><strong class="ge-mono">' +
+            number(item.compra) + '</strong></div><div class="ge-quote-divider"></div>' +
+            '<div><small>VENTA</small><strong class="ge-mono">' + number(item.venta) + '</strong></div></div>' +
+            '<div class="ge-frontend-note" style="text-align:center">Actualizada ' +
+            esc(relativeDate(item.fecha_hora)) + '</div></article>';
+        }).join('');
+      }
     }
     body.setAttribute('aria-busy', 'false');
     if (!items.length) {
@@ -383,7 +448,9 @@
 
   function initReferenceRates() {
     request(page.dataset.listUrl).then(renderReferenceRates).catch(function (error) {
+      var commercialBody = page.querySelector('[data-commercial-rates]');
       body.setAttribute('aria-busy', 'false');
+      if (commercialBody) commercialBody.setAttribute('aria-busy', 'false');
       body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
         esc(error.message) + '</p></article>';
       notify(error.message, 'error');
@@ -396,7 +463,9 @@
     var from = root.querySelector('[data-sim-from]');
     var to = root.querySelector('[data-sim-to]');
     var result = root.querySelector('[data-sim-result]');
+    var delivered = root.querySelector('[data-sim-delivered]');
     var rate = root.querySelector('[data-sim-rate]');
+    var rateType = root.querySelector('[data-sim-rate-type]');
     var updated = root.querySelector('[data-sim-updated]');
     var error = root.querySelector('[data-sim-error]');
     var swap = root.querySelector('[data-sim-swap]');
@@ -406,8 +475,11 @@
       error.textContent = message;
       error.hidden = false;
       result.textContent = '—';
+      delivered.textContent = '—';
       rate.textContent = '—';
+      rateType.textContent = '—';
       updated.textContent = '—';
+      root.setAttribute('aria-busy', 'false');
     }
 
     function clearError() {
@@ -421,7 +493,9 @@
       var value = Number(raw);
       if (!raw) {
         result.textContent = '—';
+        delivered.textContent = '—';
         rate.textContent = '—';
+        rateType.textContent = '—';
         updated.textContent = '—';
         return;
       }
@@ -434,6 +508,8 @@
         return;
       }
       result.textContent = 'Calculando…';
+      delivered.textContent = 'Calculando…';
+      root.setAttribute('aria-busy', 'true');
       request(page.dataset.simulateUrl, {
         method: 'POST',
         body: JSON.stringify({
@@ -443,9 +519,12 @@
         })
       }).then(function (data) {
         result.textContent = number(data.resultado) + ' ' + data.moneda_destino;
+        delivered.textContent = number(data.monto) + ' ' + data.moneda_origen;
         rate.textContent = '1 ' + data.moneda_origen + ' = ' +
           number(data.tasa) + ' ' + data.moneda_destino;
+        rateType.textContent = data.tipo_tasa || '—';
         updated.textContent = new Date(data.fecha_hora).toLocaleString('es-PY');
+        root.setAttribute('aria-busy', 'false');
       }).catch(function (requestError) {
         showError(requestError.message || 'No fue posible realizar la simulación.');
       });
@@ -485,6 +564,7 @@
       simulate();
       window.setTimeout(function () { swap.classList.remove('is-swapping'); }, 320);
     });
+
   }
 
   if (page.dataset.geApi === 'currencies') initCurrencies();
