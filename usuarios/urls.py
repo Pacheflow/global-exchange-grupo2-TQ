@@ -11,6 +11,7 @@ urlpatterns = [
     path("callback/", views.callback, name="callback"),
     path("logout/", views.logout, name="logout"),
     path("panel/", views.dashboard, name="dashboard"),
+    path("seguridad/", views.seguridad, name="seguridad"),
     path("roles-permisos/", views.roles_permisos, name="roles_permisos"),
     path("usuarios/", views.usuarios, name="list"),
     path("usuarios/nuevo/", views.crear_usuario, name="create"),

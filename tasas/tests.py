@@ -68,6 +68,20 @@ class TasaComercialTests(TestCase):
             content_type="application/json",
         )
 
+    def crear_tasa_vigente(self):
+        """Crea mediante la API la tasa base usada en pruebas de baja."""
+        self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
+        response = self.enviar_tasa(
+            {
+                "moneda_origen_id": self.usd.id,
+                "moneda_destino_id": self.pyg.id,
+                "compra": "7200",
+                "venta": "7300",
+            }
+        )
+        self.assertEqual(response.status_code, 201)
+        return TasaComercial.objects.get()
+
     def test_usuario_anonimo_no_puede_modificar_tasa(self):
         response = self.enviar_tasa(
             {
@@ -94,6 +108,21 @@ class TasaComercialTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_administrador_no_puede_crear_ni_modificar_tasa(self):
+        self.autenticar_con_roles(["ADMINISTRADOR"])
+
+        response = self.enviar_tasa(
+            {
+                "moneda_origen_id": self.usd.id,
+                "moneda_destino_id": self.pyg.id,
+                "compra": "7200",
+                "venta": "7300",
+            }
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_administrador_puede_consultar_el_historial_sin_modificar_tasas(self):
         self.autenticar_con_roles(["ADMINISTRADOR"])
@@ -131,6 +160,13 @@ class TasaComercialTests(TestCase):
             tasa.usuario_id,
             "analista-keycloak-1",
         )
+
+        historial = self.client.get(
+            reverse("tasas:historial_tasas_comerciales")
+        )
+        self.assertEqual(historial.status_code, 200)
+        self.assertEqual(len(historial.json()["tasas"]), 1)
+        self.assertTrue(historial.json()["tasas"][0]["vigente"])
 
     def test_rechaza_tasa_menor_o_igual_a_cero(self):
         self.autenticar_con_roles(
@@ -368,3 +404,119 @@ class TasaComercialTests(TestCase):
             len(response.json()["tasas"]),
             2,
         )
+        versiones = response.json()["tasas"]
+        self.assertEqual([tasa["version"] for tasa in versiones], [2, 1])
+        self.assertEqual([tasa["vigente"] for tasa in versiones], [True, False])
+        self.assertEqual(
+            {tasa["usuario_username"] for tasa in versiones},
+            {"analista.prueba"},
+        )
+
+    def test_no_existe_eliminacion_de_tasas_comerciales(self):
+        self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
+        self.enviar_tasa(
+            {
+                "moneda_origen_id": self.usd.id,
+                "moneda_destino_id": self.pyg.id,
+                "compra": "7200",
+                "venta": "7300",
+            }
+        )
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(TasaComercial.objects.count(), 1)
+
+    def test_endpoint_de_referencia_no_acepta_edicion_manual(self):
+        self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
+
+        response = self.client.post(reverse("tasas:consultar"), {})
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(TasaComercial.objects.count(), 0)
+
+    def test_analista_puede_desactivar_tasa_comercial(self):
+        tasa = self.crear_tasa_vigente()
+
+        response = self.client.post(
+            reverse("tasas:desactivar_tasa_comercial", args=[tasa.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["tasa"]["vigente"])
+        tasa.refresh_from_db()
+        self.assertFalse(tasa.vigente)
+
+    def test_administrador_no_puede_desactivar_tasa_comercial(self):
+        tasa = self.crear_tasa_vigente()
+        self.autenticar_con_roles(["ADMINISTRADOR"])
+
+        response = self.client.post(
+            reverse("tasas:desactivar_tasa_comercial", args=[tasa.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        tasa.refresh_from_db()
+        self.assertTrue(tasa.vigente)
+
+    def test_tasa_desactivada_permanece_en_historial(self):
+        tasa = self.crear_tasa_vigente()
+        self.client.post(
+            reverse("tasas:desactivar_tasa_comercial", args=[tasa.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        response = self.client.get(
+            reverse("tasas:historial_tasas_comerciales"),
+            {
+                "moneda_origen_id": self.usd.id,
+                "moneda_destino_id": self.pyg.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["tasas"]), 1)
+        self.assertEqual(response.json()["tasas"][0]["id"], tasa.id)
+        self.assertFalse(response.json()["tasas"][0]["vigente"])
+
+    def test_desactivacion_no_elimina_fisicamente_el_registro(self):
+        tasa = self.crear_tasa_vigente()
+
+        self.client.post(
+            reverse("tasas:desactivar_tasa_comercial", args=[tasa.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(TasaComercial.objects.count(), 1)
+        self.assertTrue(TasaComercial.objects.filter(pk=tasa.id).exists())
+        self.assertFalse(TasaComercial.objects.get(pk=tasa.id).vigente)
+
+    def test_nueva_tasa_tras_baja_reanuda_versionado_del_par(self):
+        tasa = self.crear_tasa_vigente()
+        self.client.post(
+            reverse("tasas:desactivar_tasa_comercial", args=[tasa.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        response = self.enviar_tasa(
+            {
+                "moneda_origen_id": self.usd.id,
+                "moneda_destino_id": self.pyg.id,
+                "compra": "7250",
+                "venta": "7350",
+            }
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(TasaComercial.objects.count(), 2)
+        self.assertEqual(response.json()["tasa"]["version"], 2)
+        self.assertEqual(TasaComercial.objects.filter(vigente=True).count(), 1)
+        self.assertFalse(TasaComercial.objects.get(pk=tasa.id).vigente)

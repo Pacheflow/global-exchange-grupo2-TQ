@@ -1,6 +1,7 @@
 # Modelo de Datos — Global Exchange
 
-> Estado real verificado del código, rama `frontend-integration`, HEAD `590f131`.
+> Estado real verificado del código el 11/09/2026, rama
+> `fix/keycloak-session-and-default-role`, HEAD `9085a47`.
 
 ## Modelos por app
 
@@ -40,9 +41,10 @@ Métodos de negocio: `activar()` → estado ACTIVO; `dar_de_baja()` → estado I
 | `cliente` | `ForeignKey(Cliente)` | `on_delete=CASCADE` |
 | `keycloak_user_id` | `CharField(max_length=64)` | — |
 | `username` | `CharField(max_length=150)` | — |
-| `rol_en_cliente` | `CharField(max_length=30)` | choices: `LECTOR`/`OPERADOR`/`ADMINISTRADOR_CLIENTE` |
+| `rol_en_cliente` | `CharField(max_length=20)` | choices: `RESPONSABLE`/`OPERADOR` (default)/`CONSULTA` |
 | `activo` | `BooleanField` | default `True` |
-| | | `unique_together=(cliente, keycloak_user_id)` |
+| `fecha_asignacion` | `DateTimeField` | `auto_now_add=True` |
+| | | `UniqueConstraint(cliente, keycloak_user_id)`, nombre `cliente_usuario_keycloak_unico`; ordering por `username` |
 
 ### `monedas`
 
@@ -52,9 +54,12 @@ Métodos de negocio: `activar()` → estado ACTIVO; `dar_de_baja()` → estado I
 |---|---|---|
 | `id` | `BigAutoField` | PK |
 | `codigo` | `CharField(max_length=10)` | `unique=True`, se guarda en mayúsculas |
-| `nombre` | `CharField(max_length=50)` | — |
-| `simbolo` | `CharField(max_length=5, blank=True)` | — |
-| `estado` | `CharField(max_length=10)` | choices: `ACTIVA`/`INACTIVA` |
+| `nombre` | `CharField(max_length=100)` | se guarda sin espacios exteriores |
+| `simbolo` | `CharField(max_length=10)` | se guarda sin espacios exteriores |
+| `estado` | `CharField(max_length=10)` | choices: `ACTIVA` (default)/`INACTIVA` |
+| `fecha_registro` | `DateTimeField` | `auto_now_add=True` |
+| `fecha_actualizacion` | `DateTimeField` | `auto_now=True` |
+| | | ordering por `codigo` |
 
 ### `metodos_pago`
 
@@ -63,10 +68,13 @@ Métodos de negocio: `activar()` → estado ACTIVO; `dar_de_baja()` → estado I
 | Campo | Tipo | Restricciones |
 |---|---|---|
 | `id` | `BigAutoField` | PK |
-| `cliente` | `ForeignKey(Cliente)` | `on_delete=CASCADE` |
-| `nombre` | `CharField(max_length=50)` | `unique_together=(cliente, nombre)` (validado en clean) |
+| `cliente` | `ForeignKey(Cliente)` | `on_delete=PROTECT`, related_name `metodos_pago` |
+| `nombre` | `CharField(max_length=100)` | se guarda sin espacios exteriores |
 | `tipo` | `CharField(max_length=20)` | choices: `EFECTIVO`/`TARJETA`/`TRANSFERENCIA`/`OTRO` |
-| `estado` | `CharField(max_length=10)` | choices: `ACTIVO`/`INACTIVO` |
+| `estado` | `CharField(max_length=10)` | choices: `ACTIVO` (default)/`INACTIVO` |
+| `fecha_registro` | `DateTimeField` | `auto_now_add=True` |
+| `fecha_actualizacion` | `DateTimeField` | `auto_now=True` |
+| | | `UniqueConstraint(cliente, nombre)`, nombre `cliente_metodo_pago_nombre_unico`; ordering por `nombre` |
 
 ### `tasas`
 
@@ -76,51 +84,58 @@ Métodos de negocio: `activar()` → estado ACTIVO; `dar_de_baja()` → estado I
 |---|---|---|
 | `id` | `BigAutoField` | PK |
 | `fuente` | `CharField(max_length=100)` | — |
-| `moneda_base` | `ForeignKey(Moneda)` | `on_delete=CASCADE` |
+| `moneda_base` | `ForeignKey(Moneda)` | `on_delete=PROTECT`, related_name `consultas_tasas` |
 | `fecha_hora_fuente` | `DateTimeField` | — |
+| `recibida_en` | `DateTimeField` | `auto_now_add=True` |
 | `respuesta` | `JSONField` | respuesta original del proveedor |
+| | | ordering descendente por `recibida_en` |
 
 #### `TasaReferencia`
 
 | Campo | Tipo | Restricciones |
 |---|---|---|
 | `id` | `BigAutoField` | PK |
-| `moneda_base` | `ForeignKey(Moneda)` | `on_delete=CASCADE`, related_name `tasas_referencia_base` |
-| `moneda_cotizada` | `ForeignKey(Moneda)` | `on_delete=CASCADE`, related_name `tasas_referencia_cotizada` |
-| `valor` | `DecimalField(max_digits=24, decimal_places=10)` | `positive=True` |
+| `moneda_base` | `ForeignKey(Moneda)` | `on_delete=PROTECT`, related_name `tasas_referencia_base` |
+| `moneda_cotizada` | `ForeignKey(Moneda)` | `on_delete=PROTECT`, related_name `tasas_referencia_cotizada` |
+| `valor` | `DecimalField(max_digits=24, decimal_places=10)` | mínimo `0.0000000001` |
 | `fuente` | `CharField(max_length=100)` | — |
-| `fecha_hora` | `DateTimeField` | — |
-| `fecha_consulta` | `DateTimeField` | `auto_now_add=True` |
-| | | `unique_together=(moneda_base, moneda_cotizada)` (validado en clean) |
+| `fecha_hora_fuente` | `DateTimeField` | — |
+| `vigente_hasta` | `DateTimeField` | — |
+| `actualizada_en` | `DateTimeField` | `auto_now=True` |
+| `consulta` | `ForeignKey(ConsultaProveedorTasas)` | `on_delete=PROTECT`, related_name `tasas` |
+| | | `UniqueConstraint(moneda_base, moneda_cotizada)`, nombre `tasa_referencia_par_unico` |
+| | | `CheckConstraint` de monedas distintas y `valor > 0`; ordering por códigos del par |
 
 #### `TasaComercial`
 
 | Campo | Tipo | Restricciones |
 |---|---|---|
 | `id` | `BigAutoField` | PK |
-| `moneda_origen` | `ForeignKey(Moneda)` | `on_delete=CASCADE`, related_name `tasas_comerciales_origen` |
-| `moneda_destino` | `ForeignKey(Moneda)` | `on_delete=CASCADE`, related_name `tasas_comerciales_destino` |
-| `compra` | `DecimalField(max_digits=18, decimal_places=6)` | `positive=True` |
-| `venta` | `DecimalField(max_digits=18, decimal_places=6)` | `positive=True` |
+| `moneda_origen` | `ForeignKey(Moneda)` | `on_delete=PROTECT`, related_name `tasas_origen` |
+| `moneda_destino` | `ForeignKey(Moneda)` | `on_delete=PROTECT`, related_name `tasas_destino` |
+| `compra` | `DecimalField(max_digits=18, decimal_places=6)` | validado como mayor que cero en `clean()` |
+| `venta` | `DecimalField(max_digits=18, decimal_places=6)` | validado como mayor que cero en `clean()` |
 | `vigente` | `BooleanField` | default `True` |
-| `fecha_creacion` | `DateTimeField` | `auto_now_add=True` |
-| `version` | `IntegerField` | default `1`, `positive=True` |
-| `usuario_id` | `CharField(max_length=64)` | — |
-| `usuario_username` | `CharField(max_length=150)` | — |
-| | | `unique_together=(moneda_origen, moneda_destino, version)` (validado en clean) |
+| `version` | `PositiveIntegerField` | default `1` |
+| `usuario_id` | `CharField(max_length=255)` | — |
+| `usuario_username` | `CharField(max_length=150)` | `blank=True` |
+| `fecha_registro` | `DateTimeField` | `auto_now_add=True` |
+| | | `CheckConstraint` de monedas distintas, nombre `tasa_monedas_distintas` |
+| | | `UniqueConstraint(moneda_origen, moneda_destino)` condicionado a `vigente=True`, nombre `una_tasa_vigente_por_par`; ordering descendente por `fecha_registro` |
 
-**Patrón de versionado:** al modificar un registro vigente se desactiva el anterior (`vigente=False`) y se crea uno nuevo con `version=version_actual + 1` dentro de `transaction.atomic` + `select_for_update`. Las monedas de origen/destino deben ser distintas; compra y venta deben ser positivos; `version >= 1`.
+**Patrón de versionado del servicio:** al modificar un registro vigente se desactiva el anterior (`vigente=False`) y se crea uno nuevo con `version=ultima_version + 1` dentro de `transaction.atomic` + `select_for_update`. Si el par no tiene tasa vigente, también se crea la siguiente versión a partir del histórico. Las monedas deben estar activas y ser distintas; compra y venta se validan como valores positivos.
 
 ## Relaciones entre apps
 
 - `Cliente` → `CategoriaCliente` (FK, PROTECT) — no se puede borrar una categoría con clientes asignados.
 - `UsuarioCliente` → `Cliente` (FK, CASCADE) — borrar un cliente elimina sus asociaciones.
-- `MetodoPago` → `Cliente` (FK, CASCADE) — borrar un cliente elimina sus métodos de pago.
-- `TasaReferencia` y `TasaComercial` → `Moneda` (FK, CASCADE) — borrar una moneda elimina sus tasas.
-- `ConsultaProveedorTasas` → `Moneda` (FK, CASCADE).
+- `MetodoPago` → `Cliente` (FK, PROTECT) — un método de pago impide borrar físicamente su cliente.
+- `TasaReferencia` y `TasaComercial` → `Moneda` (FK, PROTECT) — una tasa impide borrar físicamente sus monedas.
+- `ConsultaProveedorTasas` → `Moneda` (FK, PROTECT).
+- `TasaReferencia` → `ConsultaProveedorTasas` (FK, PROTECT).
 
 ## Reglas de validación en `clean()`
 
-- `MetodoPago.clean()`: `unique_together` por `(cliente, nombre)`.
-- `TasaReferencia.clean()`: `unique_together` por `(moneda_base, moneda_cotizada)` y monedas distintas.
-- `TasaComercial.clean()`: `unique_together` por `(moneda_origen, moneda_destino, version)`, monedas distintas y valores positivos.
+- `MetodoPago` normaliza `nombre` en `save()`; la unicidad por `(cliente, nombre)` se aplica con `UniqueConstraint`.
+- `TasaReferencia` aplica con constraints de base de datos la unicidad del par, las monedas distintas y `valor > 0`; además usa `MinValueValidator` para el valor.
+- `TasaComercial.clean()` exige monedas activas y valores de compra/venta positivos. La base de datos exige monedas distintas y una sola tasa `vigente=True` por par.

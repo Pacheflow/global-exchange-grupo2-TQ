@@ -110,6 +110,21 @@ OIDC_FLOW_MAX_AGE_SECONDS = int(
     )
 )
 
+OIDC_REFRESH_MARGIN_SECONDS = int(
+    os.getenv("OIDC_REFRESH_MARGIN_SECONDS", "60")
+)
+OIDC_SESSION_IDLE_SECONDS = int(
+    os.getenv("OIDC_SESSION_IDLE_SECONDS", "1800")
+)
+
+if OIDC_REFRESH_MARGIN_SECONDS < 0:
+    raise ImproperlyConfigured("OIDC_REFRESH_MARGIN_SECONDS no puede ser negativo.")
+
+if OIDC_SESSION_IDLE_SECONDS <= OIDC_REFRESH_MARGIN_SECONDS:
+    raise ImproperlyConfigured(
+        "OIDC_SESSION_IDLE_SECONDS debe ser mayor que OIDC_REFRESH_MARGIN_SECONDS."
+    )
+
 
 # ------------------------------------------------------------------
 # HU-17 - Proveedor externo de tasas de referencia

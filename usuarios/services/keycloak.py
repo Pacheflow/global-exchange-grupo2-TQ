@@ -26,6 +26,8 @@ SESSION_AUTENTICADO = "oidc_authenticated"
 SESSION_USUARIO = "oidc_user"
 SESSION_ROLES = "roles"
 SESSION_EXPIRA_EN = "oidc_expires_at"
+SESSION_REFRESH_TOKEN = "kc_refresh_token"
+SESSION_REFRESH_EXPIRA_EN = "kc_refresh_expires_at"
 
 ALGORITMOS_PERMITIDOS = ("RS256",)
 TIMEOUT_KEYCLOAK = 10
@@ -118,7 +120,28 @@ def validar_access_token(access_token):
     return claims
 
 
-def establecer_sesion_oidc(request, claims):
+def _duracion_refresh(refresh_expires_in):
+    """Aplica el límite local de inactividad al tiempo informado por Keycloak."""
+
+    try:
+        duracion = int(refresh_expires_in)
+    except (TypeError, ValueError):
+        duracion = settings.OIDC_SESSION_IDLE_SECONDS
+
+    if duracion <= 0:
+        raise InvalidTokenError("El refresh token de Keycloak ya expiró.")
+
+    return min(duracion, settings.OIDC_SESSION_IDLE_SECONDS)
+
+
+def establecer_sesion_oidc(
+    request,
+    claims,
+    refresh_token=None,
+    refresh_expires_in=None,
+    *,
+    rotar_clave=True,
+):
     """Crea el contexto de autenticación usado por la autorización backend."""
 
     expira_en = int(claims["exp"])
@@ -127,7 +150,14 @@ def establecer_sesion_oidc(request, claims):
     if segundos_restantes <= 0:
         raise InvalidTokenError("La autenticación de Keycloak ya expiró.")
 
-    request.session.cycle_key()
+    duracion_refresh = None
+    if refresh_token:
+        if not isinstance(refresh_token, str):
+            raise InvalidTokenError("Keycloak devolvió un refresh token inválido.")
+        duracion_refresh = _duracion_refresh(refresh_expires_in)
+
+    if rotar_clave:
+        request.session.cycle_key()
     request.session[SESSION_AUTENTICADO] = True
     request.session[SESSION_USUARIO] = {
         "sub": claims["sub"],
@@ -137,26 +167,101 @@ def establecer_sesion_oidc(request, claims):
     request.session[SESSION_ROLES] = extraer_roles_sistema(claims)
     request.session["kc_user"] = claims
     request.session[SESSION_EXPIRA_EN] = expira_en
-    request.session.set_expiry(segundos_restantes)
+
+    if refresh_token and duracion_refresh is not None:
+        request.session[SESSION_REFRESH_TOKEN] = refresh_token
+        request.session[SESSION_REFRESH_EXPIRA_EN] = int(time.time()) + duracion_refresh
+        request.session.set_expiry(duracion_refresh)
+    else:
+        request.session.pop(SESSION_REFRESH_TOKEN, None)
+        request.session.pop(SESSION_REFRESH_EXPIRA_EN, None)
+        request.session.set_expiry(segundos_restantes)
+
+
+def renovar_sesion_oidc(request):
+    """Renueva y revalida el contexto OIDC exclusivamente desde el backend."""
+
+    refresh_token = request.session.get(SESSION_REFRESH_TOKEN)
+    refresh_expira_en = request.session.get(SESSION_REFRESH_EXPIRA_EN)
+
+    if not isinstance(refresh_token, str) or not refresh_token:
+        limpiar_sesion_oidc(request)
+        return False
+
+    if (
+        isinstance(refresh_expira_en, (int, float))
+        and refresh_expira_en <= time.time()
+    ):
+        limpiar_sesion_oidc(request)
+        return False
+
+    token_url = f"{_realm_url(settings.KEYCLOAK_INTERNAL_URL)}/protocol/openid-connect/token"
+
+    try:
+        response = requests.post(
+            token_url,
+            data={
+                "grant_type": "refresh_token",
+                "client_id": settings.KEYCLOAK_CLIENT_ID,
+                "refresh_token": refresh_token,
+            },
+            timeout=TIMEOUT_KEYCLOAK,
+        )
+        if response.status_code != 200:
+            limpiar_sesion_oidc(request)
+            return False
+
+        tokens = response.json()
+        if not isinstance(tokens, dict):
+            raise InvalidTokenError("Respuesta de renovación inválida.")
+
+        claims = validar_access_token(tokens.get("access_token"))
+        refresh_token_nuevo = tokens.get("refresh_token") or refresh_token
+        establecer_sesion_oidc(
+            request,
+            claims,
+            refresh_token=refresh_token_nuevo,
+            refresh_expires_in=tokens.get("refresh_expires_in"),
+            rotar_clave=False,
+        )
+
+        id_token = tokens.get("id_token")
+        if id_token:
+            request.session["kc_id_token"] = id_token
+        return True
+    except (requests.RequestException, TypeError, ValueError, InvalidTokenError):
+        limpiar_sesion_oidc(request)
+        return False
 
 
 def sesion_oidc_vigente(request):
-    """Comprueba identidad y expiración del contexto OIDC almacenado."""
+    """Comprueba el contexto OIDC y lo renueva cuando corresponde."""
 
     usuario = request.session.get(SESSION_USUARIO, {})
     expira_en = request.session.get(SESSION_EXPIRA_EN)
-    vigente = (
+    contexto_valido = (
         request.session.get(SESSION_AUTENTICADO) is True
         and isinstance(usuario, dict)
         and bool(usuario.get("sub"))
         and isinstance(expira_en, (int, float))
-        and expira_en > time.time()
     )
 
-    if not vigente:
+    if not contexto_valido:
         limpiar_sesion_oidc(request)
+        return False
 
-    return vigente
+    segundos_restantes = expira_en - time.time()
+    if segundos_restantes > settings.OIDC_REFRESH_MARGIN_SECONDS:
+        return True
+
+    if request.session.get(SESSION_REFRESH_TOKEN):
+        return renovar_sesion_oidc(request)
+
+    if segundos_restantes > 0:
+        return True
+
+    limpiar_sesion_oidc(request)
+    return False
 
 
 def limpiar_sesion_oidc(request):
@@ -167,6 +272,8 @@ def limpiar_sesion_oidc(request):
         SESSION_USUARIO,
         SESSION_ROLES,
         SESSION_EXPIRA_EN,
+        SESSION_REFRESH_TOKEN,
+        SESSION_REFRESH_EXPIRA_EN,
         "kc_user",
         "kc_access_token",
         "kc_id_token",

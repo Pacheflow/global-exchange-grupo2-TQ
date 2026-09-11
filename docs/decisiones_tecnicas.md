@@ -1,6 +1,7 @@
 # Decisiones Técnicas — Global Exchange
 
-> Decisiones confirmadas por el equipo, verificadas en código rama `frontend-integration`, HEAD `590f131`.
+> Decisiones confirmadas por el equipo y estado verificado el 10/09/2026 en la
+> rama `fix/keycloak-session-and-default-role`, HEAD `9085a47`.
 
 ## 1. Identidad: Keycloak como proveedor único
 
@@ -32,10 +33,13 @@
 - **Estado:** Implementado.
 - **Fuente:** Diseño del equipo.
 
-## 6. Frontend React como islas dentro de Django
+## 6. Decisión histórica sobre React y frontend activo actual
 
-- **Decisión:** React convive con Django como capa visual de islas. Django conserva rutas, templates base, sesión, Keycloak, roles, permisos y lógica de negocio. Los bundles se generan en `static/react/`.
-- **Estado:** Compilado pero no montado en templates Django actuales. La Landing y el panel usan server-side.
+- **Decisión histórica:** se evaluó React como capa visual de islas y se
+  conservaron fuentes y un bundle bajo `frontend/` y `static/react/`.
+- **Estado actual:** React no forma parte del frontend activo. La landing y el
+  panel usan Django Templates, HTML, CSS y JavaScript convencional; ninguna
+  template carga el bundle heredado.
 - **Fuente:** Decisión del equipo 2026-09-03.
 
 ## 7. GitFlow: feature → develop → main → tag
@@ -71,7 +75,9 @@
 
 ## Decisiones pendientes de confirmación
 
-- **Integración de `frontend-integration` a `develop`:** pendiente de aprobación y merge.
+- **Cierre Git de Sprint 2:** la integración previa ya forma parte de `develop`
+  en `9085a47`; permanecen pendientes la revisión del worktree actual, el commit,
+  el merge final autorizado y el tag de Sprint 2.
 - **Limpieza de archivos React/TypeScript/Vite:** pendiente de decisión separada (código compilado sin uso actual).
 - **Permisos granulares (policies/scopes):** definidos en diseño pero no implementados.
 - **Alta administrativa de usuarios y correo de verificación:** no dispara automáticamente el envío.

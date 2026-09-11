@@ -93,147 +93,20 @@
                     <h1 class="modulename">
 tasas<wbr>.providers    </h1>
 
-                
-                        <input id="mod-providers-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 
-                        <label class="view-source-button" for="mod-providers-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span> <span class="k">as</span> <span class="n">dt_timezone</span>
-</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span><span class="p">,</span> <span class="n">InvalidOperation</span>
-</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a>
-</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a>
-</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a>
-</span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ProveedorTasasError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a><span class="w">    </span><span class="sd">"""Error controlado al consultar o interpretar el proveedor externo."""</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a>
-</span><span id="L-13"><a href="#L-13"><span class="linenos"> 13</span></a>
-</span><span id="L-14"><a href="#L-14"><span class="linenos"> 14</span></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos"> 15</span></a><span class="k">class</span><span class="w"> </span><span class="nc">RespuestaTasas</span><span class="p">:</span>
-</span><span id="L-16"><a href="#L-16"><span class="linenos"> 16</span></a><span class="w">    </span><span class="sd">"""Respuesta externa validada y normalizada, independiente del proveedor."""</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos"> 17</span></a>
-</span><span id="L-18"><a href="#L-18"><span class="linenos"> 18</span></a>    <span class="n">moneda_base</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a>    <span class="n">tasas</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Decimal</span><span class="p">]</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos"> 20</span></a>    <span class="n">fuente</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a>    <span class="n">fecha_hora</span><span class="p">:</span> <span class="n">datetime</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a>    <span class="n">respuesta_original</span><span class="p">:</span> <span class="nb">dict</span>
-</span><span id="L-23"><a href="#L-23"><span class="linenos"> 23</span></a>
-</span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>
-</span><span id="L-25"><a href="#L-25"><span class="linenos"> 25</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ProveedorTasasHTTP</span><span class="p">:</span>
-</span><span id="L-26"><a href="#L-26"><span class="linenos"> 26</span></a><span class="w">    </span><span class="sd">"""Adaptador HTTP del proveedor configurado mediante variables de entorno."""</span>
-</span><span id="L-27"><a href="#L-27"><span class="linenos"> 27</span></a>
-</span><span id="L-28"><a href="#L-28"><span class="linenos"> 28</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-</span><span id="L-29"><a href="#L-29"><span class="linenos"> 29</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span> <span class="ow">or</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">()</span>
-</span><span id="L-30"><a href="#L-30"><span class="linenos"> 30</span></a>
-</span><span id="L-31"><a href="#L-31"><span class="linenos"> 31</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">obtener</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">moneda_base</span><span class="p">,</span> <span class="n">monedas_cotizadas</span><span class="p">):</span>
-</span><span id="L-32"><a href="#L-32"><span class="linenos"> 32</span></a><span class="w">        </span><span class="sd">"""Obtiene tasas y rechaza respuestas parciales, no numéricas o no positivas."""</span>
-</span><span id="L-33"><a href="#L-33"><span class="linenos"> 33</span></a>
-</span><span id="L-34"><a href="#L-34"><span class="linenos"> 34</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="n">moneda_base</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a>        <span class="n">codigos</span> <span class="o">=</span> <span class="p">{</span><span class="n">codigo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">codigo</span> <span class="ow">in</span> <span class="n">monedas_cotizadas</span><span class="p">}</span>
-</span><span id="L-36"><a href="#L-36"><span class="linenos"> 36</span></a>        <span class="n">url</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_URL</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"__BASE__"</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
-</span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a>        <span class="k">if</span> <span class="s2">"__BASE__"</span> <span class="ow">in</span> <span class="n">url</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">)):</span>
-</span><span id="L-38"><a href="#L-38"><span class="linenos"> 38</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"La URL del proveedor está mal configurada."</span><span class="p">)</span>
-</span><span id="L-39"><a href="#L-39"><span class="linenos"> 39</span></a>
-</span><span id="L-40"><a href="#L-40"><span class="linenos"> 40</span></a>        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Accept"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">}</span>
-</span><span id="L-41"><a href="#L-41"><span class="linenos"> 41</span></a>        <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_API_KEY</span><span class="p">:</span>
-</span><span id="L-42"><a href="#L-42"><span class="linenos"> 42</span></a>            <span class="n">headers</span><span class="p">[</span><span class="s2">"Authorization"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_API_KEY</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-43"><a href="#L-43"><span class="linenos"> 43</span></a>
-</span><span id="L-44"><a href="#L-44"><span class="linenos"> 44</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a>            <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a>                <span class="n">url</span><span class="p">,</span>
-</span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a>                <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
-</span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a>                <span class="n">timeout</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_TIMEOUT</span><span class="p">,</span>
-</span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a>            <span class="p">)</span>
-</span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>            <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="L-51"><a href="#L-51"><span class="linenos"> 51</span></a>        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">Timeout</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-52"><a href="#L-52"><span class="linenos"> 52</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-53"><a href="#L-53"><span class="linenos"> 53</span></a>                <span class="s2">"El proveedor excedió el tiempo de espera."</span>
-</span><span id="L-54"><a href="#L-54"><span class="linenos"> 54</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-55"><a href="#L-55"><span class="linenos"> 55</span></a>        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">RequestException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-56"><a href="#L-56"><span class="linenos"> 56</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a>                <span class="s2">"No fue posible consultar el proveedor de tasas."</span>
-</span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a>
-</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a>            <span class="n">payload</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-63"><a href="#L-63"><span class="linenos"> 63</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"El proveedor devolvió JSON inválido."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-64"><a href="#L-64"><span class="linenos"> 64</span></a>
-</span><span id="L-65"><a href="#L-65"><span class="linenos"> 65</span></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="L-66"><a href="#L-66"><span class="linenos"> 66</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-67"><a href="#L-67"><span class="linenos"> 67</span></a>                <span class="s2">"La respuesta del proveedor tiene un formato inválido."</span>
-</span><span id="L-68"><a href="#L-68"><span class="linenos"> 68</span></a>            <span class="p">)</span>
-</span><span id="L-69"><a href="#L-69"><span class="linenos"> 69</span></a>        <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"result"</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"success"</span><span class="p">):</span>
-</span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a>                <span class="s2">"El proveedor informó que la consulta no fue exitosa."</span>
-</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a>            <span class="p">)</span>
-</span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a>
-</span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a>        <span class="n">base_respuesta</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span>
-</span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a>            <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_code"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
-</span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a>        <span class="p">)</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>        <span class="n">rates</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"rates"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"conversion_rates"</span><span class="p">)</span>
-</span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a>        <span class="k">if</span> <span class="n">base_respuesta</span> <span class="o">!=</span> <span class="n">base</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rates</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"La respuesta del proveedor está incompleta."</span><span class="p">)</span>
-</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>
-</span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a>        <span class="n">faltantes</span> <span class="o">=</span> <span class="n">codigos</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">rates</span><span class="p">)</span>
-</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a>        <span class="k">if</span> <span class="n">faltantes</span><span class="p">:</span>
-</span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a>                <span class="s2">"La respuesta no contiene todas las monedas solicitadas: "</span>
-</span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a>                <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">faltantes</span><span class="p">))</span>
-</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>                <span class="o">+</span> <span class="s2">"."</span>
-</span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a>            <span class="p">)</span>
-</span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a>
-</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a>        <span class="n">normalizadas</span> <span class="o">=</span> <span class="p">{}</span>
-</span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a>        <span class="k">for</span> <span class="n">codigo</span> <span class="ow">in</span> <span class="n">codigos</span><span class="p">:</span>
-</span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>            <span class="k">try</span><span class="p">:</span>
-</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a>                <span class="n">valor</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">rates</span><span class="p">[</span><span class="n">codigo</span><span class="p">]))</span>
-</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>            <span class="k">except</span> <span class="p">(</span><span class="n">InvalidOperation</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a>                <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a>                    <span class="sa">f</span><span class="s2">"La tasa de </span><span class="si">{</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> no es numérica."</span>
-</span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">valor</span><span class="o">.</span><span class="n">is_finite</span><span class="p">()</span> <span class="ow">or</span> <span class="n">valor</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">valor</span><span class="p">)):</span>
-</span><span id="L-98"><a href="#L-98"><span class="linenos"> 98</span></a>                <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-99"><a href="#L-99"><span class="linenos"> 99</span></a>                    <span class="sa">f</span><span class="s2">"La tasa de </span><span class="si">{</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> debe ser positiva y finita."</span>
-</span><span id="L-100"><a href="#L-100"><span class="linenos">100</span></a>                <span class="p">)</span>
-</span><span id="L-101"><a href="#L-101"><span class="linenos">101</span></a>            <span class="n">normalizadas</span><span class="p">[</span><span class="n">codigo</span><span class="p">]</span> <span class="o">=</span> <span class="n">valor</span>
-</span><span id="L-102"><a href="#L-102"><span class="linenos">102</span></a>
-</span><span id="L-103"><a href="#L-103"><span class="linenos">103</span></a>        <span class="n">timestamp</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"time_last_update_unix"</span><span class="p">)</span>
-</span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a>            <span class="n">fecha_hora</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">timestamp</span><span class="p">),</span> <span class="n">tz</span><span class="o">=</span><span class="n">dt_timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span>
-</span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a>                <span class="s2">"La fecha/hora del proveedor es inválida."</span>
-</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a>
-</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a>        <span class="k">return</span> <span class="n">RespuestaTasas</span><span class="p">(</span>
-</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a>            <span class="n">moneda_base</span><span class="o">=</span><span class="n">base</span><span class="p">,</span>
-</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a>            <span class="n">tasas</span><span class="o">=</span><span class="n">normalizadas</span><span class="p">,</span>
-</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a>            <span class="n">fuente</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_NAME</span><span class="p">,</span>
-</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a>            <span class="n">fecha_hora</span><span class="o">=</span><span class="n">fecha_hora</span><span class="p">,</span>
-</span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a>            <span class="n">respuesta_original</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span>
-</span><span id="L-117"><a href="#L-117"><span class="linenos">117</span></a>        <span class="p">)</span>
-</span></pre></div>
 
 
             </section>
                 <section id="ProveedorTasasError">
-                            <input id="ProveedorTasasError-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr class">
-            
+                    <div class="attr class">
+
     <span class="def">class</span>
     <span class="name">ProveedorTasasError</span><wbr>(<span class="base">builtins.Exception</span>):
 
-                <label class="view-source-button" for="ProveedorTasasError-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#ProveedorTasasError"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ProveedorTasasError-11"><a href="#ProveedorTasasError-11"><span class="linenos">11</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ProveedorTasasError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-</span><span id="ProveedorTasasError-12"><a href="#ProveedorTasasError-12"><span class="linenos">12</span></a><span class="w">    </span><span class="sd">"""Error controlado al consultar o interpretar el proveedor externo."""</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Error controlado al consultar o interpretar el proveedor externo.</p>
 </div>
@@ -241,28 +114,15 @@ tasas<wbr>.providers    </h1>
 
                 </section>
                 <section id="RespuestaTasas">
-                            <input id="RespuestaTasas-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr class">
+                    <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
 
     <span class="def">class</span>
     <span class="name">RespuestaTasas</span>:
 
-                <label class="view-source-button" for="RespuestaTasas-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#RespuestaTasas"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="RespuestaTasas-15"><a href="#RespuestaTasas-15"><span class="linenos">15</span></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="RespuestaTasas-16"><a href="#RespuestaTasas-16"><span class="linenos">16</span></a><span class="k">class</span><span class="w"> </span><span class="nc">RespuestaTasas</span><span class="p">:</span>
-</span><span id="RespuestaTasas-17"><a href="#RespuestaTasas-17"><span class="linenos">17</span></a><span class="w">    </span><span class="sd">"""Respuesta externa validada y normalizada, independiente del proveedor."""</span>
-</span><span id="RespuestaTasas-18"><a href="#RespuestaTasas-18"><span class="linenos">18</span></a>
-</span><span id="RespuestaTasas-19"><a href="#RespuestaTasas-19"><span class="linenos">19</span></a>    <span class="n">moneda_base</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="RespuestaTasas-20"><a href="#RespuestaTasas-20"><span class="linenos">20</span></a>    <span class="n">tasas</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Decimal</span><span class="p">]</span>
-</span><span id="RespuestaTasas-21"><a href="#RespuestaTasas-21"><span class="linenos">21</span></a>    <span class="n">fuente</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="RespuestaTasas-22"><a href="#RespuestaTasas-22"><span class="linenos">22</span></a>    <span class="n">fecha_hora</span><span class="p">:</span> <span class="n">datetime</span>
-</span><span id="RespuestaTasas-23"><a href="#RespuestaTasas-23"><span class="linenos">23</span></a>    <span class="n">respuesta_original</span><span class="p">:</span> <span class="nb">dict</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Respuesta externa validada y normalizada, independiente del proveedor.</p>
 </div>
@@ -270,312 +130,118 @@ tasas<wbr>.providers    </h1>
 
                             <div id="RespuestaTasas.__init__" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="name">RespuestaTasas</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">moneda_base</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">tasas</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">]</span>,</span><span class="param">	<span class="n">fuente</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">fecha_hora</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span>,</span><span class="param">	<span class="n">respuesta_original</span><span class="p">:</span> <span class="nb">dict</span></span>)</span>
 
-        
+
     </div>
     <a class="headerlink" href="#RespuestaTasas.__init__"></a>
-    
-    
+
+
 
                             </div>
                             <div id="RespuestaTasas.moneda_base" class="classattr">
                                 <div class="attr variable">
             <span class="name">moneda_base</span><span class="annotation">: str</span>
 
-        
+
     </div>
     <a class="headerlink" href="#RespuestaTasas.moneda_base"></a>
-    
-    
+
+
 
                             </div>
                             <div id="RespuestaTasas.tasas" class="classattr">
                                 <div class="attr variable">
             <span class="name">tasas</span><span class="annotation">: dict[str, decimal.Decimal]</span>
 
-        
+
     </div>
     <a class="headerlink" href="#RespuestaTasas.tasas"></a>
-    
-    
+
+
 
                             </div>
                             <div id="RespuestaTasas.fuente" class="classattr">
                                 <div class="attr variable">
             <span class="name">fuente</span><span class="annotation">: str</span>
 
-        
+
     </div>
     <a class="headerlink" href="#RespuestaTasas.fuente"></a>
-    
-    
+
+
 
                             </div>
                             <div id="RespuestaTasas.fecha_hora" class="classattr">
                                 <div class="attr variable">
             <span class="name">fecha_hora</span><span class="annotation">: datetime.datetime</span>
 
-        
+
     </div>
     <a class="headerlink" href="#RespuestaTasas.fecha_hora"></a>
-    
-    
+
+
 
                             </div>
                             <div id="RespuestaTasas.respuesta_original" class="classattr">
                                 <div class="attr variable">
             <span class="name">respuesta_original</span><span class="annotation">: dict</span>
 
-        
+
     </div>
     <a class="headerlink" href="#RespuestaTasas.respuesta_original"></a>
-    
-    
+
+
 
                             </div>
                 </section>
                 <section id="ProveedorTasasHTTP">
-                            <input id="ProveedorTasasHTTP-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr class">
-            
+                    <div class="attr class">
+
     <span class="def">class</span>
     <span class="name">ProveedorTasasHTTP</span>:
 
-                <label class="view-source-button" for="ProveedorTasasHTTP-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#ProveedorTasasHTTP"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ProveedorTasasHTTP-26"><a href="#ProveedorTasasHTTP-26"><span class="linenos"> 26</span></a><span class="k">class</span><span class="w"> </span><span class="nc">ProveedorTasasHTTP</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-27"><a href="#ProveedorTasasHTTP-27"><span class="linenos"> 27</span></a><span class="w">    </span><span class="sd">"""Adaptador HTTP del proveedor configurado mediante variables de entorno."""</span>
-</span><span id="ProveedorTasasHTTP-28"><a href="#ProveedorTasasHTTP-28"><span class="linenos"> 28</span></a>
-</span><span id="ProveedorTasasHTTP-29"><a href="#ProveedorTasasHTTP-29"><span class="linenos"> 29</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP-30"><a href="#ProveedorTasasHTTP-30"><span class="linenos"> 30</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span> <span class="ow">or</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP-31"><a href="#ProveedorTasasHTTP-31"><span class="linenos"> 31</span></a>
-</span><span id="ProveedorTasasHTTP-32"><a href="#ProveedorTasasHTTP-32"><span class="linenos"> 32</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">obtener</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">moneda_base</span><span class="p">,</span> <span class="n">monedas_cotizadas</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP-33"><a href="#ProveedorTasasHTTP-33"><span class="linenos"> 33</span></a><span class="w">        </span><span class="sd">"""Obtiene tasas y rechaza respuestas parciales, no numéricas o no positivas."""</span>
-</span><span id="ProveedorTasasHTTP-34"><a href="#ProveedorTasasHTTP-34"><span class="linenos"> 34</span></a>
-</span><span id="ProveedorTasasHTTP-35"><a href="#ProveedorTasasHTTP-35"><span class="linenos"> 35</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="n">moneda_base</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP-36"><a href="#ProveedorTasasHTTP-36"><span class="linenos"> 36</span></a>        <span class="n">codigos</span> <span class="o">=</span> <span class="p">{</span><span class="n">codigo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">codigo</span> <span class="ow">in</span> <span class="n">monedas_cotizadas</span><span class="p">}</span>
-</span><span id="ProveedorTasasHTTP-37"><a href="#ProveedorTasasHTTP-37"><span class="linenos"> 37</span></a>        <span class="n">url</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_URL</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"__BASE__"</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-38"><a href="#ProveedorTasasHTTP-38"><span class="linenos"> 38</span></a>        <span class="k">if</span> <span class="s2">"__BASE__"</span> <span class="ow">in</span> <span class="n">url</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">)):</span>
-</span><span id="ProveedorTasasHTTP-39"><a href="#ProveedorTasasHTTP-39"><span class="linenos"> 39</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"La URL del proveedor está mal configurada."</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-40"><a href="#ProveedorTasasHTTP-40"><span class="linenos"> 40</span></a>
-</span><span id="ProveedorTasasHTTP-41"><a href="#ProveedorTasasHTTP-41"><span class="linenos"> 41</span></a>        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Accept"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">}</span>
-</span><span id="ProveedorTasasHTTP-42"><a href="#ProveedorTasasHTTP-42"><span class="linenos"> 42</span></a>        <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_API_KEY</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-43"><a href="#ProveedorTasasHTTP-43"><span class="linenos"> 43</span></a>            <span class="n">headers</span><span class="p">[</span><span class="s2">"Authorization"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_API_KEY</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="ProveedorTasasHTTP-44"><a href="#ProveedorTasasHTTP-44"><span class="linenos"> 44</span></a>
-</span><span id="ProveedorTasasHTTP-45"><a href="#ProveedorTasasHTTP-45"><span class="linenos"> 45</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-46"><a href="#ProveedorTasasHTTP-46"><span class="linenos"> 46</span></a>            <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-47"><a href="#ProveedorTasasHTTP-47"><span class="linenos"> 47</span></a>                <span class="n">url</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-48"><a href="#ProveedorTasasHTTP-48"><span class="linenos"> 48</span></a>                <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-49"><a href="#ProveedorTasasHTTP-49"><span class="linenos"> 49</span></a>                <span class="n">timeout</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_TIMEOUT</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-50"><a href="#ProveedorTasasHTTP-50"><span class="linenos"> 50</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-51"><a href="#ProveedorTasasHTTP-51"><span class="linenos"> 51</span></a>            <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP-52"><a href="#ProveedorTasasHTTP-52"><span class="linenos"> 52</span></a>        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">Timeout</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-53"><a href="#ProveedorTasasHTTP-53"><span class="linenos"> 53</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-54"><a href="#ProveedorTasasHTTP-54"><span class="linenos"> 54</span></a>                <span class="s2">"El proveedor excedió el tiempo de espera."</span>
-</span><span id="ProveedorTasasHTTP-55"><a href="#ProveedorTasasHTTP-55"><span class="linenos"> 55</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP-56"><a href="#ProveedorTasasHTTP-56"><span class="linenos"> 56</span></a>        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">RequestException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-57"><a href="#ProveedorTasasHTTP-57"><span class="linenos"> 57</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-58"><a href="#ProveedorTasasHTTP-58"><span class="linenos"> 58</span></a>                <span class="s2">"No fue posible consultar el proveedor de tasas."</span>
-</span><span id="ProveedorTasasHTTP-59"><a href="#ProveedorTasasHTTP-59"><span class="linenos"> 59</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP-60"><a href="#ProveedorTasasHTTP-60"><span class="linenos"> 60</span></a>
-</span><span id="ProveedorTasasHTTP-61"><a href="#ProveedorTasasHTTP-61"><span class="linenos"> 61</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-62"><a href="#ProveedorTasasHTTP-62"><span class="linenos"> 62</span></a>            <span class="n">payload</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP-63"><a href="#ProveedorTasasHTTP-63"><span class="linenos"> 63</span></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-64"><a href="#ProveedorTasasHTTP-64"><span class="linenos"> 64</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"El proveedor devolvió JSON inválido."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP-65"><a href="#ProveedorTasasHTTP-65"><span class="linenos"> 65</span></a>
-</span><span id="ProveedorTasasHTTP-66"><a href="#ProveedorTasasHTTP-66"><span class="linenos"> 66</span></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP-67"><a href="#ProveedorTasasHTTP-67"><span class="linenos"> 67</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-68"><a href="#ProveedorTasasHTTP-68"><span class="linenos"> 68</span></a>                <span class="s2">"La respuesta del proveedor tiene un formato inválido."</span>
-</span><span id="ProveedorTasasHTTP-69"><a href="#ProveedorTasasHTTP-69"><span class="linenos"> 69</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-70"><a href="#ProveedorTasasHTTP-70"><span class="linenos"> 70</span></a>        <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"result"</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"success"</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP-71"><a href="#ProveedorTasasHTTP-71"><span class="linenos"> 71</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-72"><a href="#ProveedorTasasHTTP-72"><span class="linenos"> 72</span></a>                <span class="s2">"El proveedor informó que la consulta no fue exitosa."</span>
-</span><span id="ProveedorTasasHTTP-73"><a href="#ProveedorTasasHTTP-73"><span class="linenos"> 73</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-74"><a href="#ProveedorTasasHTTP-74"><span class="linenos"> 74</span></a>
-</span><span id="ProveedorTasasHTTP-75"><a href="#ProveedorTasasHTTP-75"><span class="linenos"> 75</span></a>        <span class="n">base_respuesta</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-76"><a href="#ProveedorTasasHTTP-76"><span class="linenos"> 76</span></a>            <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_code"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
-</span><span id="ProveedorTasasHTTP-77"><a href="#ProveedorTasasHTTP-77"><span class="linenos"> 77</span></a>        <span class="p">)</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP-78"><a href="#ProveedorTasasHTTP-78"><span class="linenos"> 78</span></a>        <span class="n">rates</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"rates"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"conversion_rates"</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-79"><a href="#ProveedorTasasHTTP-79"><span class="linenos"> 79</span></a>        <span class="k">if</span> <span class="n">base_respuesta</span> <span class="o">!=</span> <span class="n">base</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rates</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP-80"><a href="#ProveedorTasasHTTP-80"><span class="linenos"> 80</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"La respuesta del proveedor está incompleta."</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-81"><a href="#ProveedorTasasHTTP-81"><span class="linenos"> 81</span></a>
-</span><span id="ProveedorTasasHTTP-82"><a href="#ProveedorTasasHTTP-82"><span class="linenos"> 82</span></a>        <span class="n">faltantes</span> <span class="o">=</span> <span class="n">codigos</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">rates</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-83"><a href="#ProveedorTasasHTTP-83"><span class="linenos"> 83</span></a>        <span class="k">if</span> <span class="n">faltantes</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-84"><a href="#ProveedorTasasHTTP-84"><span class="linenos"> 84</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-85"><a href="#ProveedorTasasHTTP-85"><span class="linenos"> 85</span></a>                <span class="s2">"La respuesta no contiene todas las monedas solicitadas: "</span>
-</span><span id="ProveedorTasasHTTP-86"><a href="#ProveedorTasasHTTP-86"><span class="linenos"> 86</span></a>                <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">faltantes</span><span class="p">))</span>
-</span><span id="ProveedorTasasHTTP-87"><a href="#ProveedorTasasHTTP-87"><span class="linenos"> 87</span></a>                <span class="o">+</span> <span class="s2">"."</span>
-</span><span id="ProveedorTasasHTTP-88"><a href="#ProveedorTasasHTTP-88"><span class="linenos"> 88</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-89"><a href="#ProveedorTasasHTTP-89"><span class="linenos"> 89</span></a>
-</span><span id="ProveedorTasasHTTP-90"><a href="#ProveedorTasasHTTP-90"><span class="linenos"> 90</span></a>        <span class="n">normalizadas</span> <span class="o">=</span> <span class="p">{}</span>
-</span><span id="ProveedorTasasHTTP-91"><a href="#ProveedorTasasHTTP-91"><span class="linenos"> 91</span></a>        <span class="k">for</span> <span class="n">codigo</span> <span class="ow">in</span> <span class="n">codigos</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-92"><a href="#ProveedorTasasHTTP-92"><span class="linenos"> 92</span></a>            <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-93"><a href="#ProveedorTasasHTTP-93"><span class="linenos"> 93</span></a>                <span class="n">valor</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">rates</span><span class="p">[</span><span class="n">codigo</span><span class="p">]))</span>
-</span><span id="ProveedorTasasHTTP-94"><a href="#ProveedorTasasHTTP-94"><span class="linenos"> 94</span></a>            <span class="k">except</span> <span class="p">(</span><span class="n">InvalidOperation</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-95"><a href="#ProveedorTasasHTTP-95"><span class="linenos"> 95</span></a>                <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-96"><a href="#ProveedorTasasHTTP-96"><span class="linenos"> 96</span></a>                    <span class="sa">f</span><span class="s2">"La tasa de </span><span class="si">{</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> no es numérica."</span>
-</span><span id="ProveedorTasasHTTP-97"><a href="#ProveedorTasasHTTP-97"><span class="linenos"> 97</span></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP-98"><a href="#ProveedorTasasHTTP-98"><span class="linenos"> 98</span></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">valor</span><span class="o">.</span><span class="n">is_finite</span><span class="p">()</span> <span class="ow">or</span> <span class="n">valor</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">valor</span><span class="p">)):</span>
-</span><span id="ProveedorTasasHTTP-99"><a href="#ProveedorTasasHTTP-99"><span class="linenos"> 99</span></a>                <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-100"><a href="#ProveedorTasasHTTP-100"><span class="linenos">100</span></a>                    <span class="sa">f</span><span class="s2">"La tasa de </span><span class="si">{</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> debe ser positiva y finita."</span>
-</span><span id="ProveedorTasasHTTP-101"><a href="#ProveedorTasasHTTP-101"><span class="linenos">101</span></a>                <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-102"><a href="#ProveedorTasasHTTP-102"><span class="linenos">102</span></a>            <span class="n">normalizadas</span><span class="p">[</span><span class="n">codigo</span><span class="p">]</span> <span class="o">=</span> <span class="n">valor</span>
-</span><span id="ProveedorTasasHTTP-103"><a href="#ProveedorTasasHTTP-103"><span class="linenos">103</span></a>
-</span><span id="ProveedorTasasHTTP-104"><a href="#ProveedorTasasHTTP-104"><span class="linenos">104</span></a>        <span class="n">timestamp</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"time_last_update_unix"</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-105"><a href="#ProveedorTasasHTTP-105"><span class="linenos">105</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-106"><a href="#ProveedorTasasHTTP-106"><span class="linenos">106</span></a>            <span class="n">fecha_hora</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">timestamp</span><span class="p">),</span> <span class="n">tz</span><span class="o">=</span><span class="n">dt_timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP-107"><a href="#ProveedorTasasHTTP-107"><span class="linenos">107</span></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP-108"><a href="#ProveedorTasasHTTP-108"><span class="linenos">108</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-109"><a href="#ProveedorTasasHTTP-109"><span class="linenos">109</span></a>                <span class="s2">"La fecha/hora del proveedor es inválida."</span>
-</span><span id="ProveedorTasasHTTP-110"><a href="#ProveedorTasasHTTP-110"><span class="linenos">110</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP-111"><a href="#ProveedorTasasHTTP-111"><span class="linenos">111</span></a>
-</span><span id="ProveedorTasasHTTP-112"><a href="#ProveedorTasasHTTP-112"><span class="linenos">112</span></a>        <span class="k">return</span> <span class="n">RespuestaTasas</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP-113"><a href="#ProveedorTasasHTTP-113"><span class="linenos">113</span></a>            <span class="n">moneda_base</span><span class="o">=</span><span class="n">base</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-114"><a href="#ProveedorTasasHTTP-114"><span class="linenos">114</span></a>            <span class="n">tasas</span><span class="o">=</span><span class="n">normalizadas</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-115"><a href="#ProveedorTasasHTTP-115"><span class="linenos">115</span></a>            <span class="n">fuente</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_NAME</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-116"><a href="#ProveedorTasasHTTP-116"><span class="linenos">116</span></a>            <span class="n">fecha_hora</span><span class="o">=</span><span class="n">fecha_hora</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-117"><a href="#ProveedorTasasHTTP-117"><span class="linenos">117</span></a>            <span class="n">respuesta_original</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP-118"><a href="#ProveedorTasasHTTP-118"><span class="linenos">118</span></a>        <span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Adaptador HTTP del proveedor configurado mediante variables de entorno.</p>
 </div>
 
 
                             <div id="ProveedorTasasHTTP.__init__" class="classattr">
-                                        <input id="ProveedorTasasHTTP.__init__-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                                <div class="attr function">
+
         <span class="name">ProveedorTasasHTTP</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">session</span><span class="o">=</span><span class="kc">None</span></span>)</span>
 
-                <label class="view-source-button" for="ProveedorTasasHTTP.__init__-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#ProveedorTasasHTTP.__init__"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ProveedorTasasHTTP.__init__-29"><a href="#ProveedorTasasHTTP.__init__-29"><span class="linenos">29</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP.__init__-30"><a href="#ProveedorTasasHTTP.__init__-30"><span class="linenos">30</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span> <span class="ow">or</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">()</span>
-</span></pre></div>
 
 
-    
 
                             </div>
                             <div id="ProveedorTasasHTTP.session" class="classattr">
                                 <div class="attr variable">
             <span class="name">session</span>
 
-        
+
     </div>
     <a class="headerlink" href="#ProveedorTasasHTTP.session"></a>
-    
-    
+
+
 
                             </div>
                             <div id="ProveedorTasasHTTP.obtener" class="classattr">
-                                        <input id="ProveedorTasasHTTP.obtener-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                                <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">obtener</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">moneda_base</span>, </span><span class="param"><span class="n">monedas_cotizadas</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="ProveedorTasasHTTP.obtener-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#ProveedorTasasHTTP.obtener"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="ProveedorTasasHTTP.obtener-32"><a href="#ProveedorTasasHTTP.obtener-32"><span class="linenos"> 32</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">obtener</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">moneda_base</span><span class="p">,</span> <span class="n">monedas_cotizadas</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP.obtener-33"><a href="#ProveedorTasasHTTP.obtener-33"><span class="linenos"> 33</span></a><span class="w">        </span><span class="sd">"""Obtiene tasas y rechaza respuestas parciales, no numéricas o no positivas."""</span>
-</span><span id="ProveedorTasasHTTP.obtener-34"><a href="#ProveedorTasasHTTP.obtener-34"><span class="linenos"> 34</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-35"><a href="#ProveedorTasasHTTP.obtener-35"><span class="linenos"> 35</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="n">moneda_base</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP.obtener-36"><a href="#ProveedorTasasHTTP.obtener-36"><span class="linenos"> 36</span></a>        <span class="n">codigos</span> <span class="o">=</span> <span class="p">{</span><span class="n">codigo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">codigo</span> <span class="ow">in</span> <span class="n">monedas_cotizadas</span><span class="p">}</span>
-</span><span id="ProveedorTasasHTTP.obtener-37"><a href="#ProveedorTasasHTTP.obtener-37"><span class="linenos"> 37</span></a>        <span class="n">url</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_URL</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"__BASE__"</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-38"><a href="#ProveedorTasasHTTP.obtener-38"><span class="linenos"> 38</span></a>        <span class="k">if</span> <span class="s2">"__BASE__"</span> <span class="ow">in</span> <span class="n">url</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">)):</span>
-</span><span id="ProveedorTasasHTTP.obtener-39"><a href="#ProveedorTasasHTTP.obtener-39"><span class="linenos"> 39</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"La URL del proveedor está mal configurada."</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-40"><a href="#ProveedorTasasHTTP.obtener-40"><span class="linenos"> 40</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-41"><a href="#ProveedorTasasHTTP.obtener-41"><span class="linenos"> 41</span></a>        <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Accept"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">}</span>
-</span><span id="ProveedorTasasHTTP.obtener-42"><a href="#ProveedorTasasHTTP.obtener-42"><span class="linenos"> 42</span></a>        <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_API_KEY</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-43"><a href="#ProveedorTasasHTTP.obtener-43"><span class="linenos"> 43</span></a>            <span class="n">headers</span><span class="p">[</span><span class="s2">"Authorization"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_API_KEY</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="ProveedorTasasHTTP.obtener-44"><a href="#ProveedorTasasHTTP.obtener-44"><span class="linenos"> 44</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-45"><a href="#ProveedorTasasHTTP.obtener-45"><span class="linenos"> 45</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-46"><a href="#ProveedorTasasHTTP.obtener-46"><span class="linenos"> 46</span></a>            <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-47"><a href="#ProveedorTasasHTTP.obtener-47"><span class="linenos"> 47</span></a>                <span class="n">url</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-48"><a href="#ProveedorTasasHTTP.obtener-48"><span class="linenos"> 48</span></a>                <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-49"><a href="#ProveedorTasasHTTP.obtener-49"><span class="linenos"> 49</span></a>                <span class="n">timeout</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_TIMEOUT</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-50"><a href="#ProveedorTasasHTTP.obtener-50"><span class="linenos"> 50</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-51"><a href="#ProveedorTasasHTTP.obtener-51"><span class="linenos"> 51</span></a>            <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP.obtener-52"><a href="#ProveedorTasasHTTP.obtener-52"><span class="linenos"> 52</span></a>        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">Timeout</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-53"><a href="#ProveedorTasasHTTP.obtener-53"><span class="linenos"> 53</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-54"><a href="#ProveedorTasasHTTP.obtener-54"><span class="linenos"> 54</span></a>                <span class="s2">"El proveedor excedió el tiempo de espera."</span>
-</span><span id="ProveedorTasasHTTP.obtener-55"><a href="#ProveedorTasasHTTP.obtener-55"><span class="linenos"> 55</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP.obtener-56"><a href="#ProveedorTasasHTTP.obtener-56"><span class="linenos"> 56</span></a>        <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">RequestException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-57"><a href="#ProveedorTasasHTTP.obtener-57"><span class="linenos"> 57</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-58"><a href="#ProveedorTasasHTTP.obtener-58"><span class="linenos"> 58</span></a>                <span class="s2">"No fue posible consultar el proveedor de tasas."</span>
-</span><span id="ProveedorTasasHTTP.obtener-59"><a href="#ProveedorTasasHTTP.obtener-59"><span class="linenos"> 59</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP.obtener-60"><a href="#ProveedorTasasHTTP.obtener-60"><span class="linenos"> 60</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-61"><a href="#ProveedorTasasHTTP.obtener-61"><span class="linenos"> 61</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-62"><a href="#ProveedorTasasHTTP.obtener-62"><span class="linenos"> 62</span></a>            <span class="n">payload</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP.obtener-63"><a href="#ProveedorTasasHTTP.obtener-63"><span class="linenos"> 63</span></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-64"><a href="#ProveedorTasasHTTP.obtener-64"><span class="linenos"> 64</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"El proveedor devolvió JSON inválido."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP.obtener-65"><a href="#ProveedorTasasHTTP.obtener-65"><span class="linenos"> 65</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-66"><a href="#ProveedorTasasHTTP.obtener-66"><span class="linenos"> 66</span></a>        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP.obtener-67"><a href="#ProveedorTasasHTTP.obtener-67"><span class="linenos"> 67</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-68"><a href="#ProveedorTasasHTTP.obtener-68"><span class="linenos"> 68</span></a>                <span class="s2">"La respuesta del proveedor tiene un formato inválido."</span>
-</span><span id="ProveedorTasasHTTP.obtener-69"><a href="#ProveedorTasasHTTP.obtener-69"><span class="linenos"> 69</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-70"><a href="#ProveedorTasasHTTP.obtener-70"><span class="linenos"> 70</span></a>        <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"result"</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"success"</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP.obtener-71"><a href="#ProveedorTasasHTTP.obtener-71"><span class="linenos"> 71</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-72"><a href="#ProveedorTasasHTTP.obtener-72"><span class="linenos"> 72</span></a>                <span class="s2">"El proveedor informó que la consulta no fue exitosa."</span>
-</span><span id="ProveedorTasasHTTP.obtener-73"><a href="#ProveedorTasasHTTP.obtener-73"><span class="linenos"> 73</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-74"><a href="#ProveedorTasasHTTP.obtener-74"><span class="linenos"> 74</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-75"><a href="#ProveedorTasasHTTP.obtener-75"><span class="linenos"> 75</span></a>        <span class="n">base_respuesta</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-76"><a href="#ProveedorTasasHTTP.obtener-76"><span class="linenos"> 76</span></a>            <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_code"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
-</span><span id="ProveedorTasasHTTP.obtener-77"><a href="#ProveedorTasasHTTP.obtener-77"><span class="linenos"> 77</span></a>        <span class="p">)</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="ProveedorTasasHTTP.obtener-78"><a href="#ProveedorTasasHTTP.obtener-78"><span class="linenos"> 78</span></a>        <span class="n">rates</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"rates"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"conversion_rates"</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-79"><a href="#ProveedorTasasHTTP.obtener-79"><span class="linenos"> 79</span></a>        <span class="k">if</span> <span class="n">base_respuesta</span> <span class="o">!=</span> <span class="n">base</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rates</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="ProveedorTasasHTTP.obtener-80"><a href="#ProveedorTasasHTTP.obtener-80"><span class="linenos"> 80</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span><span class="s2">"La respuesta del proveedor está incompleta."</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-81"><a href="#ProveedorTasasHTTP.obtener-81"><span class="linenos"> 81</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-82"><a href="#ProveedorTasasHTTP.obtener-82"><span class="linenos"> 82</span></a>        <span class="n">faltantes</span> <span class="o">=</span> <span class="n">codigos</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">rates</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-83"><a href="#ProveedorTasasHTTP.obtener-83"><span class="linenos"> 83</span></a>        <span class="k">if</span> <span class="n">faltantes</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-84"><a href="#ProveedorTasasHTTP.obtener-84"><span class="linenos"> 84</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-85"><a href="#ProveedorTasasHTTP.obtener-85"><span class="linenos"> 85</span></a>                <span class="s2">"La respuesta no contiene todas las monedas solicitadas: "</span>
-</span><span id="ProveedorTasasHTTP.obtener-86"><a href="#ProveedorTasasHTTP.obtener-86"><span class="linenos"> 86</span></a>                <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">faltantes</span><span class="p">))</span>
-</span><span id="ProveedorTasasHTTP.obtener-87"><a href="#ProveedorTasasHTTP.obtener-87"><span class="linenos"> 87</span></a>                <span class="o">+</span> <span class="s2">"."</span>
-</span><span id="ProveedorTasasHTTP.obtener-88"><a href="#ProveedorTasasHTTP.obtener-88"><span class="linenos"> 88</span></a>            <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-89"><a href="#ProveedorTasasHTTP.obtener-89"><span class="linenos"> 89</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-90"><a href="#ProveedorTasasHTTP.obtener-90"><span class="linenos"> 90</span></a>        <span class="n">normalizadas</span> <span class="o">=</span> <span class="p">{}</span>
-</span><span id="ProveedorTasasHTTP.obtener-91"><a href="#ProveedorTasasHTTP.obtener-91"><span class="linenos"> 91</span></a>        <span class="k">for</span> <span class="n">codigo</span> <span class="ow">in</span> <span class="n">codigos</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-92"><a href="#ProveedorTasasHTTP.obtener-92"><span class="linenos"> 92</span></a>            <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-93"><a href="#ProveedorTasasHTTP.obtener-93"><span class="linenos"> 93</span></a>                <span class="n">valor</span> <span class="o">=</span> <span class="n">Decimal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">rates</span><span class="p">[</span><span class="n">codigo</span><span class="p">]))</span>
-</span><span id="ProveedorTasasHTTP.obtener-94"><a href="#ProveedorTasasHTTP.obtener-94"><span class="linenos"> 94</span></a>            <span class="k">except</span> <span class="p">(</span><span class="n">InvalidOperation</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-95"><a href="#ProveedorTasasHTTP.obtener-95"><span class="linenos"> 95</span></a>                <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-96"><a href="#ProveedorTasasHTTP.obtener-96"><span class="linenos"> 96</span></a>                    <span class="sa">f</span><span class="s2">"La tasa de </span><span class="si">{</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> no es numérica."</span>
-</span><span id="ProveedorTasasHTTP.obtener-97"><a href="#ProveedorTasasHTTP.obtener-97"><span class="linenos"> 97</span></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP.obtener-98"><a href="#ProveedorTasasHTTP.obtener-98"><span class="linenos"> 98</span></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">valor</span><span class="o">.</span><span class="n">is_finite</span><span class="p">()</span> <span class="ow">or</span> <span class="n">valor</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">valor</span><span class="p">)):</span>
-</span><span id="ProveedorTasasHTTP.obtener-99"><a href="#ProveedorTasasHTTP.obtener-99"><span class="linenos"> 99</span></a>                <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-100"><a href="#ProveedorTasasHTTP.obtener-100"><span class="linenos">100</span></a>                    <span class="sa">f</span><span class="s2">"La tasa de </span><span class="si">{</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> debe ser positiva y finita."</span>
-</span><span id="ProveedorTasasHTTP.obtener-101"><a href="#ProveedorTasasHTTP.obtener-101"><span class="linenos">101</span></a>                <span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-102"><a href="#ProveedorTasasHTTP.obtener-102"><span class="linenos">102</span></a>            <span class="n">normalizadas</span><span class="p">[</span><span class="n">codigo</span><span class="p">]</span> <span class="o">=</span> <span class="n">valor</span>
-</span><span id="ProveedorTasasHTTP.obtener-103"><a href="#ProveedorTasasHTTP.obtener-103"><span class="linenos">103</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-104"><a href="#ProveedorTasasHTTP.obtener-104"><span class="linenos">104</span></a>        <span class="n">timestamp</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"time_last_update_unix"</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-105"><a href="#ProveedorTasasHTTP.obtener-105"><span class="linenos">105</span></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-106"><a href="#ProveedorTasasHTTP.obtener-106"><span class="linenos">106</span></a>            <span class="n">fecha_hora</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">timestamp</span><span class="p">),</span> <span class="n">tz</span><span class="o">=</span><span class="n">dt_timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span>
-</span><span id="ProveedorTasasHTTP.obtener-107"><a href="#ProveedorTasasHTTP.obtener-107"><span class="linenos">107</span></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="ProveedorTasasHTTP.obtener-108"><a href="#ProveedorTasasHTTP.obtener-108"><span class="linenos">108</span></a>            <span class="k">raise</span> <span class="n">ProveedorTasasError</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-109"><a href="#ProveedorTasasHTTP.obtener-109"><span class="linenos">109</span></a>                <span class="s2">"La fecha/hora del proveedor es inválida."</span>
-</span><span id="ProveedorTasasHTTP.obtener-110"><a href="#ProveedorTasasHTTP.obtener-110"><span class="linenos">110</span></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="ProveedorTasasHTTP.obtener-111"><a href="#ProveedorTasasHTTP.obtener-111"><span class="linenos">111</span></a>
-</span><span id="ProveedorTasasHTTP.obtener-112"><a href="#ProveedorTasasHTTP.obtener-112"><span class="linenos">112</span></a>        <span class="k">return</span> <span class="n">RespuestaTasas</span><span class="p">(</span>
-</span><span id="ProveedorTasasHTTP.obtener-113"><a href="#ProveedorTasasHTTP.obtener-113"><span class="linenos">113</span></a>            <span class="n">moneda_base</span><span class="o">=</span><span class="n">base</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-114"><a href="#ProveedorTasasHTTP.obtener-114"><span class="linenos">114</span></a>            <span class="n">tasas</span><span class="o">=</span><span class="n">normalizadas</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-115"><a href="#ProveedorTasasHTTP.obtener-115"><span class="linenos">115</span></a>            <span class="n">fuente</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">TASAS_PROVIDER_NAME</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-116"><a href="#ProveedorTasasHTTP.obtener-116"><span class="linenos">116</span></a>            <span class="n">fecha_hora</span><span class="o">=</span><span class="n">fecha_hora</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-117"><a href="#ProveedorTasasHTTP.obtener-117"><span class="linenos">117</span></a>            <span class="n">respuesta_original</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span>
-</span><span id="ProveedorTasasHTTP.obtener-118"><a href="#ProveedorTasasHTTP.obtener-118"><span class="linenos">118</span></a>        <span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Obtiene tasas y rechaza respuestas parciales, no numéricas o no positivas.</p>
 </div>

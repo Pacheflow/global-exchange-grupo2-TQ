@@ -51,6 +51,12 @@
       text-wrap: balance;
       line-height: 1.45;
     }
+    .ge-rates-group + .ge-rates-group {
+      margin-top: 32px;
+    }
+    .ge-rates-group-title {
+      margin: 0 0 14px;
+    }
     @media (min-width: 1281px) and (max-width: 1500px) {
       .ge-quote-rates strong.ge-mono { font-size: 16px; }
     }
@@ -70,19 +76,32 @@
     <div class="ge-frontend-section-head">
       <div>
         <h2 class="ge-frontend-h2">Cotizaciones actuales</h2>
-        <p class="ge-frontend-note">Tasas de referencia obtenidas del proveedor configurado.</p>
+        <p class="ge-frontend-note">Referencia externa y tasas comerciales vigentes de Global Exchange.</p>
       </div>
       <span class="ge-chip" data-reference-status>Consultando</span>
     </div>
 
     <div class="ge-inline-banner" data-reference-message hidden role="status"></div>
-    <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
-      <article class="ge-card" style="padding:24px">
-        <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
-        <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
-        <div class="ge-skeleton" style="height:12px;width:65%"></div>
-      </article>
-    </div>
+    <section class="ge-rates-group" aria-labelledby="reference-rates-title">
+      <h3 class="ge-frontend-h3 ge-rates-group-title" id="reference-rates-title">Tasas de referencia</h3>
+      <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
+        <article class="ge-card" style="padding:24px">
+          <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+          <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+          <div class="ge-skeleton" style="height:12px;width:65%"></div>
+        </article>
+      </div>
+    </section>
+    <section class="ge-rates-group" aria-labelledby="commercial-rates-title">
+      <h3 class="ge-frontend-h3 ge-rates-group-title" id="commercial-rates-title">Tasas comerciales vigentes</h3>
+      <div class="ge-quote-cards" data-commercial-rates aria-live="polite" aria-busy="true">
+        <article class="ge-card" style="padding:24px">
+          <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+          <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+          <div class="ge-skeleton" style="height:12px;width:65%"></div>
+        </article>
+      </div>
+    </section>
   </div>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}

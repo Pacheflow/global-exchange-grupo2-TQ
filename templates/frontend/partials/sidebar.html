@@ -1,59 +1,44 @@
 <aside class="ge-frontend-sidebar" aria-label="Navegación de la aplicación">
-  <div class="ge-frontend-sidebar-user">
-    <span class="ge-frontend-avatar" aria-hidden="true">{{ kc_initial }}</span>
-    <div class="ge-frontend-user-copy">
-      <div class="ge-frontend-user-name">{{ kc_display_name }}</div>
-      <div class="ge-frontend-user-role">{{ rol_label }}</div>
-    </div>
-  </div>
-
+  <div class="ge-frontend-sidebar-user"><span class="ge-frontend-avatar" aria-hidden="true">{{ kc_initial }}</span><div class="ge-frontend-user-copy"><div class="ge-frontend-user-name">{{ kc_display_name }}</div><div class="ge-frontend-user-role">{{ rol_label }}</div></div></div>
   <nav class="ge-frontend-nav">
-    {% if rol == 'usuario' %}
-      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='dashboard' size=18 %}</span><span class="ge-frontend-nav-label">Resumen</span></a>
-      <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='operations' size=18 %}</span><span class="ge-frontend-nav-label">Operaciones</span></a>
-      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='transactions' size=18 %}</span><span class="ge-frontend-nav-label">Transacciones</span></a>
-      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='payments' size=18 %}</span><span class="ge-frontend-nav-label">Pagos</span></a>
-      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
-      <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span><span class="ge-frontend-nav-label">Mi cliente</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='notifications' size=18 %}</span><span class="ge-frontend-nav-label">Notificaciones</span><span class="ge-frontend-nav-badge">2</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='settings' size=18 %}</span><span class="ge-frontend-nav-label">Configuración</span></a>
+    <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='dashboard' size=18 %}</span><span class="ge-frontend-nav-label">{% if rol == 'administrador' %}Dashboard{% else %}Resumen{% endif %}</span></a>
 
-    {% elif rol == 'administrador' %}
-      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='dashboard' size=18 %}</span><span class="ge-frontend-nav-label">Dashboard</span></a>
-      <a href="{% url 'usuarios:list' %}" {% if request.resolver_match.url_name == 'list' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='users' size=18 %}</span><span class="ge-frontend-nav-label">Usuarios</span></a>
+    {% if rol == 'administrador' %}
+      <a href="{% url 'usuarios:list' %}" {% if request.resolver_match.url_name == 'list' or request.resolver_match.url_name == 'create' or request.resolver_match.url_name == 'edit' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='users' size=18 %}</span><span class="ge-frontend-nav-label">Usuarios</span></a>
       <a href="{% url 'consultar_clientes' %}" {% if request.resolver_match.url_name == 'consultar_clientes' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span><span class="ge-frontend-nav-label">Clientes</span></a>
       <a href="{% url 'usuarios:roles_permisos' %}" {% if request.resolver_match.url_name == 'roles_permisos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='roles' size=18 %}</span><span class="ge-frontend-nav-label">Roles / Permisos</span></a>
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
-      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='payments' size=18 %}</span><span class="ge-frontend-nav-label">Medios de pago</span></a>
       <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas comerciales</span></a>
-      <span class="ge-frontend-nav-pending" aria-label="Cajas — pendiente de implementación" aria-disabled="true" title="Módulo de cajas pendiente de implementación">
-        <span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='cash' size=18 %}</span>
-        <span class="ge-frontend-nav-label">Cajas</span>
-        <span class="ge-nav-status">Pendiente</span>
-      </span>
+      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='payments' size=18 %}</span><span class="ge-frontend-nav-label">Métodos de pago</span></a>
+      {% include 'frontend/partials/sidebar_pending.html' with icon='cash' label='Cajas' %}
 
     {% elif rol == 'analista' %}
-      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='dashboard' size=18 %}</span><span class="ge-frontend-nav-label">Resumen</span></a>
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
-      <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span><span class="ge-frontend-nav-label">Histórico</span></a>
+      <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas comerciales</span></a>
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
-      <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='payments' size=18 %}</span><span class="ge-frontend-nav-label">Medios de pago</span></a>
 
     {% elif rol == 'cajero' %}
-      <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='dashboard' size=18 %}</span><span class="ge-frontend-nav-label">Resumen</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='cash' size=18 %}</span><span class="ge-frontend-nav-label">Mi caja</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='balance' size=18 %}</span><span class="ge-frontend-nav-label">Saldos</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='transactions' size=18 %}</span><span class="ge-frontend-nav-label">Movimientos</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='transfer' size=18 %}</span><span class="ge-frontend-nav-label">Transferencias</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='reconciliation' size=18 %}</span><span class="ge-frontend-nav-label">Arqueo</span></a>
-      <a href="{% url 'usuarios:dashboard' %}"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='history' size=18 %}</span><span class="ge-frontend-nav-label">Historial</span></a>
+      {% include 'frontend/partials/sidebar_pending.html' with icon='cash' label='Mi caja' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='balance' label='Saldos' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='transactions' label='Movimientos' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='transfer' label='Transferencias' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='reconciliation' label='Arqueo' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='history' label='Historial' %}
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
+
+    {% else %}
+      <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
       <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='operations' size=18 %}</span><span class="ge-frontend-nav-label">Conversor</span></a>
+      <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
+      <a href="{% url 'consultar_clientes' %}" {% if request.resolver_match.url_name == 'consultar_clientes' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span><span class="ge-frontend-nav-label">Mi cliente</span></a>
+      {% include 'frontend/partials/sidebar_pending.html' with icon='operations' label='Operaciones' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='transactions' label='Transacciones' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='payments' label='Pagos' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='notifications' label='Notificaciones' %}
+      {% include 'frontend/partials/sidebar_pending.html' with icon='settings' label='Configuración' %}
     {% endif %}
   </nav>
-
   <div class="ge-frontend-sidebar-foot">GLOBAL EXCHANGE · v1.0</div>
 </aside>

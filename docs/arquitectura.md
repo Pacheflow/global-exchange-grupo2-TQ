@@ -1,8 +1,8 @@
 # Arquitectura — Global Exchange
 
 > Documentación técnica derivada del estado real verificado.
-> Rama `frontend-integration`, HEAD `590f131`.
-> Última actualización: 2026-09-06.
+> Rama `fix/keycloak-session-and-default-role`, HEAD `9085a47`.
+> Última actualización: 2026-09-11.
 
 ## Stack de tecnología
 
@@ -11,11 +11,10 @@
 | Backend | Django 6.1 (Python 3.13) |
 | Persistencia | PostgreSQL 17 (Psycopg 3) |
 | Identidad / IAM | Keycloak 26.7.2 (OIDC Authorization Code + PKCE, JWT RS256/JWKS, Admin API) |
-| Frontend server-side | Templates Django + `static/js/*` + `static/css/*` (Material, CSS lineal) |
-| Frontend React (compilado, no montado) | React 19 + TypeScript + Vite 8 → `static/react/global-exchange-react.js` |
+| Frontend activo | Templates Django + HTML + `static/js/*` + `static/css/*` (Material, CSS lineal) |
 | Correo (pruebas) | Mailpit (SMTP interno, puerto 1025) |
 | Orquestación | Docker Compose (dev: `compose.yaml`) |
-| Producción (configurada, no levantada) | Gunicorn + WhiteNoise + `compose.prod.yaml` |
+| Producción local | Gunicorn + WhiteNoise + `compose.prod.yaml`, validada localmente; no equivale a producción pública endurecida |
 
 ## Aplicaciones Django
 
@@ -67,7 +66,7 @@ global-exchange/
 │   ├── decorators.py      # requiere_autenticacion, requiere_rol, requiere_alguno_de_roles
 │   ├── context_processors.py # Exposición de sesión a templates
 │   ├── urls.py            # Rutas web
-│   └── tests.py           # ~69 métodos de test
+│   └── tests.py           # 110 métodos de test
 ├── clientes/              # App clientes
 │   ├── models.py          # CategoriaCliente, Cliente, UsuarioCliente
 │   ├── views.py           # CRUD web + API JSON
@@ -79,12 +78,12 @@ global-exchange/
 │   ├── models.py          # Moneda
 │   ├── views.py           # API JSON (listar, crear, editar, estado)
 │   ├── urls.py            # Todas API JSON
-│   └── tests.py           # 16 métodos de test
+│   └── tests.py           # 17 métodos de test
 ├── metodos_pago/          # App métodos de pago
 │   ├── models.py          # MetodoPago
 │   ├── views.py           # Dual: HTML render o JSON según Content-Type/Accept
 │   ├── urls.py            # Rutas compartidas (HTML o JSON)
-│   └── tests.py           # 17 métodos de test
+│   └── tests.py           # 20 métodos de test
 ├── tasas/                 # App tasas
 │   ├── models.py          # ConsultaProveedorTasas, TasaReferencia, TasaComercial
 │   ├── providers.py       # ProveedorTasasHTTP (adaptador configurable)
@@ -92,7 +91,9 @@ global-exchange/
 │   ├── simulador.py       # simular_conversion (cruces vía tasa base)
 │   ├── views.py           # API JSON (consultar, comerciales, histórico, simular)
 │   ├── urls.py            # Todas API JSON
-│   └── tests.py           # 12 métodos de test
+│   ├── tests.py           # Tasas comerciales
+│   ├── test_reference_rates.py
+│   └── test_simulator.py  # 54 métodos de test en total
 ├── templates/
 │   ├── frontend/          # Templates del panel (post refactor figma→frontend)
 │   │   ├── base.html      # Shell del panel: CSS/JS, blocks (title, extra_head, sidebar, content, extra_js)
@@ -107,8 +108,8 @@ global-exchange/
 │   ├── js/                # app.js, navbar.js, ge-data.js, ge-app.js, frontend.js,
 │   │                      # frontend-api.js, clientes.js, usuarios.js, landing.js
 │   ├── css/               # app.css, navbar.css, ge-app.css, frontend.css, landing.css
-│   └── react/             # Bundle React compilado (no montado en templates Django)
-├── frontend/              # Fuente React (src/components/, django-entry.tsx, registry.ts)
+│   └── react/             # Artefacto heredado no cargado por templates activos
+├── frontend/              # Fuente heredada no integrada al frontend activo
 ├── docker/                # entrypoint.sh, keycloak/
 ├── keycloak/              # Realm export JSON
 ├── docs/                  # Documentación, evidencias, docs IA
@@ -145,4 +146,6 @@ Entrypoint (`docker/entrypoint.sh`): espera PostgreSQL → migrate → runserver
 - **API dual (metodos_pago)**: detecta `_solicita_json(request)` (Content-Type/Accept) para devolver JSON o HTML sobre las mismas URLs.
 - **Decoradores de autorización** centralizados en `usuarios/decorators.py`.
 - **Frontend API**: `static/js/frontend-api.js` consume las rutas API declarando `data-ge-api="namespace"` en las templates; las URLs se inyectan desde Django `{% url %}`. CSRF vía cookie.
-- **Frontend React (islas)**: `django-entry.tsx` monta `[data-react-component]`; `registry.ts` lista componentes disponibles. El bundle no está montado en ninguna template actual.
+- **Frontend activo server-side**: las vistas renderizan Django Templates y el
+  comportamiento interactivo usa JavaScript convencional. Los artefactos React
+  heredados permanecen en el repositorio, pero ninguna template actual los carga.

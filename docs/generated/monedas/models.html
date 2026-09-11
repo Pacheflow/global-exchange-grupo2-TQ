@@ -147,128 +147,34 @@
                     <h1 class="modulename">
 monedas<wbr>.models    </h1>
 
-                
-                        <input id="mod-models-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 
-                        <label class="view-source-button" for="mod-models-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos"> 1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">models</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos"> 2</span></a>
-</span><span id="L-3"><a href="#L-3"><span class="linenos"> 3</span></a>
-</span><span id="L-4"><a href="#L-4"><span class="linenos"> 4</span></a><span class="k">class</span><span class="w"> </span><span class="nc">MonedaQuerySet</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">QuerySet</span><span class="p">):</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos"> 5</span></a><span class="w">    </span><span class="sd">"""Consultas reutilizables para el catálogo de monedas."""</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos"> 6</span></a>
-</span><span id="L-7"><a href="#L-7"><span class="linenos"> 7</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activas</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a><span class="w">        </span><span class="sd">"""Devuelve únicamente las monedas disponibles para nuevas operaciones."""</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">estado</span><span class="o">=</span><span class="s2">"ACTIVA"</span><span class="p">)</span>
-</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a>
-</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a>
-</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Moneda</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a><span class="w">    </span><span class="sd">"""</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a><span class="sd">    Representa una moneda disponible para operaciones</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a><span class="sd">    de Global Exchange.</span>
-</span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a><span class="sd">    """</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos">17</span></a>
-</span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a>    <span class="n">ESTADOS_MONEDA</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a>        <span class="p">(</span><span class="s2">"ACTIVA"</span><span class="p">,</span> <span class="s2">"Activa"</span><span class="p">),</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a>        <span class="p">(</span><span class="s2">"INACTIVA"</span><span class="p">,</span> <span class="s2">"Inactiva"</span><span class="p">),</span>
-</span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a>    <span class="p">]</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>
-</span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a>    <span class="n">codigo</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="L-24"><a href="#L-24"><span class="linenos">24</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="L-25"><a href="#L-25"><span class="linenos">25</span></a>        <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a>    <span class="p">)</span>
-</span><span id="L-27"><a href="#L-27"><span class="linenos">27</span></a>
-</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a>    <span class="n">nombre</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="L-29"><a href="#L-29"><span class="linenos">29</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-</span><span id="L-30"><a href="#L-30"><span class="linenos">30</span></a>    <span class="p">)</span>
-</span><span id="L-31"><a href="#L-31"><span class="linenos">31</span></a>
-</span><span id="L-32"><a href="#L-32"><span class="linenos">32</span></a>    <span class="n">simbolo</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="L-33"><a href="#L-33"><span class="linenos">33</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="L-34"><a href="#L-34"><span class="linenos">34</span></a>    <span class="p">)</span>
-</span><span id="L-35"><a href="#L-35"><span class="linenos">35</span></a>
-</span><span id="L-36"><a href="#L-36"><span class="linenos">36</span></a>    <span class="n">estado</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="L-37"><a href="#L-37"><span class="linenos">37</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="L-38"><a href="#L-38"><span class="linenos">38</span></a>        <span class="n">choices</span><span class="o">=</span><span class="n">ESTADOS_MONEDA</span><span class="p">,</span>
-</span><span id="L-39"><a href="#L-39"><span class="linenos">39</span></a>        <span class="n">default</span><span class="o">=</span><span class="s2">"ACTIVA"</span><span class="p">,</span>
-</span><span id="L-40"><a href="#L-40"><span class="linenos">40</span></a>    <span class="p">)</span>
-</span><span id="L-41"><a href="#L-41"><span class="linenos">41</span></a>
-</span><span id="L-42"><a href="#L-42"><span class="linenos">42</span></a>    <span class="n">fecha_registro</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span>
-</span><span id="L-43"><a href="#L-43"><span class="linenos">43</span></a>        <span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span>
-</span><span id="L-44"><a href="#L-44"><span class="linenos">44</span></a>    <span class="p">)</span>
-</span><span id="L-45"><a href="#L-45"><span class="linenos">45</span></a>
-</span><span id="L-46"><a href="#L-46"><span class="linenos">46</span></a>    <span class="n">fecha_actualizacion</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span>
-</span><span id="L-47"><a href="#L-47"><span class="linenos">47</span></a>        <span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span>
-</span><span id="L-48"><a href="#L-48"><span class="linenos">48</span></a>    <span class="p">)</span>
-</span><span id="L-49"><a href="#L-49"><span class="linenos">49</span></a>
-</span><span id="L-50"><a href="#L-50"><span class="linenos">50</span></a>    <span class="n">objects</span> <span class="o">=</span> <span class="n">MonedaQuerySet</span><span class="o">.</span><span class="n">as_manager</span><span class="p">()</span>
-</span><span id="L-51"><a href="#L-51"><span class="linenos">51</span></a>
-</span><span id="L-52"><a href="#L-52"><span class="linenos">52</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="L-53"><a href="#L-53"><span class="linenos">53</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"codigo"</span><span class="p">,)</span>
-</span><span id="L-54"><a href="#L-54"><span class="linenos">54</span></a>
-</span><span id="L-55"><a href="#L-55"><span class="linenos">55</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-</span><span id="L-56"><a href="#L-56"><span class="linenos">56</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">codigo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">codigo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="L-57"><a href="#L-57"><span class="linenos">57</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nombre</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nombre</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="L-58"><a href="#L-58"><span class="linenos">58</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">simbolo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simbolo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="L-59"><a href="#L-59"><span class="linenos">59</span></a>
-</span><span id="L-60"><a href="#L-60"><span class="linenos">60</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span><span id="L-61"><a href="#L-61"><span class="linenos">61</span></a>
-</span><span id="L-62"><a href="#L-62"><span class="linenos">62</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="L-63"><a href="#L-63"><span class="linenos">63</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">nombre</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-64"><a href="#L-64"><span class="linenos">64</span></a>
-</span><span id="L-65"><a href="#L-65"><span class="linenos">65</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="L-66"><a href="#L-66"><span class="linenos">66</span></a><span class="w">        </span><span class="sd">"""Habilita nuevamente una moneda."""</span>
-</span><span id="L-67"><a href="#L-67"><span class="linenos">67</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">estado</span> <span class="o">=</span> <span class="s2">"ACTIVA"</span>
-</span><span id="L-68"><a href="#L-68"><span class="linenos">68</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span><span id="L-69"><a href="#L-69"><span class="linenos">69</span></a>
-</span><span id="L-70"><a href="#L-70"><span class="linenos">70</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">desactivar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="L-71"><a href="#L-71"><span class="linenos">71</span></a><span class="w">        </span><span class="sd">"""Deshabilita una moneda sin eliminarla."""</span>
-</span><span id="L-72"><a href="#L-72"><span class="linenos">72</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">estado</span> <span class="o">=</span> <span class="s2">"INACTIVA"</span>
-</span><span id="L-73"><a href="#L-73"><span class="linenos">73</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span></pre></div>
 
 
             </section>
                 <section id="MonedaQuerySet">
-                            <input id="MonedaQuerySet-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr class">
-            
+                    <div class="attr class">
+
     <span class="def">class</span>
     <span class="name">MonedaQuerySet</span><wbr>(<span class="base">django.db.models.query.QuerySet</span>):
 
-                <label class="view-source-button" for="MonedaQuerySet-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#MonedaQuerySet"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="MonedaQuerySet-5"><a href="#MonedaQuerySet-5"><span class="linenos"> 5</span></a><span class="k">class</span><span class="w"> </span><span class="nc">MonedaQuerySet</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">QuerySet</span><span class="p">):</span>
-</span><span id="MonedaQuerySet-6"><a href="#MonedaQuerySet-6"><span class="linenos"> 6</span></a><span class="w">    </span><span class="sd">"""Consultas reutilizables para el catálogo de monedas."""</span>
-</span><span id="MonedaQuerySet-7"><a href="#MonedaQuerySet-7"><span class="linenos"> 7</span></a>
-</span><span id="MonedaQuerySet-8"><a href="#MonedaQuerySet-8"><span class="linenos"> 8</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activas</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="MonedaQuerySet-9"><a href="#MonedaQuerySet-9"><span class="linenos"> 9</span></a><span class="w">        </span><span class="sd">"""Devuelve únicamente las monedas disponibles para nuevas operaciones."""</span>
-</span><span id="MonedaQuerySet-10"><a href="#MonedaQuerySet-10"><span class="linenos">10</span></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">estado</span><span class="o">=</span><span class="s2">"ACTIVA"</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Consultas reutilizables para el catálogo de monedas.</p>
 </div>
 
 
                             <div id="MonedaQuerySet.activas" class="classattr">
-                                        <input id="MonedaQuerySet.activas-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                                <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">activas</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="MonedaQuerySet.activas-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#MonedaQuerySet.activas"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="MonedaQuerySet.activas-8"><a href="#MonedaQuerySet.activas-8"><span class="linenos"> 8</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activas</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="MonedaQuerySet.activas-9"><a href="#MonedaQuerySet.activas-9"><span class="linenos"> 9</span></a><span class="w">        </span><span class="sd">"""Devuelve únicamente las monedas disponibles para nuevas operaciones."""</span>
-</span><span id="MonedaQuerySet.activas-10"><a href="#MonedaQuerySet.activas-10"><span class="linenos">10</span></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">estado</span><span class="o">=</span><span class="s2">"ACTIVA"</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Devuelve únicamente las monedas disponibles para nuevas operaciones.</p>
 </div>
@@ -277,80 +183,14 @@ monedas<wbr>.models    </h1>
                             </div>
                 </section>
                 <section id="Moneda">
-                            <input id="Moneda-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr class">
-            
+                    <div class="attr class">
+
     <span class="def">class</span>
     <span class="name">Moneda</span><wbr>(<span class="base">django.db.models.base.Model</span>):
 
-                <label class="view-source-button" for="Moneda-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#Moneda"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Moneda-13"><a href="#Moneda-13"><span class="linenos">13</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Moneda</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
-</span><span id="Moneda-14"><a href="#Moneda-14"><span class="linenos">14</span></a><span class="w">    </span><span class="sd">"""</span>
-</span><span id="Moneda-15"><a href="#Moneda-15"><span class="linenos">15</span></a><span class="sd">    Representa una moneda disponible para operaciones</span>
-</span><span id="Moneda-16"><a href="#Moneda-16"><span class="linenos">16</span></a><span class="sd">    de Global Exchange.</span>
-</span><span id="Moneda-17"><a href="#Moneda-17"><span class="linenos">17</span></a><span class="sd">    """</span>
-</span><span id="Moneda-18"><a href="#Moneda-18"><span class="linenos">18</span></a>
-</span><span id="Moneda-19"><a href="#Moneda-19"><span class="linenos">19</span></a>    <span class="n">ESTADOS_MONEDA</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="Moneda-20"><a href="#Moneda-20"><span class="linenos">20</span></a>        <span class="p">(</span><span class="s2">"ACTIVA"</span><span class="p">,</span> <span class="s2">"Activa"</span><span class="p">),</span>
-</span><span id="Moneda-21"><a href="#Moneda-21"><span class="linenos">21</span></a>        <span class="p">(</span><span class="s2">"INACTIVA"</span><span class="p">,</span> <span class="s2">"Inactiva"</span><span class="p">),</span>
-</span><span id="Moneda-22"><a href="#Moneda-22"><span class="linenos">22</span></a>    <span class="p">]</span>
-</span><span id="Moneda-23"><a href="#Moneda-23"><span class="linenos">23</span></a>
-</span><span id="Moneda-24"><a href="#Moneda-24"><span class="linenos">24</span></a>    <span class="n">codigo</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="Moneda-25"><a href="#Moneda-25"><span class="linenos">25</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="Moneda-26"><a href="#Moneda-26"><span class="linenos">26</span></a>        <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="Moneda-27"><a href="#Moneda-27"><span class="linenos">27</span></a>    <span class="p">)</span>
-</span><span id="Moneda-28"><a href="#Moneda-28"><span class="linenos">28</span></a>
-</span><span id="Moneda-29"><a href="#Moneda-29"><span class="linenos">29</span></a>    <span class="n">nombre</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="Moneda-30"><a href="#Moneda-30"><span class="linenos">30</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-</span><span id="Moneda-31"><a href="#Moneda-31"><span class="linenos">31</span></a>    <span class="p">)</span>
-</span><span id="Moneda-32"><a href="#Moneda-32"><span class="linenos">32</span></a>
-</span><span id="Moneda-33"><a href="#Moneda-33"><span class="linenos">33</span></a>    <span class="n">simbolo</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="Moneda-34"><a href="#Moneda-34"><span class="linenos">34</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="Moneda-35"><a href="#Moneda-35"><span class="linenos">35</span></a>    <span class="p">)</span>
-</span><span id="Moneda-36"><a href="#Moneda-36"><span class="linenos">36</span></a>
-</span><span id="Moneda-37"><a href="#Moneda-37"><span class="linenos">37</span></a>    <span class="n">estado</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span>
-</span><span id="Moneda-38"><a href="#Moneda-38"><span class="linenos">38</span></a>        <span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-</span><span id="Moneda-39"><a href="#Moneda-39"><span class="linenos">39</span></a>        <span class="n">choices</span><span class="o">=</span><span class="n">ESTADOS_MONEDA</span><span class="p">,</span>
-</span><span id="Moneda-40"><a href="#Moneda-40"><span class="linenos">40</span></a>        <span class="n">default</span><span class="o">=</span><span class="s2">"ACTIVA"</span><span class="p">,</span>
-</span><span id="Moneda-41"><a href="#Moneda-41"><span class="linenos">41</span></a>    <span class="p">)</span>
-</span><span id="Moneda-42"><a href="#Moneda-42"><span class="linenos">42</span></a>
-</span><span id="Moneda-43"><a href="#Moneda-43"><span class="linenos">43</span></a>    <span class="n">fecha_registro</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span>
-</span><span id="Moneda-44"><a href="#Moneda-44"><span class="linenos">44</span></a>        <span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span>
-</span><span id="Moneda-45"><a href="#Moneda-45"><span class="linenos">45</span></a>    <span class="p">)</span>
-</span><span id="Moneda-46"><a href="#Moneda-46"><span class="linenos">46</span></a>
-</span><span id="Moneda-47"><a href="#Moneda-47"><span class="linenos">47</span></a>    <span class="n">fecha_actualizacion</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span>
-</span><span id="Moneda-48"><a href="#Moneda-48"><span class="linenos">48</span></a>        <span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span>
-</span><span id="Moneda-49"><a href="#Moneda-49"><span class="linenos">49</span></a>    <span class="p">)</span>
-</span><span id="Moneda-50"><a href="#Moneda-50"><span class="linenos">50</span></a>
-</span><span id="Moneda-51"><a href="#Moneda-51"><span class="linenos">51</span></a>    <span class="n">objects</span> <span class="o">=</span> <span class="n">MonedaQuerySet</span><span class="o">.</span><span class="n">as_manager</span><span class="p">()</span>
-</span><span id="Moneda-52"><a href="#Moneda-52"><span class="linenos">52</span></a>
-</span><span id="Moneda-53"><a href="#Moneda-53"><span class="linenos">53</span></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="Moneda-54"><a href="#Moneda-54"><span class="linenos">54</span></a>        <span class="n">ordering</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"codigo"</span><span class="p">,)</span>
-</span><span id="Moneda-55"><a href="#Moneda-55"><span class="linenos">55</span></a>
-</span><span id="Moneda-56"><a href="#Moneda-56"><span class="linenos">56</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-</span><span id="Moneda-57"><a href="#Moneda-57"><span class="linenos">57</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">codigo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">codigo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="Moneda-58"><a href="#Moneda-58"><span class="linenos">58</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nombre</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nombre</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="Moneda-59"><a href="#Moneda-59"><span class="linenos">59</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">simbolo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simbolo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="Moneda-60"><a href="#Moneda-60"><span class="linenos">60</span></a>
-</span><span id="Moneda-61"><a href="#Moneda-61"><span class="linenos">61</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span><span id="Moneda-62"><a href="#Moneda-62"><span class="linenos">62</span></a>
-</span><span id="Moneda-63"><a href="#Moneda-63"><span class="linenos">63</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Moneda-64"><a href="#Moneda-64"><span class="linenos">64</span></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">codigo</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">nombre</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="Moneda-65"><a href="#Moneda-65"><span class="linenos">65</span></a>
-</span><span id="Moneda-66"><a href="#Moneda-66"><span class="linenos">66</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Moneda-67"><a href="#Moneda-67"><span class="linenos">67</span></a><span class="w">        </span><span class="sd">"""Habilita nuevamente una moneda."""</span>
-</span><span id="Moneda-68"><a href="#Moneda-68"><span class="linenos">68</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">estado</span> <span class="o">=</span> <span class="s2">"ACTIVA"</span>
-</span><span id="Moneda-69"><a href="#Moneda-69"><span class="linenos">69</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span><span id="Moneda-70"><a href="#Moneda-70"><span class="linenos">70</span></a>
-</span><span id="Moneda-71"><a href="#Moneda-71"><span class="linenos">71</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">desactivar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Moneda-72"><a href="#Moneda-72"><span class="linenos">72</span></a><span class="w">        </span><span class="sd">"""Deshabilita una moneda sin eliminarla."""</span>
-</span><span id="Moneda-73"><a href="#Moneda-73"><span class="linenos">73</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">estado</span> <span class="o">=</span> <span class="s2">"INACTIVA"</span>
-</span><span id="Moneda-74"><a href="#Moneda-74"><span class="linenos">74</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Representa una moneda disponible para operaciones
 de Global Exchange.</p>
@@ -362,23 +202,23 @@ de Global Exchange.</p>
             <span class="name">ESTADOS_MONEDA</span>        =
 <span class="default_value">[(&#39;ACTIVA&#39;, &#39;Activa&#39;), (&#39;INACTIVA&#39;, &#39;Inactiva&#39;)]</span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.ESTADOS_MONEDA"></a>
-    
-    
+
+
 
                             </div>
                             <div id="Moneda.codigo" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">codigo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.codigo"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -387,14 +227,14 @@ object the first time, the query is executed.</p>
                             </div>
                             <div id="Moneda.nombre" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">nombre</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.nombre"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -403,14 +243,14 @@ object the first time, the query is executed.</p>
                             </div>
                             <div id="Moneda.simbolo" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">simbolo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.simbolo"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -419,14 +259,14 @@ object the first time, the query is executed.</p>
                             </div>
                             <div id="Moneda.estado" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">estado</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.estado"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -435,14 +275,14 @@ object the first time, the query is executed.</p>
                             </div>
                             <div id="Moneda.fecha_registro" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">fecha_registro</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.fecha_registro"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -451,14 +291,14 @@ object the first time, the query is executed.</p>
                             </div>
                             <div id="Moneda.fecha_actualizacion" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">fecha_actualizacion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.fecha_actualizacion"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -467,38 +307,28 @@ object the first time, the query is executed.</p>
                             </div>
                             <div id="Moneda.objects" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">objects</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.objects"></a>
-    
+
             <div class="docstring"><p>The type of the None singleton.</p>
 </div>
 
 
                             </div>
                             <div id="Moneda.save" class="classattr">
-                                        <input id="Moneda.save-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                                <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">save</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span><span class="n">args</span>, </span><span class="param"><span class="o">**</span><span class="n">kwargs</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="Moneda.save-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#Moneda.save"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Moneda.save-56"><a href="#Moneda.save-56"><span class="linenos">56</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-</span><span id="Moneda.save-57"><a href="#Moneda.save-57"><span class="linenos">57</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">codigo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">codigo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="Moneda.save-58"><a href="#Moneda.save-58"><span class="linenos">58</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nombre</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nombre</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="Moneda.save-59"><a href="#Moneda.save-59"><span class="linenos">59</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">simbolo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">simbolo</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="Moneda.save-60"><a href="#Moneda.save-60"><span class="linenos">60</span></a>
-</span><span id="Moneda.save-61"><a href="#Moneda.save-61"><span class="linenos">61</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Save the current instance. Override this in a subclass if you want to
 control the saving process.</p>
@@ -511,22 +341,14 @@ non-SQL backends), respectively. Normally, they should not be set.</p>
 
                             </div>
                             <div id="Moneda.activar" class="classattr">
-                                        <input id="Moneda.activar-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                                <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">activar</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="Moneda.activar-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#Moneda.activar"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Moneda.activar-66"><a href="#Moneda.activar-66"><span class="linenos">66</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">activar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Moneda.activar-67"><a href="#Moneda.activar-67"><span class="linenos">67</span></a><span class="w">        </span><span class="sd">"""Habilita nuevamente una moneda."""</span>
-</span><span id="Moneda.activar-68"><a href="#Moneda.activar-68"><span class="linenos">68</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">estado</span> <span class="o">=</span> <span class="s2">"ACTIVA"</span>
-</span><span id="Moneda.activar-69"><a href="#Moneda.activar-69"><span class="linenos">69</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Habilita nuevamente una moneda.</p>
 </div>
@@ -534,22 +356,14 @@ non-SQL backends), respectively. Normally, they should not be set.</p>
 
                             </div>
                             <div id="Moneda.desactivar" class="classattr">
-                                        <input id="Moneda.desactivar-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                                <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">desactivar</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="Moneda.desactivar-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#Moneda.desactivar"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Moneda.desactivar-71"><a href="#Moneda.desactivar-71"><span class="linenos">71</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">desactivar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Moneda.desactivar-72"><a href="#Moneda.desactivar-72"><span class="linenos">72</span></a><span class="w">        </span><span class="sd">"""Deshabilita una moneda sin eliminarla."""</span>
-</span><span id="Moneda.desactivar-73"><a href="#Moneda.desactivar-73"><span class="linenos">73</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">estado</span> <span class="o">=</span> <span class="s2">"INACTIVA"</span>
-</span><span id="Moneda.desactivar-74"><a href="#Moneda.desactivar-74"><span class="linenos">74</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Deshabilita una moneda sin eliminarla.</p>
 </div>
@@ -558,14 +372,14 @@ non-SQL backends), respectively. Normally, they should not be set.</p>
                             </div>
                             <div id="Moneda.get_estado_display" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">get_estado_display</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.get_estado_display"></a>
-    
+
             <div class="docstring"><p>Method descriptor with partial application of the given arguments
 and keywords.</p>
 
@@ -577,14 +391,14 @@ callables as instance methods.</p>
                             </div>
                             <div id="Moneda.get_next_by_fecha_registro" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">get_next_by_fecha_registro</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.get_next_by_fecha_registro"></a>
-    
+
             <div class="docstring"><p>Method descriptor with partial application of the given arguments
 and keywords.</p>
 
@@ -596,14 +410,14 @@ callables as instance methods.</p>
                             </div>
                             <div id="Moneda.get_previous_by_fecha_registro" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">get_previous_by_fecha_registro</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.get_previous_by_fecha_registro"></a>
-    
+
             <div class="docstring"><p>Method descriptor with partial application of the given arguments
 and keywords.</p>
 
@@ -615,14 +429,14 @@ callables as instance methods.</p>
                             </div>
                             <div id="Moneda.get_next_by_fecha_actualizacion" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">get_next_by_fecha_actualizacion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.get_next_by_fecha_actualizacion"></a>
-    
+
             <div class="docstring"><p>Method descriptor with partial application of the given arguments
 and keywords.</p>
 
@@ -634,14 +448,14 @@ callables as instance methods.</p>
                             </div>
                             <div id="Moneda.get_previous_by_fecha_actualizacion" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">get_previous_by_fecha_actualizacion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.get_previous_by_fecha_actualizacion"></a>
-    
+
             <div class="docstring"><p>Method descriptor with partial application of the given arguments
 and keywords.</p>
 
@@ -653,14 +467,14 @@ callables as instance methods.</p>
                             </div>
                             <div id="Moneda.id" class="classattr">
                                 <div class="attr function">
-            
+
         <span class="def">def</span>
         <span class="name">id</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.id"></a>
-    
+
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
 </div>
@@ -671,10 +485,10 @@ object the first time, the query is executed.</p>
                                 <div class="attr variable">
             <span class="name">consultas_tasas</span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.consultas_tasas"></a>
-    
+
             <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
 many-to-one relation.</p>
 
@@ -696,10 +510,10 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                                 <div class="attr variable">
             <span class="name">tasas_referencia_base</span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.tasas_referencia_base"></a>
-    
+
             <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
 many-to-one relation.</p>
 
@@ -721,10 +535,10 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                                 <div class="attr variable">
             <span class="name">tasas_referencia_cotizada</span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.tasas_referencia_cotizada"></a>
-    
+
             <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
 many-to-one relation.</p>
 
@@ -746,10 +560,10 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                                 <div class="attr variable">
             <span class="name">tasas_origen</span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.tasas_origen"></a>
-    
+
             <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
 many-to-one relation.</p>
 
@@ -771,10 +585,10 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                                 <div class="attr variable">
             <span class="name">tasas_destino</span>
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.tasas_destino"></a>
-    
+
             <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
 many-to-one relation.</p>
 
@@ -795,14 +609,14 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                 </section>
                 <section id="Moneda.DoesNotExist">
                     <div class="attr class">
-            
+
     <span class="def">class</span>
     <span class="name">Moneda.DoesNotExist</span><wbr>(<span class="base">django.core.exceptions.ObjectDoesNotExist</span>):
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.DoesNotExist"></a>
-    
+
             <div class="docstring"><p>The requested object does not exist</p>
 </div>
 
@@ -810,14 +624,14 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                 </section>
                 <section id="Moneda.MultipleObjectsReturned">
                     <div class="attr class">
-            
+
     <span class="def">class</span>
     <span class="name">Moneda.MultipleObjectsReturned</span><wbr>(<span class="base">django.core.exceptions.MultipleObjectsReturned</span>):
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.MultipleObjectsReturned"></a>
-    
+
             <div class="docstring"><p>The query returned multiple objects when only one was expected.</p>
 </div>
 
@@ -825,14 +639,14 @@ class built by <code>create_reverse_many_to_one_manager()</code> defined below.<
                 </section>
                 <section id="Moneda.NotUpdated">
                     <div class="attr class">
-            
+
     <span class="def">class</span>
     <span class="name">Moneda.NotUpdated</span><wbr>(<span class="base">django.core.exceptions.ObjectNotUpdated</span>, <span class="base">django.db.utils.DatabaseError</span>):
 
-        
+
     </div>
     <a class="headerlink" href="#Moneda.NotUpdated"></a>
-    
+
             <div class="docstring"><p>The updated object no longer exists.</p>
 </div>
 

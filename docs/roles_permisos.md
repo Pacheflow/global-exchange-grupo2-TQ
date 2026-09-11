@@ -1,59 +1,30 @@
-# Roles y Permisos — Global Exchange
+# Roles y permisos — Global Exchange
 
-> Estado real verificado, rama `frontend-integration`, HEAD `590f131`.
+> Matriz alineada con ERS, Jira y backend el 10/09/2026.
 
-## Roles de negocio
+Los únicos roles de negocio son `USUARIO`, `CAJERO`, `ANALISTA_CAMBIARIO` y `ADMINISTRADOR`. Los roles técnicos de Keycloak no son actores funcionales.
 
-Los cuatro roles se definen en el realm de Keycloak (`global-exchange`) y se leen del token JWT:
+| Función hasta Sprint 2 | USUARIO | CAJERO | ANALISTA | ADMIN |
+|---|:---:|:---:|:---:|:---:|
+| Perfil, login, logout y sesión | Sí | Sí | Sí | Sí |
+| Tasas de referencia y simulador HU-19 | Sí | Sí | Sí | Sí |
+| Monedas activas | Sí | Sí | Sí | Sí |
+| Clientes asociados y selección | Sí | Sí | Sí | Sí |
+| CRUD global de clientes | — | — | — | Sí |
+| Segmentar clientes | — | — | — | Sí |
+| Asociar usuario–cliente | — | — | — | Sí |
+| CRUD de usuarios y roles | — | — | — | Sí |
+| Administrar monedas | — | — | — | Sí |
+| Administrar tasas comerciales | — | — | Sí | — |
+| Histórico comercial | — | — | Sí | Sí |
+| Administrar métodos de pago | — | — | — | Sí |
 
-| Rol | Código en Keycloak | Acceso principal |
-|---|---|---|
-| Administrador | `ADMINISTRADOR` | Gestión total: usuarios, clientes, monedas, métodos de pago, tasas (lectura), roles |
-| Analista Cambiario | `ANALISTA_CAMBIARIO` | Tasas comerciales (escritura y histórico), tasas de referencia (lectura), simulador |
-| Cajero | `CAJERO` | Panel general (pendiente de cajas) |
-| Usuario | `USUARIO` | Consulta básica del panel |
+Las tasas de referencia, el catálogo de monedas activas y el simulador basado en referencia también son públicos. Visitante y usuario autenticado comparten el endpoint y la lógica de HU-19; el simulador no requiere cliente ni tipo de operación. Esto no abre endpoints de administración.
 
-## Control de acceso
+En la interfaz autenticada, `Conversor` y `Mi cliente` se muestran únicamente al rol efectivo `USUARIO`. `CAJERO` y `ANALISTA_CAMBIARIO` no reciben esos accesos en sidebar ni navbar. Las rutas compartidas continúan técnicamente protegidas por la autorización existente; esta decisión de experiencia no amplió ni restringió permisos backend.
 
-### Backend (decoradores)
+La autorización es RBAC de aplicación a partir de roles de realm validados en el token. La ERS usa la expresión “roles y permisos”, pero el alcance funcional verificado de Sprint 1 no demuestra un criterio que obligue a adoptar Authorization Services, policies o scopes de Keycloak. Esa ampliación arquitectónica no se realizó.
 
-El control de acceso se aplica en las vistas mediante decoradores centralizados en `usuarios/decorators.py`:
+Funciones como operaciones, transacciones, pagos reales, cajas, arqueos, ganancias, reportes, facturación y notificaciones pertenecen a Sprints futuros. En navegación se presentan como `Pendiente` o no se muestran; no conceden acceso accidental.
 
-```python
-@requiere_rol("ADMINISTRADOR")    # Verifica un rol específico
-@requiere_alguno_de_roles(...)    # Verifica al menos uno
-@requiere_autenticacion           # Solo requiere sesión activa
-```
-
-**Regla fundamental:** el backend siempre valida. Ocultar opciones de UI no es suficiente (RNF-02/ERS20).
-
-### Acceso por endpoint (resumen)
-
-| Recurso | Lectura | Escritura |
-|---|---|---|
-| Usuarios (CRUD) | ADMINISTRADOR | ADMINISTRADOR |
-| Clientes (CRUD) | ADMINISTRADOR | ADMINISTRADOR |
-| Selección de cliente | Cualquier rol autenticado | Cualquier rol autenticado |
-| Monedas (listar) | Todos los roles | — |
-| Monedas (crear/editar/estado) | — | ADMINISTRADOR |
-| Métodos de pago (consultar) | Cualquier rol (filtrado por cliente en sesión) | — |
-| Métodos de pago (registrar/editar/estado) | — | ADMINISTRADOR |
-| Tasas de referencia | Todos los roles | — |
-| Tasas comerciales (crear/modificar) | — | ANALISTA_CAMBIARIO |
-| Tasas comerciales (histórico) | ADMINISTRADOR, ANALISTA_CAMBIARIO | — |
-| Simulador | Todos los roles | — |
-| Roles / Permisos (consulta) | ADMINISTRADOR | — (solo lectura) |
-
-## Pantalla Roles / Permisos
-
-`/roles-permisos/` (vista web, `ADMINISTRADOR`):
-- Consulta los cuatro roles de negocio configurados en Keycloak.
-- Indica si cada rol está configurado en el realm.
-- **No modifica el realm** — es solo consulta informativa.
-
-## Limitaciones conocidas
-
-- **No hay permisos granulares** (policies, scopes, reglas por dominio). Solo roles a nivel de realm.
-- No hay invalidación de sesión en Keycloak al hacer logout de Django.
-- No hay control de acceso basado en recursos (ABAC/RBAC fina); el filtrado por cliente se hace a nivel de aplicación, no por permiso declarativo.
-- Las identidades de prueba Keycloak se eliminan después de las verificaciones; no se mantienen permisos permanentes fuera de los roles de realm.
+El logout actual limpia la sesión Django y redirige al endpoint OIDC de cierre de sesión de Keycloak. La sesión server-side renueva tokens mediante refresh token sin exponerlos al navegador.

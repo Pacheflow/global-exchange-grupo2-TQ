@@ -16,7 +16,7 @@ from usuarios.services.keycloak import (
     SESSION_USUARIO,
 )
 
-from .models import ConsultaProveedorTasas, TasaReferencia
+from .models import ConsultaProveedorTasas, TasaComercial, TasaReferencia
 from .providers import ProveedorTasasError, ProveedorTasasHTTP, RespuestaTasas
 from .services import consultar_tasas_referencia
 
@@ -198,9 +198,14 @@ class EndpointTasasTests(TestCase):
         session[SESSION_EXPIRA_EN] = time.time() + 3600
         session.save()
 
-    def test_anonimo_recibe_401(self):
+    @patch("tasas.views.consultar_tasas_referencia")
+    def test_consulta_de_referencia_es_publica(self, mock_consultar):
+        mock_consultar.return_value.estado = "vacio"
+        mock_consultar.return_value.tasas = []
+        mock_consultar.return_value.mensaje = "No hay monedas activas configuradas."
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["estado"], "vacio")
 
     @patch("tasas.views.consultar_tasas_referencia")
     def test_respuesta_exitosa_diferencia_referencia_y_comercial(self, mock_consultar):
@@ -222,6 +227,24 @@ class EndpointTasasTests(TestCase):
             vigente_hasta=timezone.now() + timedelta(hours=1),
             consulta=consulta,
         )
+        historica = TasaComercial.objects.create(
+            moneda_origen=usd,
+            moneda_destino=eur,
+            compra=Decimal("1.111111"),
+            venta=Decimal("1.222222"),
+            vigente=False,
+            version=1,
+            usuario_id="analista-anterior",
+        )
+        vigente = TasaComercial.objects.create(
+            moneda_origen=usd,
+            moneda_destino=eur,
+            compra=Decimal("1.234567"),
+            venta=Decimal("1.345678"),
+            vigente=True,
+            version=2,
+            usuario_id="analista-actual",
+        )
         mock_consultar.return_value.estado = "actualizado"
         mock_consultar.return_value.tasas = [tasa]
         mock_consultar.return_value.mensaje = None
@@ -232,7 +255,17 @@ class EndpointTasasTests(TestCase):
         self.assertEqual(data["tasas_referencia"][0]["tipo"], "REFERENCIA")
         self.assertEqual(data["tasas_referencia"][0]["fuente"], "Proveedor")
         self.assertFalse(data["tasas_referencia"][0]["desactualizada"])
-        self.assertEqual(data["tasas_comerciales"], [])
+        self.assertEqual(len(data["tasas_comerciales"]), 1)
+        comercial = data["tasas_comerciales"][0]
+        self.assertEqual(comercial["id"], vigente.id)
+        self.assertNotEqual(comercial["id"], historica.id)
+        self.assertEqual(comercial["tipo"], "COMERCIAL")
+        self.assertEqual(comercial["par"], "USD/EUR")
+        self.assertEqual(comercial["compra"], "1.234567")
+        self.assertEqual(comercial["venta"], "1.345678")
+        self.assertTrue(comercial["vigente"])
+        self.assertEqual(comercial["version"], 2)
+        self.assertEqual(comercial["fecha_hora"], vigente.fecha_registro.isoformat())
 
     @patch("tasas.views.consultar_tasas_referencia")
     def test_indisponibilidad_sin_datos_devuelve_503(self, mock_consultar):

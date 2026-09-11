@@ -1,146 +1,86 @@
 # Endpoints API — Global Exchange
 
-> Estado real verificado del código, rama `frontend-integration`, HEAD `590f131`.
-> Prefijo base: `/api/`.
+> Contrato verificado en código el 11/09/2026. Las escrituras usan JSON y conservan protección CSRF.
 
-## Convenciones
+## Acceso público
 
-- Todos los endpoints requieren sesión autenticada salvo indicación.
-- Lectura JSON: `Accept: application/json` o cualquier request que no pida HTML explícitamente.
-- Escritura: `Content-Type: application/json` con `X-CSRFToken` desde cookie.
-- `metodos_pago` es **dual**: responde JSON si `Accept: application/json` o `Content-Type: application/json`, o HTML renderizando la template.
+| Endpoint | Método | Función |
+|---|---|---|
+| `/api/tasas/` | GET | Devuelve `tasas_referencia` externas y `tasas_comerciales` vigentes |
+| `/api/tasas/simular/` | POST | Simulación sin persistir operaciones; requiere token CSRF |
+| `/api/monedas/activas/` | GET | Catálogo activo necesario para consulta y simulación |
 
-## `/api/usuarios/` → `usuarios.api_urls`
+Estos endpoints no exponen administración. En `GET /api/tasas/`, cada elemento de `tasas_referencia` tiene tipo `REFERENCIA` y representa una cotización externa, con fuente, fecha y estado de frescura. Cada elemento de `tasas_comerciales` tiene tipo `COMERCIAL` y representa una tasa interna de compra/venta; la consulta pública incluye únicamente registros vigentes.
 
-| Endpoint | Método | Función | Rol requerido |
-|---|---|---|---|
-| `api/usuarios/` | GET | Listar usuarios (Keycloak) | ADMINISTRADOR |
-| `api/usuarios/crear/` | POST | Crear usuario en Keycloak | ADMINISTRADOR |
-| `api/usuarios/<user_id>/detalle/` | GET | Detalle de usuario | ADMINISTRADOR |
-| `api/usuarios/<user_id>/editar/` | POST | Editar usuario en Keycloak | ADMINISTRADOR |
-| `api/usuarios/<user_id>/baja/` | POST | Deshabilitar usuario | ADMINISTRADOR |
+Una indisponibilidad total del proveedor de tasas de referencia responde `503` con un estado JSON controlado; el servicio puede devolver respaldo persistido identificado como desactualizado. Esto no convierte las tasas comerciales en tasas de referencia ni cambia su origen.
 
-**Crear usuario (POST):**
-```json
-{
-  "username": "string",
-  "email": "string",
-  "password": "string"
-}
-```
-Respuesta 201: `{ "message": "...", "usuario": { "id": "..." } }`
-Error 400: `{ "error": "..." }`
+El mismo simulador atiende a visitantes y usuarios autenticados. Aplica tasas de referencia persistidas, vigentes y directamente aplicables, inversas o cruzadas mediante la moneda base configurada. Informa monto, tasa, tipo `REFERENCIA`, fecha/hora de la fuente y resultado, sin consultar tasas comerciales ni crear operaciones.
 
-## `/api/clientes/` → `clientes.api_urls`
+## Usuarios — ADMINISTRADOR
 
-| Endpoint | Método | Función | Rol requerido |
-|---|---|---|---|
-| `api/clientes/crear/` | POST | Registrar cliente nuevo | ADMINISTRADOR |
-| `api/clientes/<id>/editar/` | POST | Editar cliente | ADMINISTRADOR |
-| `api/clientes/<id>/baja/` | POST | Baja lógica (estado → INACTIVO) | ADMINISTRADOR |
-| `api/clientes/<id>/seleccionar/` | POST | Seleccionar cliente activo | CUALQUIER_ROL |
+| Endpoint | Método | Función |
+|---|---|---|
+| `/api/usuarios/crear/` | POST | Crear identidad en Keycloak |
+| `/api/usuarios/<user_id>/detalle/` | GET | Consultar identidad y roles |
+| `/api/usuarios/<user_id>/editar/` | POST | Editar identidad y roles |
+| `/api/usuarios/<user_id>/baja/` | POST | Deshabilitar identidad |
 
-**Crear cliente (POST):**
-```json
-{
-  "nombre_razon_social": "string",
-  "tipo_persona": "FISICA | JURIDICA",
-  "documento": "string"
-}
-```
-Respuesta 201: `{ "message": "...", "cliente": { "id": 1, "estado": "ACTIVO", ... } }`
-Error 400: `{ "error": "Los datos del cliente no son válidos.", "detalles": {...} }`
-Error 409: `{ "error": "Ya existe un cliente con ese documento." }` (documento duplicado)
+No existe un `GET /api/usuarios/` de listado. La pantalla web `/usuarios/` obtiene el listado directamente mediante el servicio de administración de Keycloak.
 
-## `/api/monedas/` → `monedas.urls`
+## Clientes
 
-| Endpoint | Método | Función | Rol requerido |
-|---|---|---|---|
-| `api/monedas/` | GET | Listar todas las monedas | CUALQUIER_ROL |
-| `api/monedas/activas/` | GET | Listar monedas con estado ACTIVA | CUALQUIER_ROL |
-| `api/monedas/crear/` | POST | Crear moneda nueva | ADMINISTRADOR |
-| `api/monedas/<id>/editar/` | POST | Editar moneda | ADMINISTRADOR |
-| `api/monedas/<id>/estado/` | POST | Alternar estado ACTIVA ↔ INACTIVA | ADMINISTRADOR |
+| Endpoint | Método | Rol |
+|---|---|---|
+| `/api/clientes/crear/` | POST | ADMINISTRADOR |
+| `/api/clientes/<id>/editar/` | POST | ADMINISTRADOR |
+| `/api/clientes/<id>/baja/` | POST | ADMINISTRADOR |
+| `/api/clientes/<id>/seleccionar/` | POST | Cualquier rol de negocio autenticado, limitado a sus asociaciones salvo ADMINISTRADOR |
 
-**Crear moneda (POST):**
-```json
-{
-  "codigo": "PYG",
-  "nombre": "Guaraní",
-  "simbolo": "₲"
-}
-```
-Respuesta 201: `{ "message": "...", "moneda": { "id": 1, "codigo": "PYG", ... } }`
-Error 400: `{ "error": "..." }`
-Error 409: `{ "error": "Ya existe una moneda con ese código." }`
+La consulta web `/clientes/consultar/` muestra todos los clientes al administrador y sólo asociaciones activas a los demás roles.
 
-## `/api/metodos-pago/` → `metodos_pago.urls`
+## Monedas
 
-| Endpoint | Método | Función | Rol requerido |
-|---|---|---|---|
-| `api/metodos-pago/` | GET | Listar métodos de pago del cliente activo | CUALQUIER_ROL (filtrado por cliente en sesión) |
-| `api/metodos-pago/registrar/` | POST | Registrar método nuevo | ADMINISTRADOR |
-| `api/metodos-pago/consultar/` | GET | Listar métodos de pago | CUALQUIER_ROL |
-| `api/metodos-pago/editar/<id>/` | POST | Editar método de pago | ADMINISTRADOR |
-| `api/metodos-pago/estado/<id>/` | POST | Alternar estado ACTIVO ↔ INACTIVO | ADMINISTRADOR |
+| Endpoint | Método | Rol |
+|---|---|---|
+| `/api/monedas/` | GET | ADMINISTRADOR |
+| `/api/monedas/activas/` | GET | Público |
+| `/api/monedas/crear/` | POST | ADMINISTRADOR |
+| `/api/monedas/<id>/editar/` | POST | ADMINISTRADOR |
+| `/api/monedas/<id>/estado/` | POST | ADMINISTRADOR |
 
-**Respuesta dual:** si `Accept: application/json` → JSON; si no → HTML (`templates/frontend/pagos.html`).
+## Tasas comerciales
 
-**Registrar método (POST):**
-```json
-{
-  "cliente": 1,
-  "nombre": "Efectivo",
-  "tipo": "EFECTIVO"
-}
-```
-Respuesta 201: `{ "message": "...", "metodo_pago": { ... } }`
-Error 400: `{ "error": "..." }`
-Error 409: `{ "error": "Ya existe un método de pago con ese nombre para este cliente." }`
+| Endpoint | Método | Rol |
+|---|---|---|
+| `/api/tasas/comerciales/` | POST | ANALISTA_CAMBIARIO |
+| `/api/tasas/comerciales/historial/` | GET | ADMINISTRADOR o ANALISTA_CAMBIARIO |
+| `/api/tasas/comerciales/<id>/desactivar/` | POST | ANALISTA_CAMBIARIO |
 
-## `/api/tasas/` → `tasas.urls`
+Cada escritura crea una nueva versión y conserva el histórico. La desactivación es lógica (`vigente=false`), no elimina el registro y permite crear después una nueva versión vigente del mismo par. El administrador consulta, pero no modifica ni desactiva.
 
-| Endpoint | Método | Función | Rol requerido |
-|---|---|---|---|
-| `api/tasas/` | GET | Consultar tasas de referencia (proveedor externo) | CUALQUIER_ROL |
-| `api/tasas/comerciales/` | POST | Crear/modificar tasa comercial (versionado) | ANALISTA_CAMBIARIO |
-| `api/tasas/comerciales/historial/` | GET | Histórico de tasas comerciales | ADMINISTRADOR, ANALISTA_CAMBIARIO |
-| `api/tasas/simular/` | POST | Simular conversión entre monedas | CUALQUIER_ROL |
+## Métodos de pago — ADMINISTRADOR
 
-**Consultar tasas (GET):**
-Respuesta: `{ "actualizado": true|false, "fuente": "...", "moneda_base": "USD", "tasas": { ... } }`
+| Endpoint | Método | Función |
+|---|---|---|
+| `/api/metodos-pago/` | GET | Listado y clientes disponibles |
+| `/api/metodos-pago/registrar/` | GET/POST | Formulario o alta |
+| `/api/metodos-pago/consultar/` | GET | Listado |
+| `/api/metodos-pago/editar/<id>/` | GET/POST | Edición |
+| `/api/metodos-pago/estado/<id>/` | POST | Activación/desactivación lógica |
 
-**Simular conversión (POST):**
-```json
-{
-  "moneda_origen": "USD",
-  "moneda_destino": "PYG",
-  "monto": 100
-}
-```
-Respuesta: `{ "resultado": { "moneda_origen": "USD", "moneda_destino": "PYG", "monto": 100, "conversion": 785000, "tasa": 7850, "fuente": "..." } }`
+Las vistas son duales HTML/JSON según `Accept` o `Content-Type`. “Métodos de pago” es configuración HU-37; no representa pagos ni transacciones reales.
 
-**Tasas comerciales (POST — crear o modificar):**
-```json
-{
-  "moneda_origen": 1,
-  "moneda_destino": 2,
-  "compra": 7800.00,
-  "venta": 7900.00
-}
-```
-Respuesta: `{ "message": "...", "tasa_comercial": { ... } }`
+## Respuestas de autorización
 
-**Histórico tasas (GET):** lista todas las versiones de la tasa comercial entre las dos monedas, ordenadas por versión descendente.
+- API sin sesión cuando corresponde autenticación: `401` JSON.
+- Rol no permitido: `403` JSON.
+- Vista web sin sesión: redirección a login.
+- Vista web con rol no permitido: `403`.
 
-## Respuestas comunes
+## Rutas web relacionadas
 
-| Código | Significado |
-|---|---|
-| 200 | OK (lectura) |
-| 201 | Created (escritura exitosa) |
-| 400 | Datos inválidos / error de validación |
-| 401 | No autenticado |
-| 403 | Sin permisos / rol requerido no presente |
-| 409 | Conflicto (recurso duplicado) |
-| 500 | Error inesperado (controlado: `{"error": "..."}`) |
+- `/clientes/`: activa como entrada histórica del módulo.
+- `/clientes/seleccionar/`: alias de compatibilidad que redirige a consulta.
+- `/acceso-administrador/`: diagnóstico protegido; no es navegación de negocio.
+- `/metodos-pago/`: entrada web canónica del módulo de configuración.
+- `/pagos/`: alias técnico conservado por compatibilidad con la pantalla integrada; la UI lo denomina “Métodos de pago”.

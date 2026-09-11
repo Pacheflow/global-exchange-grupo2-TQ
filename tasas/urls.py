@@ -22,6 +22,11 @@ urlpatterns = [
         name="historial_tasas_comerciales",
     ),
     path(
+        "comerciales/<int:tasa_id>/desactivar/",
+        views.desactivar_tasa_comercial_view,
+        name="desactivar_tasa_comercial",
+    ),
+    path(
         "simular/",
         views.simular_conversion_view,
         name="simular_conversion",

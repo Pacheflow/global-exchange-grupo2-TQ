@@ -81,176 +81,19 @@ usuarios<wbr>.keycloak    </h1>
                         <div class="docstring"><p>Cliente mínimo OpenID Connect para el realm de Global Exchange.</p>
 </div>
 
-                        <input id="mod-keycloak-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 
-                        <label class="view-source-button" for="mod-keycloak-view-source"><span>View Source</span></label>
-
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="sd">"""Cliente mínimo OpenID Connect para el realm de Global Exchange."""</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a>
-</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">urllib.error</span><span class="w"> </span><span class="kn">import</span> <span class="n">HTTPError</span><span class="p">,</span> <span class="n">URLError</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlencode</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">urllib.request</span><span class="w"> </span><span class="kn">import</span> <span class="n">Request</span><span class="p">,</span> <span class="n">urlopen</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a>
-</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
-</span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a>
-</span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a>
-</span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a><span class="k">class</span><span class="w"> </span><span class="nc">KeycloakError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos"> 13</span></a><span class="w">    </span><span class="sd">"""Error controlado al comunicarse con Keycloak."""</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos"> 14</span></a>
-</span><span id="L-15"><a href="#L-15"><span class="linenos"> 15</span></a>
-</span><span id="L-16"><a href="#L-16"><span class="linenos"> 16</span></a><span class="n">_admin_token_cache</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"access_token"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"expires_at"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos"> 17</span></a>
-</span><span id="L-18"><a href="#L-18"><span class="linenos"> 18</span></a><span class="n">ROLES_NEGOCIO</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"USUARIO"</span><span class="p">,</span> <span class="s2">"CAJERO"</span><span class="p">,</span> <span class="s2">"ANALISTA_CAMBIARIO"</span><span class="p">,</span> <span class="s2">"ADMINISTRADOR"</span><span class="p">)</span>
-</span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a>
-</span><span id="L-20"><a href="#L-20"><span class="linenos"> 20</span></a>
-</span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a><span class="k">def</span><span class="w"> </span><span class="nf">_error_detail</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">fallback</span><span class="p">):</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a><span class="w">    </span><span class="sd">"""Extrae mensajes de error de Admin API y de OAuth/OpenID Connect."""</span>
-</span><span id="L-23"><a href="#L-23"><span class="linenos"> 23</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>        <span class="n">payload</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
-</span><span id="L-25"><a href="#L-25"><span class="linenos"> 25</span></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
-</span><span id="L-26"><a href="#L-26"><span class="linenos"> 26</span></a>        <span class="k">return</span> <span class="n">fallback</span>
-</span><span id="L-27"><a href="#L-27"><span class="linenos"> 27</span></a>    <span class="k">return</span> <span class="p">(</span><span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"errorMessage"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"error_description"</span><span class="p">)</span>
-</span><span id="L-28"><a href="#L-28"><span class="linenos"> 28</span></a>            <span class="ow">or</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"error"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">fallback</span><span class="p">)</span>
-</span><span id="L-29"><a href="#L-29"><span class="linenos"> 29</span></a>
-</span><span id="L-30"><a href="#L-30"><span class="linenos"> 30</span></a>
-</span><span id="L-31"><a href="#L-31"><span class="linenos"> 31</span></a><span class="k">def</span><span class="w"> </span><span class="nf">endpoint</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-</span><span id="L-32"><a href="#L-32"><span class="linenos"> 32</span></a><span class="w">    </span><span class="sd">"""Construye endpoints públicos para el navegador o internos para Django."""</span>
-</span><span id="L-33"><a href="#L-33"><span class="linenos"> 33</span></a>    <span class="n">server_url</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span> <span class="k">if</span> <span class="n">internal</span> <span class="k">else</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_SERVER_URL</span>
-</span><span id="L-34"><a href="#L-34"><span class="linenos"> 34</span></a>    <span class="n">base</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base</span><span class="si">}{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-36"><a href="#L-36"><span class="linenos"> 36</span></a>
-</span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a>
-</span><span id="L-38"><a href="#L-38"><span class="linenos"> 38</span></a><span class="k">def</span><span class="w"> </span><span class="nf">_request</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"GET"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-</span><span id="L-39"><a href="#L-39"><span class="linenos"> 39</span></a>    <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Accept"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">}</span>
-</span><span id="L-40"><a href="#L-40"><span class="linenos"> 40</span></a>    <span class="n">body</span> <span class="o">=</span> <span class="n">urlencode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="L-41"><a href="#L-41"><span class="linenos"> 41</span></a>    <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="L-42"><a href="#L-42"><span class="linenos"> 42</span></a>        <span class="n">headers</span><span class="p">[</span><span class="s2">"Content-Type"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"application/x-www-form-urlencoded"</span>
-</span><span id="L-43"><a href="#L-43"><span class="linenos"> 43</span></a>    <span class="k">if</span> <span class="n">token</span><span class="p">:</span>
-</span><span id="L-44"><a href="#L-44"><span class="linenos"> 44</span></a>        <span class="n">headers</span><span class="p">[</span><span class="s2">"Authorization"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">token</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a>        <span class="k">with</span> <span class="n">urlopen</span><span class="p">(</span><span class="n">Request</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">body</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
-</span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a>            <span class="n">raw</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-</span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a>            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a>    <span class="k">except</span> <span class="n">HTTPError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="n">_error_detail</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="s2">"Keycloak rechazó la operación."</span><span class="p">))</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-51"><a href="#L-51"><span class="linenos"> 51</span></a>    <span class="k">except</span> <span class="n">URLError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-52"><a href="#L-52"><span class="linenos"> 52</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"No se pudo conectar con Keycloak. Verificá que esté iniciado."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-53"><a href="#L-53"><span class="linenos"> 53</span></a>
-</span><span id="L-54"><a href="#L-54"><span class="linenos"> 54</span></a>
-</span><span id="L-55"><a href="#L-55"><span class="linenos"> 55</span></a><span class="k">def</span><span class="w"> </span><span class="nf">exchange_code</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">redirect_uri</span><span class="p">):</span>
-</span><span id="L-56"><a href="#L-56"><span class="linenos"> 56</span></a>    <span class="k">return</span> <span class="n">_request</span><span class="p">(</span><span class="n">endpoint</span><span class="p">(</span><span class="s2">"/protocol/openid-connect/token"</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">method</span><span class="o">=</span><span class="s2">"POST"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span>
-</span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a>        <span class="s2">"grant_type"</span><span class="p">:</span> <span class="s2">"authorization_code"</span><span class="p">,</span> <span class="s2">"client_id"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span><span class="p">,</span>
-</span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a>        <span class="s2">"code"</span><span class="p">:</span> <span class="n">code</span><span class="p">,</span> <span class="s2">"redirect_uri"</span><span class="p">:</span> <span class="n">redirect_uri</span><span class="p">,</span>
-</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a>    <span class="p">})</span>
-</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a>
-</span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a>
-</span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a><span class="k">def</span><span class="w"> </span><span class="nf">userinfo</span><span class="p">(</span><span class="n">access_token</span><span class="p">):</span>
-</span><span id="L-63"><a href="#L-63"><span class="linenos"> 63</span></a>    <span class="k">return</span> <span class="n">_request</span><span class="p">(</span><span class="n">endpoint</span><span class="p">(</span><span class="s2">"/protocol/openid-connect/userinfo"</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">token</span><span class="o">=</span><span class="n">access_token</span><span class="p">)</span>
-</span><span id="L-64"><a href="#L-64"><span class="linenos"> 64</span></a>
-</span><span id="L-65"><a href="#L-65"><span class="linenos"> 65</span></a>
-</span><span id="L-66"><a href="#L-66"><span class="linenos"> 66</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_access_token</span><span class="p">():</span>
-</span><span id="L-67"><a href="#L-67"><span class="linenos"> 67</span></a><span class="w">    </span><span class="sd">"""Obtiene y reutiliza el token de la cuenta de servicio del backend."""</span>
-</span><span id="L-68"><a href="#L-68"><span class="linenos"> 68</span></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
-</span><span id="L-69"><a href="#L-69"><span class="linenos"> 69</span></a>    <span class="k">if</span> <span class="n">_admin_token_cache</span><span class="p">[</span><span class="s2">"access_token"</span><span class="p">]</span> <span class="ow">and</span> <span class="n">now</span> <span class="o">&lt;</span> <span class="n">_admin_token_cache</span><span class="p">[</span><span class="s2">"expires_at"</span><span class="p">]:</span>
-</span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a>        <span class="k">return</span> <span class="n">_admin_token_cache</span><span class="p">[</span><span class="s2">"access_token"</span><span class="p">]</span>
-</span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a>
-</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a>    <span class="n">tokens</span> <span class="o">=</span> <span class="n">_request</span><span class="p">(</span><span class="n">endpoint</span><span class="p">(</span><span class="s2">"/protocol/openid-connect/token"</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">method</span><span class="o">=</span><span class="s2">"POST"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span>
-</span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a>        <span class="s2">"grant_type"</span><span class="p">:</span> <span class="s2">"client_credentials"</span><span class="p">,</span>
-</span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a>        <span class="s2">"client_id"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_ID</span><span class="p">,</span>
-</span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a>        <span class="s2">"client_secret"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_SECRET</span><span class="p">,</span>
-</span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a>    <span class="p">})</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tokens</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"Keycloak devolvió una respuesta de token inválida."</span><span class="p">)</span>
-</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>
-</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>    <span class="n">access_token</span> <span class="o">=</span> <span class="n">tokens</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"access_token"</span><span class="p">)</span>
-</span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">access_token</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">access_token</span><span class="p">:</span>
-</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"Keycloak devolvió una respuesta de token inválida."</span><span class="p">)</span>
-</span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a>
-</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a>        <span class="n">expires_in</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tokens</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"expires_in"</span><span class="p">,</span> <span class="mi">60</span><span class="p">))</span>
-</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span>
-</span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a>            <span class="s2">"Keycloak devolvió una respuesta de token inválida."</span>
-</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a>
-</span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>    <span class="c1"># Renovar con margen evita que el token venza durante una operación.</span>
-</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a>    <span class="n">_admin_token_cache</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
-</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>        <span class="s2">"access_token"</span><span class="p">:</span> <span class="n">access_token</span><span class="p">,</span>
-</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a>        <span class="s2">"expires_at"</span><span class="p">:</span> <span class="n">now</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">expires_in</span> <span class="o">-</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-</span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a>    <span class="p">})</span>
-</span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a>    <span class="k">return</span> <span class="n">access_token</span>
-</span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a>
-</span><span id="L-98"><a href="#L-98"><span class="linenos"> 98</span></a>
-</span><span id="L-99"><a href="#L-99"><span class="linenos"> 99</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_request</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"GET"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-</span><span id="L-100"><a href="#L-100"><span class="linenos">100</span></a><span class="w">    </span><span class="sd">"""Llama a Admin REST API con la cuenta de servicio del backend.</span>
-</span><span id="L-101"><a href="#L-101"><span class="linenos">101</span></a>
-</span><span id="L-102"><a href="#L-102"><span class="linenos">102</span></a><span class="sd">    ``token`` se conserva temporalmente en la firma para compatibilidad con</span>
-</span><span id="L-103"><a href="#L-103"><span class="linenos">103</span></a><span class="sd">    llamadas existentes, pero los tokens de usuarios nunca autorizan acciones</span>
-</span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a><span class="sd">    administrativas.</span>
-</span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a><span class="sd">    """</span>
-</span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a>    <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Accept"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">,</span> <span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">admin_access_token</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span>
-</span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a>    <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>    <span class="k">if</span> <span class="n">body</span><span class="p">:</span>
-</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a>        <span class="n">headers</span><span class="p">[</span><span class="s2">"Content-Type"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"application/json"</span>
-</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a>        <span class="k">with</span> <span class="n">urlopen</span><span class="p">(</span><span class="n">Request</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">body</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
-</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a>            <span class="n">raw</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a>            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a>    <span class="k">except</span> <span class="n">HTTPError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="n">_error_detail</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="s2">"No tenés permisos para administrar usuarios."</span><span class="p">))</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-117"><a href="#L-117"><span class="linenos">117</span></a>    <span class="k">except</span> <span class="n">URLError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"No se pudo conectar con Keycloak."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a>
-</span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a>
-</span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a><span class="k">def</span><span class="w"> </span><span class="nf">roles_usuario</span><span class="p">(</span><span class="n">user_id</span><span class="p">):</span>
-</span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a><span class="w">    </span><span class="sd">"""Lista los roles de negocio asignados directamente a un usuario."""</span>
-</span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a>
-</span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a>    <span class="n">mappings</span> <span class="o">=</span> <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-</span><span id="L-125"><a href="#L-125"><span class="linenos">125</span></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
-</span><span id="L-126"><a href="#L-126"><span class="linenos">126</span></a>        <span class="n">role</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]</span>
-</span><span id="L-127"><a href="#L-127"><span class="linenos">127</span></a>        <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">mappings</span>
-</span><span id="L-128"><a href="#L-128"><span class="linenos">128</span></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">role</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">in</span> <span class="n">ROLES_NEGOCIO</span>
-</span><span id="L-129"><a href="#L-129"><span class="linenos">129</span></a>    <span class="p">)</span>
-</span><span id="L-130"><a href="#L-130"><span class="linenos">130</span></a>
-</span><span id="L-131"><a href="#L-131"><span class="linenos">131</span></a>
-</span><span id="L-132"><a href="#L-132"><span class="linenos">132</span></a><span class="k">def</span><span class="w"> </span><span class="nf">actualizar_roles_usuario</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">nuevos_roles</span><span class="p">):</span>
-</span><span id="L-133"><a href="#L-133"><span class="linenos">133</span></a><span class="w">    </span><span class="sd">"""Sincroniza exclusivamente los roles de negocio sin tocar roles internos."""</span>
-</span><span id="L-134"><a href="#L-134"><span class="linenos">134</span></a>
-</span><span id="L-135"><a href="#L-135"><span class="linenos">135</span></a>    <span class="n">nuevos</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">nuevos_roles</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">ROLES_NEGOCIO</span><span class="p">)</span>
-</span><span id="L-136"><a href="#L-136"><span class="linenos">136</span></a>    <span class="n">actuales_payload</span> <span class="o">=</span> <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-</span><span id="L-137"><a href="#L-137"><span class="linenos">137</span></a>    <span class="n">actuales</span> <span class="o">=</span> <span class="p">{</span><span class="n">role</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]:</span> <span class="n">role</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">actuales_payload</span> <span class="k">if</span> <span class="n">role</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">in</span> <span class="n">ROLES_NEGOCIO</span><span class="p">}</span>
-</span><span id="L-138"><a href="#L-138"><span class="linenos">138</span></a>
-</span><span id="L-139"><a href="#L-139"><span class="linenos">139</span></a>    <span class="n">quitar</span> <span class="o">=</span> <span class="p">[</span><span class="n">actuales</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">actuales</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">-</span> <span class="n">nuevos</span><span class="p">]</span>
-</span><span id="L-140"><a href="#L-140"><span class="linenos">140</span></a>    <span class="n">agregar</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="L-141"><a href="#L-141"><span class="linenos">141</span></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">nuevos</span> <span class="o">-</span> <span class="n">actuales</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-</span><span id="L-142"><a href="#L-142"><span class="linenos">142</span></a>        <span class="n">agregar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/roles/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
-</span><span id="L-143"><a href="#L-143"><span class="linenos">143</span></a>
-</span><span id="L-144"><a href="#L-144"><span class="linenos">144</span></a>    <span class="k">if</span> <span class="n">quitar</span><span class="p">:</span>
-</span><span id="L-145"><a href="#L-145"><span class="linenos">145</span></a>        <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"DELETE"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">quitar</span><span class="p">)</span>
-</span><span id="L-146"><a href="#L-146"><span class="linenos">146</span></a>    <span class="k">if</span> <span class="n">agregar</span><span class="p">:</span>
-</span><span id="L-147"><a href="#L-147"><span class="linenos">147</span></a>        <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"POST"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">agregar</span><span class="p">)</span>
-</span></pre></div>
 
 
             </section>
                 <section id="KeycloakError">
-                            <input id="KeycloakError-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr class">
-            
+                    <div class="attr class">
+
     <span class="def">class</span>
     <span class="name">KeycloakError</span><wbr>(<span class="base">builtins.Exception</span>):
 
-                <label class="view-source-button" for="KeycloakError-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#KeycloakError"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="KeycloakError-13"><a href="#KeycloakError-13"><span class="linenos">13</span></a><span class="k">class</span><span class="w"> </span><span class="nc">KeycloakError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-</span><span id="KeycloakError-14"><a href="#KeycloakError-14"><span class="linenos">14</span></a><span class="w">    </span><span class="sd">"""Error controlado al comunicarse con Keycloak."""</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Error controlado al comunicarse con Keycloak.</p>
 </div>
@@ -262,31 +105,22 @@ usuarios<wbr>.keycloak    </h1>
             <span class="name">ROLES_NEGOCIO</span>        =
 <span class="default_value">(&#39;USUARIO&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;ADMINISTRADOR&#39;)</span>
 
-        
+
     </div>
     <a class="headerlink" href="#ROLES_NEGOCIO"></a>
-    
-    
+
+
 
                 </section>
                 <section id="endpoint">
-                            <input id="endpoint-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">endpoint</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">path</span><span class="o">=</span><span class="s1">''</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">internal</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="endpoint-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#endpoint"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="endpoint-32"><a href="#endpoint-32"><span class="linenos">32</span></a><span class="k">def</span><span class="w"> </span><span class="nf">endpoint</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-</span><span id="endpoint-33"><a href="#endpoint-33"><span class="linenos">33</span></a><span class="w">    </span><span class="sd">"""Construye endpoints públicos para el navegador o internos para Django."""</span>
-</span><span id="endpoint-34"><a href="#endpoint-34"><span class="linenos">34</span></a>    <span class="n">server_url</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span> <span class="k">if</span> <span class="n">internal</span> <span class="k">else</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_SERVER_URL</span>
-</span><span id="endpoint-35"><a href="#endpoint-35"><span class="linenos">35</span></a>    <span class="n">base</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="endpoint-36"><a href="#endpoint-36"><span class="linenos">36</span></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base</span><span class="si">}{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Construye endpoints públicos para el navegador o internos para Django.</p>
 </div>
@@ -294,90 +128,40 @@ usuarios<wbr>.keycloak    </h1>
 
                 </section>
                 <section id="exchange_code">
-                            <input id="exchange_code-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">exchange_code</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">code</span>, </span><span class="param"><span class="n">redirect_uri</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="exchange_code-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#exchange_code"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="exchange_code-56"><a href="#exchange_code-56"><span class="linenos">56</span></a><span class="k">def</span><span class="w"> </span><span class="nf">exchange_code</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">redirect_uri</span><span class="p">):</span>
-</span><span id="exchange_code-57"><a href="#exchange_code-57"><span class="linenos">57</span></a>    <span class="k">return</span> <span class="n">_request</span><span class="p">(</span><span class="n">endpoint</span><span class="p">(</span><span class="s2">"/protocol/openid-connect/token"</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">method</span><span class="o">=</span><span class="s2">"POST"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span>
-</span><span id="exchange_code-58"><a href="#exchange_code-58"><span class="linenos">58</span></a>        <span class="s2">"grant_type"</span><span class="p">:</span> <span class="s2">"authorization_code"</span><span class="p">,</span> <span class="s2">"client_id"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_CLIENT_ID</span><span class="p">,</span>
-</span><span id="exchange_code-59"><a href="#exchange_code-59"><span class="linenos">59</span></a>        <span class="s2">"code"</span><span class="p">:</span> <span class="n">code</span><span class="p">,</span> <span class="s2">"redirect_uri"</span><span class="p">:</span> <span class="n">redirect_uri</span><span class="p">,</span>
-</span><span id="exchange_code-60"><a href="#exchange_code-60"><span class="linenos">60</span></a>    <span class="p">})</span>
-</span></pre></div>
 
 
-    
 
                 </section>
                 <section id="userinfo">
-                            <input id="userinfo-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">userinfo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">access_token</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="userinfo-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#userinfo"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="userinfo-63"><a href="#userinfo-63"><span class="linenos">63</span></a><span class="k">def</span><span class="w"> </span><span class="nf">userinfo</span><span class="p">(</span><span class="n">access_token</span><span class="p">):</span>
-</span><span id="userinfo-64"><a href="#userinfo-64"><span class="linenos">64</span></a>    <span class="k">return</span> <span class="n">_request</span><span class="p">(</span><span class="n">endpoint</span><span class="p">(</span><span class="s2">"/protocol/openid-connect/userinfo"</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">token</span><span class="o">=</span><span class="n">access_token</span><span class="p">)</span>
-</span></pre></div>
 
 
-    
 
                 </section>
                 <section id="admin_access_token">
-                            <input id="admin_access_token-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">admin_access_token</span><span class="signature pdoc-code condensed">(<span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="admin_access_token-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#admin_access_token"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="admin_access_token-67"><a href="#admin_access_token-67"><span class="linenos">67</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_access_token</span><span class="p">():</span>
-</span><span id="admin_access_token-68"><a href="#admin_access_token-68"><span class="linenos">68</span></a><span class="w">    </span><span class="sd">"""Obtiene y reutiliza el token de la cuenta de servicio del backend."""</span>
-</span><span id="admin_access_token-69"><a href="#admin_access_token-69"><span class="linenos">69</span></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
-</span><span id="admin_access_token-70"><a href="#admin_access_token-70"><span class="linenos">70</span></a>    <span class="k">if</span> <span class="n">_admin_token_cache</span><span class="p">[</span><span class="s2">"access_token"</span><span class="p">]</span> <span class="ow">and</span> <span class="n">now</span> <span class="o">&lt;</span> <span class="n">_admin_token_cache</span><span class="p">[</span><span class="s2">"expires_at"</span><span class="p">]:</span>
-</span><span id="admin_access_token-71"><a href="#admin_access_token-71"><span class="linenos">71</span></a>        <span class="k">return</span> <span class="n">_admin_token_cache</span><span class="p">[</span><span class="s2">"access_token"</span><span class="p">]</span>
-</span><span id="admin_access_token-72"><a href="#admin_access_token-72"><span class="linenos">72</span></a>
-</span><span id="admin_access_token-73"><a href="#admin_access_token-73"><span class="linenos">73</span></a>    <span class="n">tokens</span> <span class="o">=</span> <span class="n">_request</span><span class="p">(</span><span class="n">endpoint</span><span class="p">(</span><span class="s2">"/protocol/openid-connect/token"</span><span class="p">,</span> <span class="n">internal</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">method</span><span class="o">=</span><span class="s2">"POST"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span>
-</span><span id="admin_access_token-74"><a href="#admin_access_token-74"><span class="linenos">74</span></a>        <span class="s2">"grant_type"</span><span class="p">:</span> <span class="s2">"client_credentials"</span><span class="p">,</span>
-</span><span id="admin_access_token-75"><a href="#admin_access_token-75"><span class="linenos">75</span></a>        <span class="s2">"client_id"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_ID</span><span class="p">,</span>
-</span><span id="admin_access_token-76"><a href="#admin_access_token-76"><span class="linenos">76</span></a>        <span class="s2">"client_secret"</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_ADMIN_CLIENT_SECRET</span><span class="p">,</span>
-</span><span id="admin_access_token-77"><a href="#admin_access_token-77"><span class="linenos">77</span></a>    <span class="p">})</span>
-</span><span id="admin_access_token-78"><a href="#admin_access_token-78"><span class="linenos">78</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tokens</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-</span><span id="admin_access_token-79"><a href="#admin_access_token-79"><span class="linenos">79</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"Keycloak devolvió una respuesta de token inválida."</span><span class="p">)</span>
-</span><span id="admin_access_token-80"><a href="#admin_access_token-80"><span class="linenos">80</span></a>
-</span><span id="admin_access_token-81"><a href="#admin_access_token-81"><span class="linenos">81</span></a>    <span class="n">access_token</span> <span class="o">=</span> <span class="n">tokens</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"access_token"</span><span class="p">)</span>
-</span><span id="admin_access_token-82"><a href="#admin_access_token-82"><span class="linenos">82</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">access_token</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">access_token</span><span class="p">:</span>
-</span><span id="admin_access_token-83"><a href="#admin_access_token-83"><span class="linenos">83</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"Keycloak devolvió una respuesta de token inválida."</span><span class="p">)</span>
-</span><span id="admin_access_token-84"><a href="#admin_access_token-84"><span class="linenos">84</span></a>
-</span><span id="admin_access_token-85"><a href="#admin_access_token-85"><span class="linenos">85</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="admin_access_token-86"><a href="#admin_access_token-86"><span class="linenos">86</span></a>        <span class="n">expires_in</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tokens</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"expires_in"</span><span class="p">,</span> <span class="mi">60</span><span class="p">))</span>
-</span><span id="admin_access_token-87"><a href="#admin_access_token-87"><span class="linenos">87</span></a>    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="admin_access_token-88"><a href="#admin_access_token-88"><span class="linenos">88</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span>
-</span><span id="admin_access_token-89"><a href="#admin_access_token-89"><span class="linenos">89</span></a>            <span class="s2">"Keycloak devolvió una respuesta de token inválida."</span>
-</span><span id="admin_access_token-90"><a href="#admin_access_token-90"><span class="linenos">90</span></a>        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="admin_access_token-91"><a href="#admin_access_token-91"><span class="linenos">91</span></a>
-</span><span id="admin_access_token-92"><a href="#admin_access_token-92"><span class="linenos">92</span></a>    <span class="c1"># Renovar con margen evita que el token venza durante una operación.</span>
-</span><span id="admin_access_token-93"><a href="#admin_access_token-93"><span class="linenos">93</span></a>    <span class="n">_admin_token_cache</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
-</span><span id="admin_access_token-94"><a href="#admin_access_token-94"><span class="linenos">94</span></a>        <span class="s2">"access_token"</span><span class="p">:</span> <span class="n">access_token</span><span class="p">,</span>
-</span><span id="admin_access_token-95"><a href="#admin_access_token-95"><span class="linenos">95</span></a>        <span class="s2">"expires_at"</span><span class="p">:</span> <span class="n">now</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="n">expires_in</span> <span class="o">-</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-</span><span id="admin_access_token-96"><a href="#admin_access_token-96"><span class="linenos">96</span></a>    <span class="p">})</span>
-</span><span id="admin_access_token-97"><a href="#admin_access_token-97"><span class="linenos">97</span></a>    <span class="k">return</span> <span class="n">access_token</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Obtiene y reutiliza el token de la cuenta de servicio del backend.</p>
 </div>
@@ -385,38 +169,14 @@ usuarios<wbr>.keycloak    </h1>
 
                 </section>
                 <section id="admin_request">
-                            <input id="admin_request-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">admin_request</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">path</span>, </span><span class="param"><span class="n">token</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">method</span><span class="o">=</span><span class="s1">'GET'</span>, </span><span class="param"><span class="n">payload</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="admin_request-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#admin_request"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="admin_request-100"><a href="#admin_request-100"><span class="linenos">100</span></a><span class="k">def</span><span class="w"> </span><span class="nf">admin_request</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"GET"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-</span><span id="admin_request-101"><a href="#admin_request-101"><span class="linenos">101</span></a><span class="w">    </span><span class="sd">"""Llama a Admin REST API con la cuenta de servicio del backend.</span>
-</span><span id="admin_request-102"><a href="#admin_request-102"><span class="linenos">102</span></a>
-</span><span id="admin_request-103"><a href="#admin_request-103"><span class="linenos">103</span></a><span class="sd">    ``token`` se conserva temporalmente en la firma para compatibilidad con</span>
-</span><span id="admin_request-104"><a href="#admin_request-104"><span class="linenos">104</span></a><span class="sd">    llamadas existentes, pero los tokens de usuarios nunca autorizan acciones</span>
-</span><span id="admin_request-105"><a href="#admin_request-105"><span class="linenos">105</span></a><span class="sd">    administrativas.</span>
-</span><span id="admin_request-106"><a href="#admin_request-106"><span class="linenos">106</span></a><span class="sd">    """</span>
-</span><span id="admin_request-107"><a href="#admin_request-107"><span class="linenos">107</span></a>    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_INTERNAL_URL</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="si">}</span><span class="s2">/admin/realms/</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">KEYCLOAK_REALM</span><span class="si">}{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="admin_request-108"><a href="#admin_request-108"><span class="linenos">108</span></a>    <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Accept"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">,</span> <span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">admin_access_token</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span>
-</span><span id="admin_request-109"><a href="#admin_request-109"><span class="linenos">109</span></a>    <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="k">if</span> <span class="n">payload</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="admin_request-110"><a href="#admin_request-110"><span class="linenos">110</span></a>    <span class="k">if</span> <span class="n">body</span><span class="p">:</span>
-</span><span id="admin_request-111"><a href="#admin_request-111"><span class="linenos">111</span></a>        <span class="n">headers</span><span class="p">[</span><span class="s2">"Content-Type"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"application/json"</span>
-</span><span id="admin_request-112"><a href="#admin_request-112"><span class="linenos">112</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="admin_request-113"><a href="#admin_request-113"><span class="linenos">113</span></a>        <span class="k">with</span> <span class="n">urlopen</span><span class="p">(</span><span class="n">Request</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">body</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">),</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span> <span class="k">as</span> <span class="n">response</span><span class="p">:</span>
-</span><span id="admin_request-114"><a href="#admin_request-114"><span class="linenos">114</span></a>            <span class="n">raw</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-</span><span id="admin_request-115"><a href="#admin_request-115"><span class="linenos">115</span></a>            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="k">if</span> <span class="n">raw</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="admin_request-116"><a href="#admin_request-116"><span class="linenos">116</span></a>    <span class="k">except</span> <span class="n">HTTPError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="admin_request-117"><a href="#admin_request-117"><span class="linenos">117</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="n">_error_detail</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="s2">"No tenés permisos para administrar usuarios."</span><span class="p">))</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span><span id="admin_request-118"><a href="#admin_request-118"><span class="linenos">118</span></a>    <span class="k">except</span> <span class="n">URLError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-</span><span id="admin_request-119"><a href="#admin_request-119"><span class="linenos">119</span></a>        <span class="k">raise</span> <span class="n">KeycloakError</span><span class="p">(</span><span class="s2">"No se pudo conectar con Keycloak."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Llama a Admin REST API con la cuenta de servicio del backend.</p>
 
@@ -428,27 +188,14 @@ administrativas.</p>
 
                 </section>
                 <section id="roles_usuario">
-                            <input id="roles_usuario-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">roles_usuario</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">user_id</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="roles_usuario-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#roles_usuario"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="roles_usuario-122"><a href="#roles_usuario-122"><span class="linenos">122</span></a><span class="k">def</span><span class="w"> </span><span class="nf">roles_usuario</span><span class="p">(</span><span class="n">user_id</span><span class="p">):</span>
-</span><span id="roles_usuario-123"><a href="#roles_usuario-123"><span class="linenos">123</span></a><span class="w">    </span><span class="sd">"""Lista los roles de negocio asignados directamente a un usuario."""</span>
-</span><span id="roles_usuario-124"><a href="#roles_usuario-124"><span class="linenos">124</span></a>
-</span><span id="roles_usuario-125"><a href="#roles_usuario-125"><span class="linenos">125</span></a>    <span class="n">mappings</span> <span class="o">=</span> <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-</span><span id="roles_usuario-126"><a href="#roles_usuario-126"><span class="linenos">126</span></a>    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
-</span><span id="roles_usuario-127"><a href="#roles_usuario-127"><span class="linenos">127</span></a>        <span class="n">role</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]</span>
-</span><span id="roles_usuario-128"><a href="#roles_usuario-128"><span class="linenos">128</span></a>        <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">mappings</span>
-</span><span id="roles_usuario-129"><a href="#roles_usuario-129"><span class="linenos">129</span></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">role</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">in</span> <span class="n">ROLES_NEGOCIO</span>
-</span><span id="roles_usuario-130"><a href="#roles_usuario-130"><span class="linenos">130</span></a>    <span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Lista los roles de negocio asignados directamente a un usuario.</p>
 </div>
@@ -456,34 +203,14 @@ administrativas.</p>
 
                 </section>
                 <section id="actualizar_roles_usuario">
-                            <input id="actualizar_roles_usuario-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-<div class="attr function">
-            
+                    <div class="attr function">
+
         <span class="def">def</span>
         <span class="name">actualizar_roles_usuario</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">user_id</span>, </span><span class="param"><span class="n">nuevos_roles</span></span><span class="return-annotation">):</span></span>
 
-                <label class="view-source-button" for="actualizar_roles_usuario-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#actualizar_roles_usuario"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="actualizar_roles_usuario-133"><a href="#actualizar_roles_usuario-133"><span class="linenos">133</span></a><span class="k">def</span><span class="w"> </span><span class="nf">actualizar_roles_usuario</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">nuevos_roles</span><span class="p">):</span>
-</span><span id="actualizar_roles_usuario-134"><a href="#actualizar_roles_usuario-134"><span class="linenos">134</span></a><span class="w">    </span><span class="sd">"""Sincroniza exclusivamente los roles de negocio sin tocar roles internos."""</span>
-</span><span id="actualizar_roles_usuario-135"><a href="#actualizar_roles_usuario-135"><span class="linenos">135</span></a>
-</span><span id="actualizar_roles_usuario-136"><a href="#actualizar_roles_usuario-136"><span class="linenos">136</span></a>    <span class="n">nuevos</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">nuevos_roles</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">ROLES_NEGOCIO</span><span class="p">)</span>
-</span><span id="actualizar_roles_usuario-137"><a href="#actualizar_roles_usuario-137"><span class="linenos">137</span></a>    <span class="n">actuales_payload</span> <span class="o">=</span> <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-</span><span id="actualizar_roles_usuario-138"><a href="#actualizar_roles_usuario-138"><span class="linenos">138</span></a>    <span class="n">actuales</span> <span class="o">=</span> <span class="p">{</span><span class="n">role</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]:</span> <span class="n">role</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">actuales_payload</span> <span class="k">if</span> <span class="n">role</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">in</span> <span class="n">ROLES_NEGOCIO</span><span class="p">}</span>
-</span><span id="actualizar_roles_usuario-139"><a href="#actualizar_roles_usuario-139"><span class="linenos">139</span></a>
-</span><span id="actualizar_roles_usuario-140"><a href="#actualizar_roles_usuario-140"><span class="linenos">140</span></a>    <span class="n">quitar</span> <span class="o">=</span> <span class="p">[</span><span class="n">actuales</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">actuales</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="o">-</span> <span class="n">nuevos</span><span class="p">]</span>
-</span><span id="actualizar_roles_usuario-141"><a href="#actualizar_roles_usuario-141"><span class="linenos">141</span></a>    <span class="n">agregar</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="actualizar_roles_usuario-142"><a href="#actualizar_roles_usuario-142"><span class="linenos">142</span></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">nuevos</span> <span class="o">-</span> <span class="n">actuales</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-</span><span id="actualizar_roles_usuario-143"><a href="#actualizar_roles_usuario-143"><span class="linenos">143</span></a>        <span class="n">agregar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/roles/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
-</span><span id="actualizar_roles_usuario-144"><a href="#actualizar_roles_usuario-144"><span class="linenos">144</span></a>
-</span><span id="actualizar_roles_usuario-145"><a href="#actualizar_roles_usuario-145"><span class="linenos">145</span></a>    <span class="k">if</span> <span class="n">quitar</span><span class="p">:</span>
-</span><span id="actualizar_roles_usuario-146"><a href="#actualizar_roles_usuario-146"><span class="linenos">146</span></a>        <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"DELETE"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">quitar</span><span class="p">)</span>
-</span><span id="actualizar_roles_usuario-147"><a href="#actualizar_roles_usuario-147"><span class="linenos">147</span></a>    <span class="k">if</span> <span class="n">agregar</span><span class="p">:</span>
-</span><span id="actualizar_roles_usuario-148"><a href="#actualizar_roles_usuario-148"><span class="linenos">148</span></a>        <span class="n">admin_request</span><span class="p">(</span><span class="sa">f</span><span class="s2">"/users/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/role-mappings/realm"</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"POST"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">agregar</span><span class="p">)</span>
-</span></pre></div>
-
 
             <div class="docstring"><p>Sincroniza exclusivamente los roles de negocio sin tocar roles internos.</p>
 </div>

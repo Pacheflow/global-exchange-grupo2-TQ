@@ -310,7 +310,7 @@ class ConsultarClienteViewTest(TestCase):
             self.cliente.nombre_razon_social,
             status_code=200,
         )
-        self.assertContains(response, "No se encontraron clientes.")
+        self.assertContains(response, "No tenés clientes asociados disponibles.")
 
     def test_sesion_no_administradora_sin_sub_se_rechaza(self):
         autenticar_con_roles(
@@ -558,7 +558,7 @@ class SegmentarClienteViewTest(TestCase):
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
 
-    def test_analista_asociado_puede_segmentar_cliente(self):
+    def test_analista_asociado_no_puede_segmentar_cliente(self):
         UsuarioCliente.objects.create(
             cliente=self.cliente,
             keycloak_user_id="kc-analista-1",
@@ -575,9 +575,9 @@ class SegmentarClienteViewTest(TestCase):
             {"categoria": self.categoria.id},
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.categoria, self.categoria)
+        self.assertIsNone(self.cliente.categoria)
 
     def test_analista_no_asociado_no_puede_segmentar_cliente_ajeno(self):
         cliente_permitido = Cliente.objects.create(
@@ -601,7 +601,7 @@ class SegmentarClienteViewTest(TestCase):
             {"categoria": self.categoria.id},
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
 
@@ -623,7 +623,7 @@ class SegmentarClienteViewTest(TestCase):
             {"categoria": self.categoria.id},
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
 

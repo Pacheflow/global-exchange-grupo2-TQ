@@ -1,7 +1,8 @@
 /*
- * frontend.js — Interacción JS mínima para la capa de presentación
+ * FUTURO / NO ACTIVO — Interacción del prototipo visual preservado.
  * 1:1 con la referencia `front_actualizado`. Solo comportamientos de UI;
- * la lógica de negocio (conversión) se delega en GEServices/GEData.
+ * Ninguna template activa carga este archivo. Los flujos reales de Sprint 2
+ * usan frontend-api.js y landing.js.
  */
 window.GEFrontend = (function () {
   'use strict';

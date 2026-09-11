@@ -5,7 +5,7 @@
   <div class="ge-frontend-pagehead">
     <div>
       <h1 class="ge-frontend-h1">Panel Analista Cambiario</h1>
-      <p class="ge-frontend-sub">31 de agosto de 2026 · Tasas y análisis de mercado</p>
+      <p class="ge-frontend-sub">Tasas y análisis de mercado</p>
     </div>
   </div>
 
@@ -14,19 +14,19 @@
     <div class="ge-frontend-kpis">
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='currencies' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">USD/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">7.480</span><span class="ge-kpi--simple-sub">↑ +31 vs. ayer</span></div>
+        <div><span class="ge-kpi--simple-label">USD/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_usd_pyg %}{{ tasa_usd_pyg.tasa|floatformat:6 }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_usd_pyg %}Referencia vigente{% else %}Sin tasa disponible{% endif %}</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='euro' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">EUR/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--danger)">8.120</span><span class="ge-kpi--simple-sub">↓ -15 vs. ayer</span></div>
+        <div><span class="ge-kpi--simple-label">EUR/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_eur_pyg %}{{ tasa_eur_pyg.tasa|floatformat:6 }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_eur_pyg %}Referencia vigente{% else %}Sin tasa disponible{% endif %}</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value" style="color:var(--primary)">1.84M</span><span class="ge-kpi--simple-sub">PYG · 31/08</span></div>
+        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value" style="color:var(--primary)">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value" style="color:var(--primary)">48.2M</span><span class="ge-kpi--simple-sub">PYG · Agosto 2026</span></div>
+        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value" style="color:var(--primary)">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
       </article>
     </div>
 
@@ -34,30 +34,26 @@
       <!-- Histórico de tasas -->
       <article class="ge-card" style="padding:24px">
         <div class="ge-card-head-chart">
-          <span class="ge-card-title">Histórico de tasas · Agosto</span>
+          <span class="ge-card-title">Histórico de tasas <span class="ge-chip">Próximamente</span></span>
           <div class="ge-legend">
             <span><em style="background:#3B5BFF"></em>USD</span>
             <span><em style="background:#22C55E"></em>EUR</span>
           </div>
         </div>
-        <div class="ge-chart-box" data-chart="line" data-height="200"
-          data-labels='["Ago 1","Ago 5","Ago 10","Ago 15","Ago 20","Ago 25","Ago 31"]'
-          data-series='[{"name":"USD/PYG","color":"#3B5BFF","data":[7320,7360,7390,7420,7440,7460,7480]},{"name":"EUR/PYG","color":"#22C55E","data":[7990,8020,8050,8080,8095,8110,8120]}]'></div>
+        <div class="ge-chart-box" aria-label="Histórico de tasas disponible próximamente"></div>
       </article>
 
       <!-- Ganancia diaria -->
       <article class="ge-card" style="padding:24px">
         <div class="ge-card-head-chart">
-          <span class="ge-card-title">Ganancia diaria · PYG</span>
+          <span class="ge-card-title">Ganancia diaria · PYG <span class="ge-chip">Próximamente</span></span>
           <div class="ge-switch">
-            <button type="button" class="is-active">Semana</button>
-            <button type="button">Mes</button>
-            <button type="button">Año</button>
+            <button type="button" class="is-active" disabled>Semana</button>
+            <button type="button" disabled>Mes</button>
+            <button type="button" disabled>Año</button>
           </div>
         </div>
-        <div class="ge-chart-box" data-chart="bar" data-height="200" data-color="var(--primary)"
-          data-labels='["Ago 1","Ago 5","Ago 10","Ago 15","Ago 20","Ago 25","Ago 31"]'
-          data-values='[1200000,1850000,1400000,2100000,1950000,2400000,1840000]'></div>
+        <div class="ge-chart-box" aria-label="Ganancias disponibles próximamente"></div>
       </article>
     </div>
   </div>

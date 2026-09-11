@@ -103,11 +103,24 @@ def requiere_roles_web(*roles_permitidos):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             if not sesion_oidc_vigente(request):
+                if request.path.startswith("/api/"):
+                    return JsonResponse(
+                        {"error": "Autenticación requerida"},
+                        status=401,
+                    )
                 request.session["next"] = request.get_full_path()
                 messages.info(request, "Iniciá sesión para continuar.")
                 return redirect("usuarios:login")
             roles_usuario = set(request.session.get(SESSION_ROLES, []))
             if not roles_usuario.intersection(roles_permitidos):
+                if request.path.startswith("/api/"):
+                    return JsonResponse(
+                        {
+                            "error": "Acceso denegado",
+                            "roles_requeridos": roles_permitidos,
+                        },
+                        status=403,
+                    )
                 return render(
                     request,
                     "usuarios/forbidden.html",

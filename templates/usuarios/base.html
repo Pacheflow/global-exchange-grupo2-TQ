@@ -34,7 +34,7 @@
           <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">trending_up</i><span>Cotizaciones</span></a>
           {% if 'ADMINISTRADOR' in kc_roles or 'ANALISTA_CAMBIARIO' in kc_roles %}<a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">edit_calendar</i><span>Tasas comerciales</span></a>{% endif %}
           <a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">swap_horiz</i><span>Conversor</span></a>
-          <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">account_balance_wallet</i><span>Medios de pago</span></a>
+          {% if 'ADMINISTRADOR' in kc_roles %}<a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}aria-current="page"{% endif %}><i class="material-symbols" aria-hidden="true">account_balance_wallet</i><span>Medios de pago</span></a>{% endif %}
         </nav>
         <div class="sidebar-context">
           <a href="{% url 'consultar_clientes' %}">{% if selected_client %}<i class="material-symbols" aria-hidden="true">business_center</i><span>{{ selected_client.name }}</span>{% else %}<i class="material-symbols" aria-hidden="true">add_business</i><span>Seleccionar cliente</span>{% endif %}</a>
@@ -84,7 +84,6 @@
   <script src="{% static 'material/js/material.js' %}"></script>
   <script src="{% static 'js/app.js' %}"></script>
   <script src="{% static 'js/navbar.js' %}"></script>
-  <script src="{% static 'js/ge-data.js' %}"></script>
   <script src="{% static 'js/ge-app.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>

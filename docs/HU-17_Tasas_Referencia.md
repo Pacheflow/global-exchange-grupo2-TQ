@@ -148,7 +148,7 @@ GET /api/tasas/
 Cookie: sessionid=...
 ```
 
-La ruta requiere una sesión OIDC válida.
+La ruta es pública y no requiere una sesión OIDC.
 
 ### 7.2 Respuesta actualizada — HTTP 200
 
@@ -170,7 +170,16 @@ La ruta requiere una sesión OIDC válida.
       "desactualizada": false
     }
   ],
-  "tasas_comerciales": []
+  "tasas_comerciales": [
+    {
+      "tipo": "COMERCIAL",
+      "par": "USD/PYG",
+      "compra": "<valor persistido>",
+      "venta": "<valor persistido>",
+      "vigente": true,
+      "fecha_hora": "<fecha de registro>"
+    }
+  ]
 }
 ```
 
@@ -200,13 +209,16 @@ Devuelve el mismo formato con:
 
 ### 7.5 Otros estados
 
-- `401`: no existe una sesión válida.
+- La consulta es pública y no requiere sesión.
 - `vacio`: la moneda base existe, pero no hay monedas cotizadas activas.
 - `indisponible`: la moneda base configurada no existe o está inactiva.
 
 ## 8. Separación respecto de HU-21
 
-HU-17 administra exclusivamente referencias externas. El contrato reserva `tasas_comerciales` como colección independiente, inicialmente vacía. HU-21 deberá poblarla desde su propio modelo/servicio sin modificar ni permitir edición manual de `TasaReferencia`.
+HU-17 consulta referencias externas y las tasas comerciales vigentes mediante
+colecciones independientes. La creación, modificación, desactivación y consulta
+del histórico continúan perteneciendo a HU-21; la consulta pública no modifica
+ningún registro ni permite editar `TasaReferencia`.
 
 ## 9. Validaciones y errores controlados
 
@@ -232,16 +244,14 @@ docker compose exec web python manage.py test tasas
 
 Las pruebas usan mocks y no dependen de Internet. Cubren normalización, éxito, timeout, HTTP inválido, JSON inválido/incompleto, valores inválidos, persistencia, actualización, fallback, ausencia de datos, moneda base inactiva, catálogo vacío, autenticación y respuesta del endpoint.
 
-Resultados obtenidos durante la integración selectiva:
+Validación global actual ejecutada el 11/09/2026:
 
 | Verificación | Resultado |
 |---|---|
-| Pruebas específicas de HU-17 | 16 aprobadas |
-| Pruebas completas del módulo `tasas` | 39 aprobadas |
-| Regresión completa del proyecto | 197 aprobadas y 2 fallos ajenos a `tasas`, en módulos protegidos preexistentes |
+| Suite completa del proyecto | 262 aprobadas, 0 fallos y 0 errores |
 | `manage.py check` | Sin observaciones |
 | `makemigrations --check --dry-run` | Sin cambios pendientes |
-| Consulta real ExchangeRate-API | No ejecutada durante la integración; los tests usan mocks |
+| Pruebas automáticas del proveedor | Aisladas con mocks; no dependen de Internet |
 
 ## 11. Migración y ejecución
 
@@ -269,8 +279,12 @@ Si estas condiciones no se cumplen, el servicio informa el estado correspondient
 4. La última tasa por par se separó del histórico de respuestas válidas.
 5. Los errores del proveedor se transforman en mensajes controlados.
 6. El endpoint devuelve valores decimales como texto para preservar precisión.
-7. Las tasas comerciales se mantienen separadas y no se simulan antes de HU-21.
+7. Las tasas comerciales vigentes se consultan en una colección separada y no
+   se mezclan con el simulador de referencia ni con el histórico de HU-21.
 
 ## 14. Estado final
 
-El backend correspondiente a Guillermo para HU-17 se encuentra implementado, documentado y cubierto por pruebas. La migración incremental está generada y validada, pendiente de aplicación en la base de desarrollo. El contrato está disponible para que el frontend asignado a Axel reemplace las tasas constantes por información real del endpoint.
+El flujo de HU-17 está implementado y cubierto por pruebas. El frontend consume
+el endpoint real sin tasas constantes y presenta por separado las referencias
+externas y las tasas comerciales vigentes. Las versiones inactivas permanecen
+exclusivamente en el histórico administrativo de HU-21.

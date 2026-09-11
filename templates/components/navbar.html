@@ -5,16 +5,23 @@
   data-ge-navbar
 >
   <div class="ge-navbar__inner">
-    <a class="ge-navbar__brand" href="{% url 'usuarios:home' %}" aria-label="Global Exchange, inicio" data-close-menus>
+    <a class="ge-navbar__brand" href="{% if kc_user %}{% url 'usuarios:dashboard' %}{% else %}{% url 'usuarios:home' %}{% endif %}" aria-label="Global Exchange, inicio" data-close-menus>
       <span class="ge-navbar__brand-icon" aria-hidden="true">{% include 'components/icon.html' with name="globe" size=27 %}</span>
       <span class="ge-navbar__wordmark"><strong>GLOBAL</strong><small>EXCHANGE</small></span>
     </a>
 
     <div class="ge-navbar__links">
-      <a href="{% url 'usuarios:home' %}" data-nav-section="inicio">Inicio</a>
-      <a href="{% url 'usuarios:home' %}#cotizaciones" data-nav-section="cotizaciones">Cotizaciones</a>
-      <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
-      <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
+      {% if kc_user %}
+        <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}>Inicio</a>
+        <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}>Cotizaciones</a>
+        {% if 'USUARIO' in kc_roles and 'ADMINISTRADOR' not in kc_roles and 'ANALISTA_CAMBIARIO' not in kc_roles and 'CAJERO' not in kc_roles %}<a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}>Conversor</a>{% endif %}
+        <a href="{% url 'usuarios:seguridad' %}" {% if request.resolver_match.url_name == 'seguridad' %}class="is-active" aria-current="page"{% endif %}>Seguridad</a>
+      {% else %}
+        <a href="{% url 'usuarios:home' %}" data-nav-section="inicio">Inicio</a>
+        <a href="{% url 'usuarios:home' %}#cotizaciones" data-nav-section="cotizaciones">Cotizaciones</a>
+        <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
+        <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
+      {% endif %}
     </div>
 
     <div class="ge-navbar__actions">
@@ -54,10 +61,17 @@
 
   <div class="ge-navbar__mobile-menu" id="ge-mobile-menu" hidden>
     <div class="ge-navbar__mobile-links">
-      <a href="{% url 'usuarios:home' %}" data-nav-section="inicio">Inicio</a>
-      <a href="{% url 'usuarios:home' %}#cotizaciones" data-nav-section="cotizaciones">Cotizaciones</a>
-      <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
-      <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
+      {% if kc_user %}
+        <a href="{% url 'usuarios:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="is-active" aria-current="page"{% endif %}>Inicio</a>
+        <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}>Cotizaciones</a>
+        {% if 'USUARIO' in kc_roles and 'ADMINISTRADOR' not in kc_roles and 'ANALISTA_CAMBIARIO' not in kc_roles and 'CAJERO' not in kc_roles %}<a href="{% url 'usuarios:simulador' %}" {% if request.resolver_match.url_name == 'simulador' %}class="is-active" aria-current="page"{% endif %}>Conversor</a>{% endif %}
+        <a href="{% url 'usuarios:seguridad' %}" {% if request.resolver_match.url_name == 'seguridad' %}class="is-active" aria-current="page"{% endif %}>Seguridad</a>
+      {% else %}
+        <a href="{% url 'usuarios:home' %}" data-nav-section="inicio">Inicio</a>
+        <a href="{% url 'usuarios:home' %}#cotizaciones" data-nav-section="cotizaciones">Cotizaciones</a>
+        <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
+        <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
+      {% endif %}
     </div>
     {% if kc_user %}
       <div class="ge-navbar__mobile-account">
