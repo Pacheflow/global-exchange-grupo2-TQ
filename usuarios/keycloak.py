@@ -36,6 +36,21 @@ def endpoint(path="", *, internal=False):
 
 
 def _request(url, *, method="GET", data=None, token=None):
+    """Ejecuta una petición con urlopen y devuelve el JSON de respuesta.
+
+    Args:
+        url (str): URL completa del endpoint de Keycloak.
+        method (str): Método HTTP (GET, POST, PUT, DELETE). Por defecto GET.
+        data (dict | None): Datos de formulario a enviar como ``x-www-form-urlencoded``.
+        token (str | None): Access token opcional para la cabecera Authorization.
+
+    Returns:
+        dict | list | None: Carga JSON de la respuesta, o ``None`` si el
+        cuerpo está vacío.
+
+    Raises:
+        KeycloakError: Si Keycloak rechaza la operación o no se puede conectar.
+    """
     headers = {"Accept": "application/json"}
     body = urlencode(data).encode() if data is not None else None
     if data is not None:
@@ -53,6 +68,15 @@ def _request(url, *, method="GET", data=None, token=None):
 
 
 def exchange_code(code, redirect_uri):
+    """Intercambia un código de autorización por tokens OIDC.
+
+    Args:
+        code (str): Código de autorización devuelto por Keycloak.
+        redirect_uri (str): URI de redirección registrada en el cliente.
+
+    Returns:
+        dict | None: Tokens de acceso y refresh emitidos por Keycloak.
+    """
     return _request(endpoint("/protocol/openid-connect/token", internal=True), method="POST", data={
         "grant_type": "authorization_code", "client_id": settings.KEYCLOAK_CLIENT_ID,
         "code": code, "redirect_uri": redirect_uri,
@@ -60,6 +84,14 @@ def exchange_code(code, redirect_uri):
 
 
 def userinfo(access_token):
+    """Obtiene los datos del usuario autenticado desde el endpoint userinfo.
+
+    Args:
+        access_token (str): Access token emitido por Keycloak.
+
+    Returns:
+        dict | None: Reclamaciones de perfil del usuario autenticado.
+    """
     return _request(endpoint("/protocol/openid-connect/userinfo", internal=True), token=access_token)
 
 

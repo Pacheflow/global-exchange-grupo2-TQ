@@ -276,6 +276,8 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#home"></a>
 
+            <div class="docstring"><p>Muestra la página de inicio de Global Exchange.</p>
+</div>
 
 
                 </section>
@@ -290,6 +292,8 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#logout"></a>
 
+            <div class="docstring"><p>Cierra la sesión OIDC y redirige al endpoint de logout de Keycloak.</p>
+</div>
 
 
                 </section>
@@ -331,6 +335,19 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#dashboard"></a>
 
+            <div class="docstring"><p>Renderiza el panel principal según el rol del usuario.</p>
+
+<p>Para ADMINISTRADOR agrega al contexto los totales de clientes, monedas
+activas y métodos de pago; para CAJERO/ANALISTA_CAMBIARIO agrega los
+contadores de clientes asociados, monedas activas y tasas vigentes, y
+para analistas cambiarios calcula también las tasas USD/EUR a PYG.</p>
+
+<p>Args:
+    request: Solicitud HTTP entrante.</p>
+
+<p>Returns:
+    HttpResponse: Plantilla de dashboard según el rol.</p>
+</div>
 
 
                 </section>
@@ -363,6 +380,19 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#usuarios"></a>
 
+            <div class="docstring"><p>Lista los usuarios registrados en Keycloak.</p>
+
+<p>Consulta hasta 100 usuarios de la API de administración de Keycloak; si
+la API no responde o devuelve un error, muestra la página con el error
+al usuario en lugar de fallar.</p>
+
+<p>Args:
+    request: Solicitud HTTP entrante.</p>
+
+<p>Returns:
+    HttpResponse: Plantilla <code>usuarios.html</code> con los usuarios, el error
+    de API (si lo hay) y los roles de negocio disponibles.</p>
+</div>
 
 
                 </section>
@@ -378,6 +408,19 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#crear_usuario"></a>
 
+            <div class="docstring"><p>Crea un usuario en Keycloak con sus roles de negocio.</p>
+
+<p>En POST valida que se envíen usuario, email y una contraseña de al menos
+8 caracteres; crea el usuario en Keycloak y, si corresponde, asigna los
+roles de negocio seleccionados.</p>
+
+<p>Args:
+    request: Solicitud HTTP entrante (GET o POST).</p>
+
+<p>Returns:
+    HttpResponse: Redirige al listado de usuarios en caso de éxito, o
+    vuelve a renderizar el formulario con los errores y valores previos.</p>
+</div>
 
 
                 </section>
@@ -393,6 +436,20 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#editar_usuario"></a>
 
+            <div class="docstring"><p>Edita los datos de un usuario y sus roles de negocio en Keycloak.</p>
+
+<p>En POST actualiza email, nombre, apellido y estado de habilitación del
+usuario en Keycloak y redefine sus roles de negocio. En GET carga los
+valores actuales para precargar el formulario.</p>
+
+<p>Args:
+    request: Solicitud HTTP entrante (GET o POST).
+    user_id: Identificador del usuario en Keycloak a editar.</p>
+
+<p>Returns:
+    HttpResponse: Redirige al listado de usuarios ante éxito o error de
+    API, o renderiza el formulario de edición precargado.</p>
+</div>
 
 
                 </section>
@@ -408,6 +465,19 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#baja_usuario"></a>
 
+            <div class="docstring"><p>Da de baja (deshabilita) un usuario en Keycloak conservando sus datos.</p>
+
+<p>En POST deshabilita el usuario (<code>enabled=False</code>) en Keycloak; los datos
+no se eliminan. Informa el resultado mediante mensajes de sesión y se
+obtienen de la API del usuario previamente.</p>
+
+<p>Args:
+    request: Solicitud HTTP entrante (POST).
+    user_id: Identificador del usuario en Keycloak a deshabilitar.</p>
+
+<p>Returns:
+    HttpResponse: Redirige al listado de usuarios.</p>
+</div>
 
 
                 </section>

@@ -259,6 +259,21 @@ def asignaciones_cliente(request, cliente_id):
 @requiere_roles_web("ADMINISTRADOR")
 @require_POST
 def quitar_asignacion_cliente(request, cliente_id, asignacion_id):
+    """
+    Elimina la asociación de un usuario con un cliente.
+
+    Si el cliente eliminado era el seleccionado en sesión y la asignación
+    pertenece al usuario autenticado, se limpia el cliente activo para no
+    dejar una referencia huérfana.
+
+    Args:
+        request: Solicitud HTTP entrante.
+        cliente_id (int): Identificador del cliente.
+        asignacion_id (int): Identificador de la asignación a eliminar.
+
+    Returns:
+        HttpResponse: Redirige al listado de asignaciones del cliente.
+    """
     asignacion = get_object_or_404(
         UsuarioCliente,
         id=asignacion_id,

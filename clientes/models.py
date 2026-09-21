@@ -56,15 +56,38 @@ class Cliente(models.Model):
     fecha_registro = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        """Devuelve el nombre o razón social del cliente."""
         return self.nombre_razon_social
 
     def activar(self):
-        """Cambia el estado del cliente a ACTIVO."""
+        """Cambia el estado del cliente a ACTIVO.
+
+        Actualiza el campo ``estado`` a ``'ACTIVO'`` y persiste el cambio,
+        permitiendo que el cliente vuelva a estar disponible para las
+        operaciones del sistema.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.estado = 'ACTIVO'
         self.save()
 
     def dar_de_baja(self):
-        """Cambia el estado del cliente a INACTIVO sin eliminarlo."""
+        """Cambia el estado del cliente a INACTIVO sin eliminarlo.
+
+        Marca el ``estado`` como ``'INACTIVO'`` y persiste el cambio
+        manteniendo el registro para conservar el historial; el cliente
+        deja de estar disponible para nuevas operaciones.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.estado = 'INACTIVO'
         self.save()
 

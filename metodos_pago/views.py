@@ -40,6 +40,14 @@ def _metodo_data(metodo):
 
 
 def _datos_json(request):
+    """Decodifica el cuerpo JSON de una solicitud de la interfaz Frontend.
+
+    Args:
+        request: Solicitud HTTP entrante.
+
+    Returns:
+        dict | None: Datos decodificados, o ``None`` si el cuerpo no es JSON válido.
+    """
     try:
         return json.loads(request.body)
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -47,6 +55,14 @@ def _datos_json(request):
 
 
 def _respuesta_formulario_invalido(form):
+    """Construye una respuesta JSON describiendo los errores del formulario.
+
+    Args:
+        form (MetodoPagoForm): Formulario con errores de validación.
+
+    Returns:
+        JsonResponse: Respuesta 400 con los errores normalizados a JSON.
+    """
     return JsonResponse(
         {
             "error": "Los datos del método de pago no son válidos.",

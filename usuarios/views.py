@@ -280,6 +280,7 @@ def acceso_administrador(request):
 @ensure_csrf_cookie
 @require_GET
 def home(request):
+    """Muestra la página de inicio de Global Exchange."""
     if request.session.get("kc_user"):
         return redirect("usuarios:dashboard")
     return render(request, "usuarios/home.html")
@@ -287,6 +288,8 @@ def home(request):
 
 @require_GET
 def logout(request):
+    """Cierra la sesión OIDC y redirige al endpoint de logout de Keycloak."""
+
     id_token = request.session.get("kc_id_token")
     request.session.flush()
     params = {
@@ -348,6 +351,19 @@ ROLES_PANEL_INFO = (
 @requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
 @require_GET
 def dashboard(request):
+    """Renderiza el panel principal según el rol del usuario.
+
+    Para ADMINISTRADOR agrega al contexto los totales de clientes, monedas
+    activas y métodos de pago; para CAJERO/ANALISTA_CAMBIARIO agrega los
+    contadores de clientes asociados, monedas activas y tasas vigentes, y
+    para analistas cambiarios calcula también las tasas USD/EUR a PYG.
+
+    Args:
+        request: Solicitud HTTP entrante.
+
+    Returns:
+        HttpResponse: Plantilla de dashboard según el rol.
+    """
     profile = request.session["kc_user"]
     display_name = (
         profile.get("given_name")
@@ -444,6 +460,19 @@ def roles_permisos(request):
 @requiere_roles_web("ADMINISTRADOR")
 @require_GET
 def usuarios(request):
+    """Lista los usuarios registrados en Keycloak.
+
+    Consulta hasta 100 usuarios de la API de administración de Keycloak; si
+    la API no responde o devuelve un error, muestra la página con el error
+    al usuario en lugar de fallar.
+
+    Args:
+        request: Solicitud HTTP entrante.
+
+    Returns:
+        HttpResponse: Plantilla ``usuarios.html`` con los usuarios, el error
+        de API (si lo hay) y los roles de negocio disponibles.
+    """
     try:
         rows, error = admin_request("/users?max=100"), None
     except KeycloakError as exc:
@@ -462,6 +491,19 @@ def usuarios(request):
 @requiere_roles_web("ADMINISTRADOR")
 @require_http_methods(["GET", "POST"])
 def crear_usuario(request):
+    """Crea un usuario en Keycloak con sus roles de negocio.
+
+    En POST valida que se envíen usuario, email y una contraseña de al menos
+    8 caracteres; crea el usuario en Keycloak y, si corresponde, asigna los
+    roles de negocio seleccionados.
+
+    Args:
+        request: Solicitud HTTP entrante (GET o POST).
+
+    Returns:
+        HttpResponse: Redirige al listado de usuarios en caso de éxito, o
+        vuelve a renderizar el formulario con los errores y valores previos.
+    """
     if request.method == "POST":
         password = request.POST.get("password", "")
         payload = {
@@ -503,6 +545,20 @@ def crear_usuario(request):
 @requiere_roles_web("ADMINISTRADOR")
 @require_http_methods(["GET", "POST"])
 def editar_usuario(request, user_id):
+    """Edita los datos de un usuario y sus roles de negocio en Keycloak.
+
+    En POST actualiza email, nombre, apellido y estado de habilitación del
+    usuario en Keycloak y redefine sus roles de negocio. En GET carga los
+    valores actuales para precargar el formulario.
+
+    Args:
+        request: Solicitud HTTP entrante (GET o POST).
+        user_id: Identificador del usuario en Keycloak a editar.
+
+    Returns:
+        HttpResponse: Redirige al listado de usuarios ante éxito o error de
+        API, o renderiza el formulario de edición precargado.
+    """
     try:
         user = cast(dict[str, object], admin_request(f"/users/{user_id}"))
         if request.method == "POST":
@@ -537,6 +593,19 @@ def editar_usuario(request, user_id):
 @requiere_roles_web("ADMINISTRADOR")
 @require_POST
 def baja_usuario(request, user_id):
+    """Da de baja (deshabilita) un usuario en Keycloak conservando sus datos.
+
+    En POST deshabilita el usuario (``enabled=False``) en Keycloak; los datos
+    no se eliminan. Informa el resultado mediante mensajes de sesión y se
+    obtienen de la API del usuario previamente.
+
+    Args:
+        request: Solicitud HTTP entrante (POST).
+        user_id: Identificador del usuario en Keycloak a deshabilitar.
+
+    Returns:
+        HttpResponse: Redirige al listado de usuarios.
+    """
     if request.method == "POST":
         try:
             user = cast(dict[str, object], admin_request(f"/users/{user_id}"))
