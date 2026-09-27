@@ -53,18 +53,34 @@ class Cliente(models.Model):
         blank=True
     )
 
+    metodo_pago_preferido = models.ForeignKey(
+        "metodos_pago.MetodoPago",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="clientes_preferentes",
+    )
+
     fecha_registro = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        """Devuelve el nombre o razón social del cliente."""
         return self.nombre_razon_social
 
     def activar(self):
-        """Cambia el estado del cliente a ACTIVO."""
+        """Cambia el estado del cliente a ACTIVO y persiste el cambio.
+
+        Deja al cliente disponible para nuevas operaciones del sistema.
+        """
         self.estado = 'ACTIVO'
         self.save()
 
     def dar_de_baja(self):
-        """Cambia el estado del cliente a INACTIVO sin eliminarlo."""
+        """Cambia el estado del cliente a INACTIVO sin eliminarlo.
+
+        Conserva el registro para preservar el historial; el cliente deja de
+        estar disponible para nuevas operaciones.
+        """
         self.estado = 'INACTIVO'
         self.save()
 

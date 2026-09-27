@@ -80,7 +80,9 @@ monedas<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#listar_monedas"></a>
 
-            <div class="docstring"><p>Devuelve todas las monedas configuradas.</p>
+            <div class="docstring"><p>Devuelve todas las monedas configuradas, activas e inactivas.</p>
+
+<p>Solo disponible para el rol ADMINISTRADOR.</p>
 </div>
 
 
@@ -97,7 +99,10 @@ monedas<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#crear_moneda"></a>
 
-            <div class="docstring"><p>Registra una nueva moneda.</p>
+            <div class="docstring"><p>Registra una nueva moneda vía la API JSON.</p>
+
+<p>Solo disponible para el rol ADMINISTRADOR. Un código duplicado se
+responde con estado 409.</p>
 </div>
 
 
@@ -114,7 +119,10 @@ monedas<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#editar_moneda"></a>
 
-            <div class="docstring"><p>Actualiza los datos permitidos de una moneda.</p>
+            <div class="docstring"><p>Actualiza los datos permitidos de una moneda vía la API JSON.</p>
+
+<p>Solo disponible para el rol ADMINISTRADOR. Un código duplicado se
+responde con estado 409.</p>
 </div>
 
 
@@ -131,7 +139,10 @@ monedas<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#cambiar_estado_moneda"></a>
 
-            <div class="docstring"><p>Activa o desactiva una moneda sin eliminarla.</p>
+            <div class="docstring"><p>Activa o desactiva una moneda existente sin eliminarla.</p>
+
+<p>Solo disponible para el rol ADMINISTRADOR. La desactivación es una
+baja lógica: el registro se conserva para no perder historial.</p>
 </div>
 
 
@@ -148,6 +159,8 @@ monedas<wbr>.views    </h1>
     <a class="headerlink" href="#listar_monedas_activas"></a>
 
             <div class="docstring"><p>Devuelve públicamente el catálogo activo usado por el conversor.</p>
+
+<p>Endpoint público: no requiere autenticación ni rol.</p>
 </div>
 
 

@@ -137,6 +137,15 @@ usuarios<wbr>.keycloak    </h1>
     </div>
     <a class="headerlink" href="#exchange_code"></a>
 
+            <div class="docstring"><p>Intercambia un código de autorización por tokens OIDC.</p>
+
+<p>Args:
+    code (str): Código de autorización devuelto por Keycloak.
+    redirect_uri (str): URI de redirección registrada en el cliente.</p>
+
+<p>Returns:
+    dict | None: Tokens de acceso y refresh emitidos por Keycloak.</p>
+</div>
 
 
                 </section>
@@ -150,6 +159,14 @@ usuarios<wbr>.keycloak    </h1>
     </div>
     <a class="headerlink" href="#userinfo"></a>
 
+            <div class="docstring"><p>Obtiene los datos del usuario autenticado desde el endpoint userinfo.</p>
+
+<p>Args:
+    access_token (str): Access token emitido por Keycloak.</p>
+
+<p>Returns:
+    dict | None: Reclamaciones de perfil del usuario autenticado.</p>
+</div>
 
 
                 </section>

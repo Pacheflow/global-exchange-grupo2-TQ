@@ -37,6 +37,12 @@ class SegmentacionClienteForm(forms.ModelForm):
 
 
 class AsignacionUsuarioClienteForm(forms.Form):
+    """Formulario para asignar un usuario de Keycloak con su permiso a un cliente.
+
+    Recibe como parámetro ``usuarios``, la lista de usuarios de Keycloak
+    disponibles para poblar el selector.
+    """
+
     usuario = forms.ChoiceField(label="Usuario de Keycloak")
     rol_en_cliente = forms.ChoiceField(
         label="Permiso dentro del cliente",

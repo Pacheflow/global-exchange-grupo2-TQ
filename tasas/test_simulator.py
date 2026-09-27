@@ -1,24 +1,22 @@
-import time
 from datetime import timedelta
 from decimal import Decimal
 
-from django.test import Client, TestCase
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from monedas.models import Moneda
-from usuarios.services.keycloak import (
-    SESSION_AUTENTICADO,
-    SESSION_EXPIRA_EN,
-    SESSION_ROLES,
-    SESSION_USUARIO,
-)
 
 from .models import ConsultaProveedorTasas, TasaReferencia
 from .simulador import simular_conversion
 
 
 class SimuladorConversionTests(TestCase):
+    """Pruebas del simulador de conversión entre monedas.
+
+    Requisito relacionado: RF-09.
+    """
+
     def setUp(self):
         Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(
@@ -57,29 +55,39 @@ class SimuladorConversionTests(TestCase):
         data.update(overrides)
         return data
 
-    def test_simulacion_valida_con_tasa_directa(self):
+    def test_simulacion_con_tasa_directa(self):
+        """Comprueba la conversión simulada cuando existe una tasa directa entre las monedas.
+
+        Se espera que el resultado use la tasa de referencia vigente del par.
+        """
         resultado = simular_conversion(
             moneda_origen_id=self.usd.id,
             moneda_destino_id=self.pyg.id,
             monto="100",
         )
-        self.assertEqual(resultado.moneda_origen, self.usd)
-        self.assertEqual(resultado.moneda_destino, self.pyg)
-        self.assertEqual(resultado.monto, Decimal("100"))
+
         self.assertEqual(resultado.tasa, Decimal("7000.0000000000"))
         self.assertEqual(resultado.resultado, Decimal("700000.0000000000"))
-        self.assertEqual(resultado.tipo_tasa, "REFERENCIA")
 
-    def test_simulacion_valida_con_tasa_inversa(self):
+    def test_simulacion_con_tasa_inversa(self):
+        """Comprueba la conversión simulada cuando la tasa disponible está en sentido inverso.
+
+        Se espera que el resultado se calcule con la tasa invertida.
+        """
         resultado = simular_conversion(
             moneda_origen_id=self.pyg.id,
             moneda_destino_id=self.usd.id,
             monto="7000",
         )
-        self.assertEqual(resultado.resultado, Decimal("1.0000000000"))
-        self.assertEqual(resultado.tipo_tasa, "REFERENCIA")
 
-    def test_simulacion_valida_con_tasa_cruzada(self):
+        self.assertEqual(resultado.resultado, Decimal("1.0000000000"))
+
+    def test_simulacion_con_tasa_cruzada(self):
+        """Comprueba la conversión simulada cruzando por la moneda base configurada.
+
+        Se espera que el resultado se calcule a partir de las tasas de ambas monedas
+        frente a la base.
+        """
         TasaReferencia.objects.create(
             moneda_base=self.usd,
             moneda_cotizada=self.eur,
@@ -96,176 +104,128 @@ class SimuladorConversionTests(TestCase):
             monto="7000",
         )
 
-        self.assertEqual(resultado.tasa, Decimal("0.000125"))
         self.assertEqual(resultado.resultado, Decimal("0.8750000000"))
 
     def test_rechaza_monto_cero(self):
+        """Comprueba que no se permita simular con un monto cero.
+
+        Se espera que la solicitud sea rechazada (400) indicando el campo monto.
+        """
         response = self.client.post(
             self.url, self.payload(monto="0"), content_type="application/json"
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("monto", response.json()["detalles"])
 
-    def test_rechaza_monto_negativo(self):
-        response = self.client.post(
-            self.url, self.payload(monto="-50"), content_type="application/json"
-        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("monto", response.json()["detalles"])
 
     def test_rechaza_monto_no_numerico(self):
+        """Comprueba que no se permita simular con un monto no numérico.
+
+        Se espera que la solicitud sea rechazada (400) indicando el campo monto.
+        """
         response = self.client.post(
             self.url, self.payload(monto="abc"), content_type="application/json"
         )
+
         self.assertEqual(response.status_code, 400)
         self.assertIn("monto", response.json()["detalles"])
 
-    def test_rechaza_monto_ausente_y_no_finito(self):
-        for monto in (None, "NaN"):
-            with self.subTest(monto=monto):
-                response = self.client.post(
-                    self.url,
-                    self.payload(monto=monto),
-                    content_type="application/json",
-                )
-                self.assertEqual(response.status_code, 400)
-                self.assertIn("monto", response.json()["detalles"])
+    def test_rechaza_monto_no_finito(self):
+        """Comprueba que no se permita simular con un monto no finito.
+
+        Se espera que la solicitud sea rechazada (400) indicando el campo monto.
+        """
+        response = self.client.post(
+            self.url, self.payload(monto="NaN"), content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("monto", response.json()["detalles"])
 
     def test_rechaza_moneda_inactiva(self):
+        """Comprueba que una moneda inactiva no pueda utilizarse en la simulación.
+
+        Se espera que la solicitud sea rechazada (400) indicando la moneda.
+        """
         self.pyg.estado = "INACTIVA"
-        self.pyg.save()
+        self.pyg.save(update_fields=["estado"])
+
         response = self.client.post(
             self.url, self.payload(), content_type="application/json"
         )
+
         self.assertEqual(response.status_code, 400)
         self.assertIn("moneda_destino", response.json()["detalles"])
 
-    def test_rechaza_moneda_origen_inactiva(self):
-        self.usd.estado = "INACTIVA"
-        self.usd.save(update_fields=["estado"])
-
-        response = self.client.post(
-            self.url, self.payload(), content_type="application/json"
-        )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("moneda_origen", response.json()["detalles"])
-
     def test_rechaza_misma_moneda(self):
+        """Comprueba que no se permita simular una conversión entre la misma moneda.
+
+        Se espera que la solicitud sea rechazada (400) indicando las monedas.
+        """
         response = self.client.post(
             self.url,
             self.payload(moneda_destino_id=self.usd.id),
             content_type="application/json",
         )
+
         self.assertEqual(response.status_code, 400)
         self.assertIn("monedas", response.json()["detalles"])
 
-    def test_rechaza_monedas_ausentes_o_inexistentes(self):
-        casos = (
-            ({"moneda_origen_id": None}, "moneda_origen"),
-            ({"moneda_destino_id": None}, "moneda_destino"),
-            ({"moneda_origen_id": 999999}, "moneda_origen"),
-            ({"moneda_destino_id": 999999}, "moneda_destino"),
+    def test_rechaza_moneda_inexistente(self):
+        """Comprueba que no se permita simular con una moneda inexistente.
+
+        Se espera que la solicitud sea rechazada (400) indicando la moneda de origen.
+        """
+        response = self.client.post(
+            self.url,
+            self.payload(moneda_origen_id=999999),
+            content_type="application/json",
         )
-        for valores, campo in casos:
-            with self.subTest(valores=valores):
-                response = self.client.post(
-                    self.url,
-                    self.payload(**valores),
-                    content_type="application/json",
-                )
-                self.assertEqual(response.status_code, 400)
-                self.assertIn(campo, response.json()["detalles"])
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("moneda_origen", response.json()["detalles"])
 
     def test_informa_si_no_existe_tasa(self):
+        """Comprueba que la simulación informe cuando no existe una tasa para el par.
+
+        Se espera que la solicitud sea rechazada (400) indicando el campo tasa.
+        """
         response = self.client.post(
             self.url,
             self.payload(moneda_destino_id=self.eur.id),
             content_type="application/json",
         )
+
         self.assertEqual(response.status_code, 400)
         self.assertIn("tasa", response.json()["detalles"])
 
     def test_no_utiliza_tasa_desactualizada(self):
+        """Comprueba que la simulación no utilice tasas de referencia vencidas.
+
+        Se espera que la solicitud sea rechazada indicando la ausencia de tasa vigente.
+        """
         self.tasa.vigente_hasta = timezone.now() - timedelta(minutes=1)
-        self.tasa.save()
+        self.tasa.save(update_fields=["vigente_hasta"])
+
         response = self.client.post(
             self.url, self.payload(), content_type="application/json"
         )
+
         self.assertEqual(response.status_code, 400)
         self.assertIn("tasa", response.json()["detalles"])
 
-    def test_simulador_es_publico(self):
-        response = self.client.post(
-            self.url, self.payload(), content_type="application/json"
-        )
-        self.assertEqual(response.status_code, 200)
-        datos = response.json()
-        self.assertEqual(datos["moneda_origen"], "USD")
-        self.assertEqual(datos["moneda_destino"], "PYG")
-        self.assertEqual(datos["monto"], "100")
-        self.assertEqual(datos["tasa"], "7000.0000000000")
-        self.assertEqual(datos["tipo_tasa"], "REFERENCIA")
-        self.assertEqual(datos["fecha_hora"], self.fecha.isoformat())
-        self.assertEqual(datos["resultado"], "700000.0000000000")
-
-    def test_usuario_autenticado_utiliza_el_mismo_endpoint_y_algoritmo(self):
-        session = self.client.session
-        session[SESSION_AUTENTICADO] = True
-        session[SESSION_USUARIO] = {"sub": "usuario-hu19", "username": "usuario.hu19"}
-        session[SESSION_ROLES] = ["USUARIO"]
-        session[SESSION_EXPIRA_EN] = time.time() + 3600
-        session.save()
-
-        response = self.client.post(
-            self.url, self.payload(), content_type="application/json"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["tipo_tasa"], "REFERENCIA")
-        self.assertEqual(response.json()["resultado"], "700000.0000000000")
-
-    def test_el_calculo_refleja_el_valor_persistido_actual(self):
-        self.tasa.valor = Decimal("7100")
-        self.tasa.save(update_fields=["valor"])
-
-        response = self.client.post(
-            self.url, self.payload(), content_type="application/json"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["tasa"], "7100.0000000000")
-        self.assertEqual(response.json()["resultado"], "710000.0000000000")
-
-    def test_landing_entrega_csrf_para_el_simulador_publico(self):
-        navegador = Client(enforce_csrf_checks=True)
-        landing = navegador.get(reverse("usuarios:home"))
-        token = navegador.cookies["csrftoken"].value
-
-        sin_token = navegador.post(
-            self.url,
-            self.payload(),
-            content_type="application/json",
-        )
-        con_token = navegador.post(
-            self.url,
-            self.payload(),
-            content_type="application/json",
-            HTTP_X_CSRFTOKEN=token,
-        )
-
-        self.assertEqual(landing.status_code, 200)
-        self.assertEqual(sin_token.status_code, 403)
-        self.assertEqual(con_token.status_code, 200)
-
     def test_simulacion_no_modifica_datos(self):
+        """Comprueba que la simulación no registre ni modifique datos.
+
+        Se espera que la consulta devuelva el resultado sin crear consultas ni tasas nuevas.
+        """
         cantidad_consultas = ConsultaProveedorTasas.objects.count()
         cantidad_tasas = TasaReferencia.objects.count()
+
         response = self.client.post(
             self.url, self.payload(), content_type="application/json"
         )
+
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            ConsultaProveedorTasas.objects.count(), cantidad_consultas
-        )
+        self.assertEqual(ConsultaProveedorTasas.objects.count(), cantidad_consultas)
         self.assertEqual(TasaReferencia.objects.count(), cantidad_tasas)

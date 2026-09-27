@@ -11,7 +11,7 @@ from .models import Moneda
 
 
 def _moneda_data(moneda):
-    """Convierte una moneda en un diccionario para respuestas JSON."""
+    """Serializa una moneda con sus fechas para las respuestas JSON de la API."""
 
     return {
         "id": moneda.id,
@@ -25,7 +25,10 @@ def _moneda_data(moneda):
 
 
 def _moneda_publica_data(moneda):
-    """Expone únicamente los campos necesarios para consulta y simulación."""
+    """Serializa una moneda con los campos mínimos del catálogo público.
+
+    No expone las fechas internas de auditoría.
+    """
 
     return {
         "id": moneda.id,
@@ -39,7 +42,10 @@ def _moneda_publica_data(moneda):
 @requiere_rol("ADMINISTRADOR")
 @require_GET
 def listar_monedas(request):
-    """Devuelve todas las monedas configuradas."""
+    """Devuelve todas las monedas configuradas, activas e inactivas.
+
+    Solo disponible para el rol ADMINISTRADOR.
+    """
 
     monedas = Moneda.objects.all()
 
@@ -54,7 +60,11 @@ def listar_monedas(request):
 @requiere_rol("ADMINISTRADOR")
 @require_POST
 def crear_moneda(request):
-    """Registra una nueva moneda."""
+    """Registra una nueva moneda vía la API JSON.
+
+    Solo disponible para el rol ADMINISTRADOR. Un código duplicado se
+    responde con estado 409.
+    """
 
     try:
         datos = json.loads(request.body)
@@ -109,7 +119,11 @@ def crear_moneda(request):
 @requiere_rol("ADMINISTRADOR")
 @require_POST
 def editar_moneda(request, moneda_id):
-    """Actualiza los datos permitidos de una moneda."""
+    """Actualiza los datos permitidos de una moneda vía la API JSON.
+
+    Solo disponible para el rol ADMINISTRADOR. Un código duplicado se
+    responde con estado 409.
+    """
 
     moneda = get_object_or_404(
         Moneda,
@@ -173,7 +187,11 @@ def editar_moneda(request, moneda_id):
 @requiere_rol("ADMINISTRADOR")
 @require_POST
 def cambiar_estado_moneda(request, moneda_id):
-    """Activa o desactiva una moneda sin eliminarla."""
+    """Activa o desactiva una moneda existente sin eliminarla.
+
+    Solo disponible para el rol ADMINISTRADOR. La desactivación es una
+    baja lógica: el registro se conserva para no perder historial.
+    """
 
     moneda = get_object_or_404(
         Moneda,
@@ -217,7 +235,10 @@ def cambiar_estado_moneda(request, moneda_id):
 
 @require_GET
 def listar_monedas_activas(request):
-    """Devuelve públicamente el catálogo activo usado por el conversor."""
+    """Devuelve públicamente el catálogo activo usado por el conversor.
+
+    Endpoint público: no requiere autenticación ni rol.
+    """
 
     monedas = Moneda.objects.activas()
 

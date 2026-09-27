@@ -87,42 +87,6 @@
         "clientRole": false,
         "containerId": "a54d3d4b-f6c7-4509-a011-ba6c77e1f66e",
         "attributes": {}
-      },
-      {
-        "id": "b4e6bb5f-a3c8-42a5-8ac7-7e5047f33bb3",
-        "name": "USUARIO",
-        "description": "Usuario autenticado básico del sistema",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "a54d3d4b-f6c7-4509-a011-ba6c77e1f66e",
-        "attributes": {}
-      },
-      {
-        "id": "b6eb428e-3e4f-4097-ac1d-be8e0a15308c",
-        "name": "CAJERO",
-        "description": "Usuario autorizado para operaciones de caja",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "a54d3d4b-f6c7-4509-a011-ba6c77e1f66e",
-        "attributes": {}
-      },
-      {
-        "id": "27da0a57-a943-44e0-8584-e92dca879368",
-        "name": "ANALISTA_CAMBIARIO",
-        "description": "Usuario autorizado para gestión cambiaria",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "a54d3d4b-f6c7-4509-a011-ba6c77e1f66e",
-        "attributes": {}
-      },
-      {
-        "id": "d42a1307-039f-443b-bd9f-51657df0c871",
-        "name": "ADMINISTRADOR",
-        "description": "Usuario administrador del sistema",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "a54d3d4b-f6c7-4509-a011-ba6c77e1f66e",
-        "attributes": {}
       }
     ],
     "client": {

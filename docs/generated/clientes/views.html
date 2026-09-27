@@ -74,6 +74,9 @@
             <li>
                     <a class="function" href="#seleccionar_cliente_api">seleccionar_cliente_api</a>
             </li>
+            <li>
+                    <a class="function" href="#actualizar_metodo_pago_preferido_api">actualizar_metodo_pago_preferido_api</a>
+            </li>
     </ul>
 
 
@@ -260,6 +263,12 @@ clientes<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#quitar_asignacion_cliente"></a>
 
+            <div class="docstring"><p>Elimina la asociación de un usuario con un cliente.</p>
+
+<p>Si el cliente afectado era el seleccionado en sesión y la asignación
+pertenece al usuario autenticado, se limpia el cliente activo para no
+dejar una referencia huérfana.</p>
+</div>
 
 
                 </section>
@@ -327,6 +336,23 @@ clientes<wbr>.views    </h1>
     <a class="headerlink" href="#seleccionar_cliente_api"></a>
 
             <div class="docstring"><p>Define el cliente activo sin salir de la interfaz Frontend (JSON).</p>
+</div>
+
+
+                </section>
+                <section id="actualizar_metodo_pago_preferido_api">
+                    <div class="attr function">
+                    <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+        <div class="decorator decorator-require_http_methods">@require_http_methods([&#39;GET&#39;, &#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">actualizar_metodo_pago_preferido_api</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span>, </span><span class="param"><span class="n">cliente_id</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#actualizar_metodo_pago_preferido_api"></a>
+
+            <div class="docstring"><p>Consulta o actualiza la preferencia usando el catálogo global activo.</p>
 </div>
 
 

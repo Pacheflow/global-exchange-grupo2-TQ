@@ -15,6 +15,21 @@ PRECISION_RESULTADO = Decimal("0.0000000001")
 
 @dataclass(frozen=True)
 class ResultadoSimulacion:
+    """Resultado de una conversión simulada entre dos monedas.
+
+    Contiene la tasa efectiva usada, el tipo de tasa (REFERENCIA) y el
+    importe final redondeado a ``PRECISION_RESULTADO``.
+
+    Attributes:
+        moneda_origen (Moneda): Moneda que se convierte.
+        moneda_destino (Moneda): Moneda resultante de la conversión.
+        monto (Decimal): Importe original.
+        tasa (Decimal): Tasa utilizada.
+        tipo_tasa (str): Origen de la tasa (REFERENCIA).
+        fecha_hora: Marca temporal de la tasa aplicada.
+        resultado (Decimal): Importe final redondeado.
+    """
+
     moneda_origen: Moneda
     moneda_destino: Moneda
     monto: Decimal
@@ -86,6 +101,19 @@ def _buscar_tasa(moneda_origen, moneda_destino):
     ).first()
     if moneda_base:
         def tasa_desde_base(moneda):
+            """Devuelve la tasa vigente de ``moneda`` frente a la moneda base.
+
+            Si ``moneda`` es la moneda base devuelve una tasa de 1 con la
+            marca temporal actual; en caso contrario busca la tasa de
+            referencia vigente de la moneda base contra la cotizada.
+
+            Args:
+                moneda (Moneda): Moneda cuya tasa se desea conocer.
+
+            Returns:
+                tuple[Decimal, datetime] | None: (tasa, fecha_hora_fuente)
+                si existe una tasa vigente, o None si no se halla ninguna.
+            """
             if moneda.pk == moneda_base.pk:
                 return Decimal("1"), ahora
             tasa = TasaReferencia.objects.filter(

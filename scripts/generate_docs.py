@@ -55,18 +55,28 @@ MODULOS = [
     "clientes.views",
     "clientes.urls",
     "clientes.api_urls",
+    "clientes.forms",
     "monedas.models",
     "monedas.views",
     "monedas.urls",
+    "monedas.forms",
     "metodos_pago.models",
     "metodos_pago.views",
     "metodos_pago.urls",
+    "metodos_pago.forms",
     "tasas.models",
     "tasas.views",
     "tasas.urls",
     "tasas.services",
     "tasas.providers",
     "tasas.simulador",
+    "clientes.tests",
+    "monedas.tests",
+    "metodos_pago.tests",
+    "tasas.tests",
+    "tasas.test_reference_rates",
+    "tasas.test_simulator",
+    "usuarios.tests",
     "config.settings",
     "config.urls",
 ]
@@ -75,7 +85,19 @@ OUTPUT_DIR = BASE_DIR / "docs" / "generated"
 
 
 def normalizar_salida_generada():
-    """Elimina espacios finales introducidos por las plantillas de pdoc."""
+    """Elimina espacios finales introducidos por las plantillas de pdoc.
+
+    Recorre de forma recursiva todos los archivos generados en
+    ``OUTPUT_DIR`` y reescribe el contenido sin espacios en blanco al
+    final de cada línea, preservando el salto de línea final.
+
+    Returns:
+        None: La función solo modifica archivos en el directorio de salida.
+
+    Side effects:
+        Reescribe (en modo texto UTF-8) cada archivo HTML generado por pdoc
+        dentro de ``docs/generated/``.
+    """
     for archivo in OUTPUT_DIR.rglob("*"):
         if not archivo.is_file():
             continue
@@ -88,6 +110,15 @@ def normalizar_salida_generada():
 
 
 def main():
+    """Genera la documentación HTML del proyecto con pdoc.
+
+    Escribe la documentación de todos los módulos listados en ``MODULOS``
+    dentro de ``OUTPUT_DIR`` y luego normaliza los archivos resultantes.
+
+    Side effects:
+        Crea o sobrescribe la documentación en ``docs/generated/``
+        (``index.html`` y un archivo HTML por módulo documentado).
+    """
     pdoc.pdoc(*MODULOS, output_directory=OUTPUT_DIR)
     normalizar_salida_generada()
     print(f"Documentación generada en {OUTPUT_DIR}")

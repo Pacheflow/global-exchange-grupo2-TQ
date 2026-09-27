@@ -26,4 +26,9 @@ urlpatterns = [
         views.seleccionar_cliente_api,
         name="seleccionar_cliente",
     ),
+    path(
+        "<int:cliente_id>/metodo-pago-preferido/",
+        views.actualizar_metodo_pago_preferido_api,
+        name="actualizar_metodo_pago_preferido",
+    ),
 ]

@@ -49,6 +49,22 @@
     });
   }
 
+  function consultar(url) {
+    return fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    }).then(function (response) {
+      var authError = window.GEApp && window.GEApp.authenticationError
+        ? window.GEApp.authenticationError(response)
+        : null;
+      if (authError) throw authError;
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) throw new Error(data.error || 'No fue posible consultar los métodos de pago.');
+        return data;
+      });
+    });
+  }
+
   function dialog(id, title, body, confirmLabel, onConfirm, danger) {
     var previous = document.getElementById(id);
     if (previous) previous.remove();
@@ -164,4 +180,62 @@
       seleccionar(Number(button.dataset.clienteSeleccionar));
     });
   });
+
+  var preferenciaForm = page.querySelector('[data-metodo-preferido-form]');
+  var preferenciaAbrir = page.querySelector('[data-metodo-preferido-abrir]');
+
+  function urlPreferencia() {
+    return endpoint(page.dataset.preferenciaUrl, preferenciaForm.dataset.clienteId);
+  }
+
+  function cargarMetodosPreferidos() {
+    var opciones = preferenciaForm.querySelector('[data-metodos-pago-activos]');
+    var guardar = preferenciaForm.querySelector('[data-metodo-preferido-guardar]');
+    opciones.innerHTML = '<p class="ge-frontend-subtitle">Cargando métodos disponibles…</p>';
+    guardar.disabled = true;
+
+    consultar(urlPreferencia()).then(function (data) {
+      var preferidoId = data.metodo_pago_preferido && data.metodo_pago_preferido.activo
+        ? data.metodo_pago_preferido.id
+        : null;
+      if (!data.metodos_disponibles.length) {
+        opciones.innerHTML = '<p class="ge-frontend-subtitle">No hay métodos de pago activos disponibles.</p>';
+        return;
+      }
+      opciones.innerHTML = data.metodos_disponibles.map(function (metodo) {
+        var checked = metodo.id === preferidoId ? ' checked' : '';
+        var descripcion = metodo.descripcion
+          ? '<small style="color:var(--text-muted)">' + esc(metodo.descripcion) + '</small>'
+          : '';
+        return '<label class="ge-card" style="display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer">' +
+          '<input type="radio" name="metodo_pago_id" value="' + metodo.id + '"' + checked + '>' +
+          '<span><strong style="display:block">' + esc(metodo.nombre) + '</strong>' + descripcion + '</span></label>';
+      }).join('');
+      guardar.disabled = false;
+    }).catch(function (error) {
+      opciones.innerHTML = '<p class="ge-frontend-subtitle">No fue posible cargar los métodos disponibles.</p>';
+      notify(error.message, 'error');
+    });
+  }
+
+  if (preferenciaAbrir && preferenciaForm) {
+    preferenciaAbrir.addEventListener('click', cargarMetodosPreferidos);
+    preferenciaForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var seleccionado = preferenciaForm.querySelector('input[name="metodo_pago_id"]:checked');
+      if (!seleccionado) {
+        notify('Seleccioná un método de pago.', 'error');
+        return;
+      }
+      request(urlPreferencia(), { metodo_pago_id: Number(seleccionado.value) })
+        .then(function (data) {
+          if (window.GEApp) window.GEApp.closeModal('metodo-pago-preferido');
+          notify(data.message);
+          recargar();
+        })
+        .catch(function (error) {
+          notify(error.message, 'error');
+        });
+    });
+  }
 }());

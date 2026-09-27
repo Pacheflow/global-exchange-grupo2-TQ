@@ -33,11 +33,23 @@ ALGORITMOS_PERMITIDOS = ("RS256",)
 TIMEOUT_KEYCLOAK = 10
 
 def _realm_url(base_url):
+    """Construye la URL base del realm de Keycloak."""
     return f"{base_url.rstrip('/')}/realms/{settings.KEYCLOAK_REALM}"
 
 
 @lru_cache(maxsize=4)
 def _obtener_cliente_jwks(jwks_url):
+    """Crea un cliente JWKS para resolver claves de firma.
+
+    El resultado se cachea con ``lru_cache`` porque los certificados de
+    Keycloak cambian con poca frecuencia.
+
+    Args:
+        jwks_url (str): URL pública del endpoint de certificados JWKS.
+
+    Returns:
+        PyJWKClient: Cliente listo para obtener claves de firma.
+    """
     return PyJWKClient(jwks_url)
 
 
