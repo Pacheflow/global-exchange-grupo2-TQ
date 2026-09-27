@@ -9,13 +9,11 @@
       <a href="{% url 'usuarios:roles_permisos' %}" {% if request.resolver_match.url_name == 'roles_permisos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='roles' size=18 %}</span><span class="ge-frontend-nav-label">Roles / Permisos</span></a>
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
-      <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas comerciales</span></a>
       <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='payments' size=18 %}</span><span class="ge-frontend-nav-label">Métodos de pago</span></a>
       {% include 'frontend/partials/sidebar_pending.html' with icon='cash' label='Cajas' %}
 
     {% elif rol == 'analista' %}
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
-      <a href="{% url 'usuarios:tasas_comerciales' %}" {% if request.resolver_match.url_name == 'tasas_comerciales' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas comerciales</span></a>
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
 
     {% elif rol == 'cajero' %}

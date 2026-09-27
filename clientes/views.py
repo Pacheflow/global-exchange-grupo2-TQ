@@ -10,6 +10,8 @@ from usuarios.keycloak import KeycloakError, admin_request
 from usuarios.decorators import requiere_alguno_de_roles, requiere_rol, requiere_roles_web
 from usuarios.services.keycloak import SESSION_ROLES
 
+from metodos_pago.models import MetodoPago
+
 from .forms import AsignacionUsuarioClienteForm, ClienteForm, SegmentacionClienteForm
 from .models import Cliente, UsuarioCliente
 
@@ -70,10 +72,14 @@ def consultar_clientes(request):
 
     busqueda = request.GET.get("buscar", "")
 
-    clientes = Cliente.objects.all()
+    clientes = Cliente.objects.select_related("metodo_pago_preferido")
     roles = set(request.session.get("roles", []))
     if "ADMINISTRADOR" not in roles:
         clientes = _clientes_asignados_a(request, clientes)
+
+    cliente_seleccionado = clientes.filter(
+        id=request.session.get("selected_client", {}).get("id")
+    ).first()
 
     if busqueda:
         clientes = clientes.filter(
@@ -86,6 +92,7 @@ def consultar_clientes(request):
         {
             "clientes": clientes,
             "busqueda": busqueda,
+            "cliente_seleccionado": cliente_seleccionado,
         }
     )
 
@@ -285,6 +292,15 @@ def _cliente_data(cliente):
         "estado": cliente.estado,
         "estado_display": cliente.get_estado_display(),
         "categoria": cliente.categoria.nombre if cliente.categoria_id else None,
+        "metodo_pago_preferido": (
+            {
+                "id": cliente.metodo_pago_preferido.id,
+                "nombre": cliente.metodo_pago_preferido.nombre,
+                "activo": cliente.metodo_pago_preferido.activo,
+            }
+            if cliente.metodo_pago_preferido_id
+            else None
+        ),
         "fecha_registro": cliente.fecha_registro.isoformat(),
     }
 
@@ -447,5 +463,110 @@ def seleccionar_cliente_api(request, cliente_id):
 
     return JsonResponse(
         {"message": f"Ahora estás trabajando con {cliente.nombre_razon_social}."},
+        status=200,
+    )
+
+
+@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@require_http_methods(["GET", "POST"])
+def actualizar_metodo_pago_preferido_api(request, cliente_id):
+    """Consulta o actualiza la preferencia usando el catálogo global activo."""
+
+    try:
+        cliente = Cliente.objects.select_related("metodo_pago_preferido").get(
+            id=cliente_id
+        )
+    except Cliente.DoesNotExist:
+        return JsonResponse({"error": "El cliente no existe."}, status=404)
+
+    roles = set(request.session.get(SESSION_ROLES, []))
+    if "ADMINISTRADOR" not in roles:
+        user_id = request.session.get("kc_user", {}).get("sub")
+        if not user_id:
+            return JsonResponse(
+                {"error": "No se encontró una identidad Keycloak válida."},
+                status=401,
+            )
+        if not UsuarioCliente.objects.filter(
+            cliente=cliente,
+            keycloak_user_id=user_id,
+            activo=True,
+        ).exists():
+            return JsonResponse(
+                {"error": "No tenés acceso a este cliente."},
+                status=403,
+            )
+
+    preferido = (
+        {
+            "id": cliente.metodo_pago_preferido.id,
+            "nombre": cliente.metodo_pago_preferido.nombre,
+            "activo": cliente.metodo_pago_preferido.activo,
+        }
+        if cliente.metodo_pago_preferido_id
+        else None
+    )
+
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "cliente": {
+                    "id": cliente.id,
+                    "nombre_razon_social": cliente.nombre_razon_social,
+                },
+                "metodo_pago_preferido": preferido,
+                "metodos_disponibles": [
+                    {
+                        "id": metodo.id,
+                        "nombre": metodo.nombre,
+                        "descripcion": metodo.descripcion,
+                    }
+                    for metodo in MetodoPago.objects.activos()
+                ],
+            },
+            status=200,
+        )
+
+    datos = _json_body(request)
+    if not isinstance(datos, dict):
+        return JsonResponse(
+            {"error": "El cuerpo de la solicitud debe contener JSON válido."},
+            status=400,
+        )
+
+    metodo_id = datos.get("metodo_pago_id")
+    if isinstance(metodo_id, bool):
+        metodo_id = None
+    try:
+        metodo_id = int(metodo_id)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": "Debe seleccionar un método de pago válido."},
+            status=400,
+        )
+
+    try:
+        metodo = MetodoPago.objects.get(id=metodo_id)
+    except MetodoPago.DoesNotExist:
+        return JsonResponse({"error": "El método de pago no existe."}, status=404)
+
+    if not metodo.activo:
+        return JsonResponse(
+            {"error": "El método de pago seleccionado está inactivo."},
+            status=400,
+        )
+
+    cliente.metodo_pago_preferido = metodo
+    cliente.save(update_fields=["metodo_pago_preferido"])
+
+    return JsonResponse(
+        {
+            "message": "Método de pago preferido actualizado correctamente.",
+            "metodo_pago_preferido": {
+                "id": metodo.id,
+                "nombre": metodo.nombre,
+                "activo": metodo.activo,
+            },
+        },
         status=200,
     )

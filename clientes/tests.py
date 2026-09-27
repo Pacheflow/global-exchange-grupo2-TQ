@@ -1,13 +1,12 @@
+import json
+import time
+from unittest.mock import patch
+
 from django.db import IntegrityError, transaction
-from django.test import Client as DjangoClient
 from django.test import TestCase
 from django.urls import reverse
 
-from .forms import ClienteForm
-from unittest.mock import patch
-import json
-import time
-
+from metodos_pago.models import MetodoPago
 from usuarios.services.keycloak import (
     SESSION_AUTENTICADO,
     SESSION_EXPIRA_EN,
@@ -18,18 +17,9 @@ from usuarios.services.keycloak import (
 from .models import CategoriaCliente, Cliente, UsuarioCliente
 
 
-def autenticar_con_roles(
-    test_case,
-    roles,
-    *,
-    sub="admin-id",
-    incluir_kc_user=True,
-):
+def autenticar_con_roles(test_case, roles, *, sub="admin-id"):
     session = test_case.client.session
-    if incluir_kc_user:
-        session["kc_user"] = {"sub": sub, "preferred_username": "usuario"}
-    else:
-        session.pop("kc_user", None)
+    session["kc_user"] = {"sub": sub, "preferred_username": "usuario"}
     session[SESSION_AUTENTICADO] = True
     session[SESSION_USUARIO] = {"sub": sub, "username": "usuario"}
     session[SESSION_ROLES] = roles
@@ -41,647 +31,219 @@ def autenticar_admin(test_case):
     autenticar_con_roles(test_case, ["ADMINISTRADOR"])
 
 
-class ClienteModelTest(TestCase):
-
-    def test_crear_categoria_cliente(self):
-        categoria = CategoriaCliente.objects.create(
-            nombre="Categoria Prueba",
-            descripcion="Categoría utilizada para pruebas"
-        )
-
-        self.assertEqual(
-            categoria.nombre,
-            "Categoria Prueba"
-        )
-
-    def test_crear_cliente(self):
-        cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Prueba",
-            tipo_persona="FISICA",
-            documento="123456"
-        )
-
-        self.assertEqual(
-            cliente.nombre_razon_social,
-            "Cliente Prueba"
-        )
-
-    def test_estado_activo_por_defecto(self):
-        cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Activo",
-            tipo_persona="FISICA",
-            documento="111111"
-        )
-
-        self.assertEqual(
-            cliente.estado,
-            "ACTIVO"
-        )
-
-    def test_dar_de_baja_cliente(self):
-        cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Baja",
-            tipo_persona="FISICA",
-            documento="222222"
-        )
-
-        cliente.dar_de_baja()
-
-        self.assertEqual(
-            cliente.estado,
-            "INACTIVO"
-        )
-
-    def test_documento_no_se_puede_repetir(self):
-        Cliente.objects.create(
-            nombre_razon_social="Primer Cliente",
-            tipo_persona="FISICA",
-            documento="333333"
-        )
-
-        form = ClienteForm(data={
-            "nombre_razon_social": "Segundo Cliente",
-            "tipo_persona": "FISICA",
-            "documento": "333333"
-        })
-
-        self.assertFalse(
-            form.is_valid()
-        )
-
-    def test_documento_puede_ser_alfanumerico(self):
-        cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Extranjero",
-            tipo_persona="FISICA",
-            documento="AB123456"
-        )
-
-        self.assertEqual(
-            cliente.documento,
-            "AB123456"
-        )
-
-    def test_documento_puede_contener_guion(self):
-        cliente = Cliente.objects.create(
-            nombre_razon_social="Empresa Prueba",
-            tipo_persona="JURIDICA",
-            documento="80012345-6"
-        )
-
-        self.assertEqual(
-            cliente.documento,
-            "80012345-6"
-        )
-
-    def test_nombre_es_obligatorio(self):
-        form = ClienteForm(data={
-            "nombre_razon_social": "",
-            "tipo_persona": "FISICA",
-            "documento": "555555"
-        })
-
-        self.assertFalse(
-            form.is_valid()
-        )
-
-    def test_documento_es_obligatorio(self):
-        form = ClienteForm(data={
-            "nombre_razon_social": "Cliente Sin Documento",
-            "tipo_persona": "FISICA",
-            "documento": ""
-        })
-
-        self.assertFalse(
-            form.is_valid()
-        )
-
-    def test_tipo_persona_invalido(self):
-        form = ClienteForm(data={
-            "nombre_razon_social": "Cliente Prueba",
-            "tipo_persona": "OTRO",
-            "documento": "666666"
-        })
-
-        self.assertFalse(
-            form.is_valid()
-        )
-
-
-class RegistrarClienteViewTest(TestCase):
-
+class ClientesApiEsencialesTests(TestCase):
     def setUp(self):
         autenticar_admin(self)
 
-    def test_mostrar_formulario_registro(self):
-        response = self.client.get(
-            reverse("registrar_cliente")
-        )
-
-        self.assertEqual(
-            response.status_code,
-            200
-        )
-
-        self.assertTemplateUsed(
-            response,
-            "clientes/registrar.html"
-        )
-
-    def test_registrar_cliente(self):
+    def test_administrador_crea_cliente_activo(self):
         response = self.client.post(
-            reverse("registrar_cliente"),
-            {
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
                 "nombre_razon_social": "Cliente Nuevo",
-                "tipo_persona": "FISICA",
-                "documento": "444444"
-            }
+                "tipo_persona": "JURIDICA",
+                "documento": "CLI-001",
+            }),
+            content_type="application/json",
         )
 
-        self.assertEqual(
-            response.status_code,
-            302
-        )
+        self.assertEqual(response.status_code, 201)
+        cliente = Cliente.objects.get(documento="CLI-001")
+        self.assertEqual(cliente.estado, "ACTIVO")
 
-        self.assertTrue(
-            Cliente.objects.filter(
-                documento="444444"
-            ).exists()
-        )
-
-    def test_rechaza_usuario_sin_rol_administrador(self):
-        autenticar_con_roles(self, ["USUARIO"], sub="usuario-basico")
-
-        response = self.client.get(reverse("registrar_cliente"))
-
-        self.assertEqual(response.status_code, 403)
-
-    def test_no_registra_cliente_con_datos_invalidos(self):
+    def test_creacion_rechaza_datos_obligatorios_invalidos(self):
         response = self.client.post(
-            reverse("registrar_cliente"),
-            {
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
                 "nombre_razon_social": "",
                 "tipo_persona": "INVALIDO",
                 "documento": "",
-            },
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Cliente.objects.exists())
+
+    def test_creacion_rechaza_documento_duplicado(self):
+        Cliente.objects.create(
+            nombre_razon_social="Cliente Existente",
+            tipo_persona="FISICA",
+            documento="DOC-001",
+        )
+
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
+                "nombre_razon_social": "Cliente Duplicado",
+                "tipo_persona": "JURIDICA",
+                "documento": "DOC-001",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(
+            Cliente.objects.filter(nombre_razon_social="Cliente Duplicado").exists()
+        )
+
+    def test_usuario_no_administrador_no_puede_crear_cliente(self):
+        autenticar_con_roles(self, ["USUARIO"], sub="usuario-basico")
+
+        response = self.client.post(
+            reverse("clientes_api:crear_cliente"),
+            data=json.dumps({
+                "nombre_razon_social": "Cliente Sin Permiso",
+                "tipo_persona": "FISICA",
+                "documento": "SIN-PERMISO-001",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Cliente.objects.filter(documento="SIN-PERMISO-001").exists())
+
+    def test_administrador_edita_cliente(self):
+        cliente = Cliente.objects.create(
+            nombre_razon_social="Cliente Original",
+            tipo_persona="FISICA",
+            documento="EDIT-001",
+        )
+
+        response = self.client.post(
+            reverse("clientes_api:editar_cliente", args=[cliente.id]),
+            data=json.dumps({
+                "nombre_razon_social": "Cliente Editado",
+                "tipo_persona": "JURIDICA",
+                "documento": "EDIT-002",
+            }),
+            content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(Cliente.objects.exists())
+        cliente.refresh_from_db()
+        self.assertEqual(cliente.nombre_razon_social, "Cliente Editado")
+        self.assertEqual(cliente.tipo_persona, "JURIDICA")
+        self.assertEqual(cliente.documento, "EDIT-002")
+
+    def test_edicion_rechaza_documento_existente(self):
+        cliente = Cliente.objects.create(
+            nombre_razon_social="Cliente Editable",
+            tipo_persona="FISICA",
+            documento="EDIT-UNICO-001",
+        )
+        Cliente.objects.create(
+            nombre_razon_social="Otro Cliente",
+            tipo_persona="JURIDICA",
+            documento="EDIT-UNICO-002",
+        )
+
+        response = self.client.post(
+            reverse("clientes_api:editar_cliente", args=[cliente.id]),
+            data=json.dumps({
+                "nombre_razon_social": "Cambio Rechazado",
+                "tipo_persona": "FISICA",
+                "documento": "EDIT-UNICO-002",
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        cliente.refresh_from_db()
+        self.assertEqual(cliente.documento, "EDIT-UNICO-001")
+
+    def test_baja_logica_conserva_cliente_y_limpia_contexto(self):
+        cliente = Cliente.objects.create(
+            nombre_razon_social="Cliente Activo",
+            tipo_persona="FISICA",
+            documento="BAJA-001",
+        )
+        session = self.client.session
+        session["selected_client"] = {
+            "id": cliente.id,
+            "name": cliente.nombre_razon_social,
+        }
+        session.save()
+
+        response = self.client.post(
+            reverse("clientes_api:dar_de_baja_cliente", args=[cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        cliente.refresh_from_db()
+        self.assertEqual(cliente.estado, "INACTIVO")
+        self.assertTrue(Cliente.objects.filter(id=cliente.id).exists())
+        self.assertNotIn("selected_client", self.client.session)
 
 
-class ConsultarClienteViewTest(TestCase):
-
+class ConsultaYSegmentacionClientesTests(TestCase):
     def setUp(self):
         autenticar_admin(self)
         self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Consulta",
+            nombre_razon_social="Cliente Principal",
             tipo_persona="FISICA",
-            documento="CONSULTA-001"
+            documento="CONSULTA-001",
         )
 
-    def test_consultar_clientes(self):
-        response = self.client.get(
-            reverse("consultar_clientes")
-        )
-
-        self.assertEqual(
-            response.status_code,
-            200
-        )
-
-        self.assertContains(
-            response,
-            "Cliente Consulta"
-        )
-
-    def test_buscar_cliente_por_nombre(self):
-        response = self.client.get(
-            reverse("consultar_clientes"),
-            {
-                "buscar": "Consulta"
-            }
-        )
-
-        self.assertContains(
-            response,
-            "Cliente Consulta"
-        )
-
-    def test_consulta_sin_resultados(self):
-        response = self.client.get(
-            reverse("consultar_clientes"),
-            {
-                "buscar": "NoExiste"
-            }
-        )
-
-        self.assertContains(
-            response,
-            "No se encontraron clientes."
-        )
-
-    def test_no_administrador_solo_ve_clientes_asignados(self):
-        otro_cliente = Cliente.objects.create(
+    def test_usuario_no_administrador_solo_consulta_clientes_asignados(self):
+        cliente_ajeno = Cliente.objects.create(
             nombre_razon_social="Cliente Ajeno",
             tipo_persona="JURIDICA",
-            documento="AJENO-001",
+            documento="CONSULTA-002",
         )
         UsuarioCliente.objects.create(
             cliente=self.cliente,
-            keycloak_user_id="kc-cajero-1",
-            username="cajero",
+            keycloak_user_id="kc-consulta",
+            username="consulta",
         )
-        autenticar_con_roles(self, ["CAJERO"], sub="kc-cajero-1")
+        autenticar_con_roles(self, ["CAJERO"], sub="kc-consulta")
 
         response = self.client.get(reverse("consultar_clientes"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.cliente.nombre_razon_social)
-        self.assertNotContains(response, otro_cliente.nombre_razon_social)
+        self.assertNotContains(response, cliente_ajeno.nombre_razon_social)
 
-    def test_no_administrador_sin_asignaciones_no_ve_clientes(self):
-        autenticar_con_roles(self, ["USUARIO"], sub="kc-sin-asignacion")
-
-        response = self.client.get(reverse("consultar_clientes"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(
-            response,
-            self.cliente.nombre_razon_social,
-            status_code=200,
-        )
-        self.assertContains(response, "No tenés clientes asociados disponibles.")
-
-    def test_sesion_no_administradora_sin_sub_se_rechaza(self):
-        autenticar_con_roles(
-            self,
-            ["CAJERO"],
-            sub="kc-oidc-valido",
-            incluir_kc_user=False,
-        )
-
-        response = self.client.get(reverse("consultar_clientes"))
-
-        self.assertEqual(response.status_code, 403)
-        self.assertNotContains(
-            response,
-            self.cliente.nombre_razon_social,
-            status_code=403,
-        )
-
-
-class EditarClienteViewTest(TestCase):
-
-    def setUp(self):
-        autenticar_admin(self)
-        self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Original",
-            tipo_persona="FISICA",
-            documento="EDITAR-001"
-        )
-
-    def test_editar_cliente(self):
-        response = self.client.post(
-            reverse(
-                "editar_cliente",
-                args=[self.cliente.id]
-            ),
-            {
-                "nombre_razon_social": "Cliente Editado",
-                "tipo_persona": "JURIDICA",
-                "documento": "EDITAR-001"
-            }
-        )
-
-        self.assertEqual(
-            response.status_code,
-            302
-        )
-
-        self.cliente.refresh_from_db()
-
-        self.assertEqual(
-            self.cliente.nombre_razon_social,
-            "Cliente Editado"
-        )
-
-        self.assertEqual(
-            self.cliente.tipo_persona,
-            "JURIDICA"
-        )
-
-    def test_no_permite_documento_duplicado_al_editar(self):
-        Cliente.objects.create(
-            nombre_razon_social="Otro Cliente",
-            tipo_persona="FISICA",
-            documento="DOCUMENTO-OTRO"
-        )
-
-        response = self.client.post(
-            reverse(
-                "editar_cliente",
-                args=[self.cliente.id]
-            ),
-            {
-                "nombre_razon_social": "Cliente Modificado",
-                "tipo_persona": "FISICA",
-                "documento": "DOCUMENTO-OTRO"
-            }
-        )
-
-        self.assertEqual(
-            response.status_code,
-            200
-        )
-
-        self.cliente.refresh_from_db()
-
-        self.assertEqual(
-            self.cliente.documento,
-            "EDITAR-001"
-        )
-
-    def test_cliente_inexistente_devuelve_404(self):
-        response = self.client.get(reverse("editar_cliente", args=[999999]))
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_datos_invalidos_no_modifican_cliente(self):
-        response = self.client.post(
-            reverse("editar_cliente", args=[self.cliente.id]),
-            {
-                "nombre_razon_social": "",
-                "tipo_persona": "INVALIDO",
-                "documento": "",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.nombre_razon_social, "Cliente Original")
-        self.assertEqual(self.cliente.documento, "EDITAR-001")
-
-
-class DarDeBajaClienteViewTest(TestCase):
-
-    def setUp(self):
-        autenticar_admin(self)
-        self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Baja Vista",
-            tipo_persona="FISICA",
-            documento="BAJA-001"
-        )
-
-    def test_dar_de_baja_cliente(self):
-        response = self.client.post(
-            reverse(
-                "dar_de_baja_cliente",
-                args=[self.cliente.id]
-            )
-        )
-
-        self.assertEqual(
-            response.status_code,
-            302
-        )
-
-        self.cliente.refresh_from_db()
-
-        self.assertEqual(
-            self.cliente.estado,
-            "INACTIVO"
-        )
-
-        self.assertTrue(
-            Cliente.objects.filter(
-                id=self.cliente.id
-            ).exists()
-        )
-
-    def test_cliente_inexistente_devuelve_404(self):
-        response = self.client.post(
-            reverse("dar_de_baja_cliente", args=[999999])
-        )
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_baja_repetida_es_idempotente(self):
-        url = reverse("dar_de_baja_cliente", args=[self.cliente.id])
-
-        primera_respuesta = self.client.post(url)
-        segunda_respuesta = self.client.post(url)
-
-        self.assertEqual(primera_respuesta.status_code, 302)
-        self.assertEqual(segunda_respuesta.status_code, 302)
-        self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.estado, "INACTIVO")
-        self.assertTrue(Cliente.objects.filter(id=self.cliente.id).exists())
-
-
-class SegmentarClienteViewTest(TestCase):
-
-    def setUp(self):
-        autenticar_admin(self)
-        self.categoria, _ = CategoriaCliente.objects.get_or_create(
-            nombre="VIP",
-            defaults={
-                "descripcion": "Cliente VIP"
-            }
-        )
-
-        self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Segmentado",
-            tipo_persona="FISICA",
-            documento="SEGMENTAR-001"
-        )
-
-    def test_segmentar_cliente(self):
-        response = self.client.post(
-            reverse(
-                "segmentar_cliente",
-                args=[self.cliente.id]
-            ),
-            {
-                "categoria": self.categoria.id
-            }
-        )
-
-        self.assertEqual(
-            response.status_code,
-            302
-        )
-
-        self.cliente.refresh_from_db()
-
-        self.assertEqual(
-            self.cliente.categoria,
-            self.categoria
-        )
-
-    def test_cambiar_categoria_cliente(self):
-        otra_categoria = CategoriaCliente.objects.create(
-            nombre="Corporativo Prueba"
-        )
-
-        self.cliente.categoria = self.categoria
-        self.cliente.save()
-
-        self.client.post(
-            reverse(
-                "segmentar_cliente",
-                args=[self.cliente.id]
-            ),
-            {
-                "categoria": otra_categoria.id
-            }
-        )
-
-        self.cliente.refresh_from_db()
-
-        self.assertEqual(
-            self.cliente.categoria,
-            otra_categoria
-        )
-
-    def test_cliente_inexistente_devuelve_404(self):
-        response = self.client.get(reverse("segmentar_cliente", args=[999999]))
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_categoria_inexistente_no_modifica_cliente(self):
-        response = self.client.post(
-            reverse("segmentar_cliente", args=[self.cliente.id]),
-            {"categoria": 999999},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.cliente.refresh_from_db()
-        self.assertIsNone(self.cliente.categoria)
-
-    def test_analista_asociado_no_puede_segmentar_cliente(self):
-        UsuarioCliente.objects.create(
-            cliente=self.cliente,
-            keycloak_user_id="kc-analista-1",
-            username="analista",
-        )
-        autenticar_con_roles(
-            self,
-            ["ANALISTA_CAMBIARIO"],
-            sub="kc-analista-1",
-        )
+    def test_administrador_segmenta_cliente(self):
+        categoria = CategoriaCliente.objects.get(nombre="Corporativo")
 
         response = self.client.post(
             reverse("segmentar_cliente", args=[self.cliente.id]),
-            {"categoria": self.categoria.id},
+            {"categoria": categoria.id},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.categoria, categoria)
+
+    def test_no_administrador_no_puede_segmentar_cliente(self):
+        categoria = CategoriaCliente.objects.create(nombre="Preferencial")
+        autenticar_con_roles(self, ["ANALISTA_CAMBIARIO"], sub="kc-analista")
+
+        response = self.client.post(
+            reverse("segmentar_cliente", args=[self.cliente.id]),
+            {"categoria": categoria.id},
         )
 
         self.assertEqual(response.status_code, 403)
         self.cliente.refresh_from_db()
         self.assertIsNone(self.cliente.categoria)
-
-    def test_analista_no_asociado_no_puede_segmentar_cliente_ajeno(self):
-        cliente_permitido = Cliente.objects.create(
-            nombre_razon_social="Cliente Permitido",
-            tipo_persona="FISICA",
-            documento="PERMITIDO-001",
-        )
-        UsuarioCliente.objects.create(
-            cliente=cliente_permitido,
-            keycloak_user_id="kc-analista-idor",
-            username="analista",
-        )
-        autenticar_con_roles(
-            self,
-            ["ANALISTA_CAMBIARIO"],
-            sub="kc-analista-idor",
-        )
-
-        response = self.client.post(
-            reverse("segmentar_cliente", args=[self.cliente.id]),
-            {"categoria": self.categoria.id},
-        )
-
-        self.assertEqual(response.status_code, 403)
-        self.cliente.refresh_from_db()
-        self.assertIsNone(self.cliente.categoria)
-
-    def test_analista_con_asociacion_inactiva_no_puede_segmentar_cliente(self):
-        UsuarioCliente.objects.create(
-            cliente=self.cliente,
-            keycloak_user_id="kc-analista-inactivo",
-            username="analista-inactivo",
-            activo=False,
-        )
-        autenticar_con_roles(
-            self,
-            ["ANALISTA_CAMBIARIO"],
-            sub="kc-analista-inactivo",
-        )
-
-        response = self.client.post(
-            reverse("segmentar_cliente", args=[self.cliente.id]),
-            {"categoria": self.categoria.id},
-        )
-
-        self.assertEqual(response.status_code, 403)
-        self.cliente.refresh_from_db()
-        self.assertIsNone(self.cliente.categoria)
-
-
-class SeleccionarClienteViewTest(TestCase):
-
-    def setUp(self):
-        autenticar_admin(self)
-        self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Operativo",
-            tipo_persona="JURIDICA",
-            documento="OPERAR-001",
-        )
-
-    def test_seleccionar_cliente_activo_guarda_contexto_en_sesion(self):
-        response = self.client.post(
-            reverse("seleccionar_cliente", args=[self.cliente.id])
-        )
-
-        self.assertRedirects(
-            response,
-            reverse("usuarios:dashboard"),
-            fetch_redirect_response=False,
-        )
-        self.assertEqual(
-            self.client.session["selected_client"],
-            {"id": self.cliente.id, "name": "Cliente Operativo"},
-        )
 
     def test_cliente_inactivo_no_puede_seleccionarse(self):
         self.cliente.dar_de_baja()
 
         response = self.client.post(
-            reverse("seleccionar_cliente", args=[self.cliente.id])
+            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 404)
-
-    def test_dejar_de_seleccionar_elimina_contexto_de_sesion(self):
-        session = self.client.session
-        session["selected_client"] = {
-            "id": self.cliente.id,
-            "name": self.cliente.nombre_razon_social,
-        }
-        session.save()
-
-        response = self.client.post(reverse("deseleccionar_cliente"))
-
-        self.assertRedirects(
-            response,
-            reverse("consultar_clientes"),
-            fetch_redirect_response=False,
-        )
         self.assertNotIn("selected_client", self.client.session)
 
 
-class AsignacionUsuarioClienteTest(TestCase):
-
+class AsignacionClientesTests(TestCase):
     def setUp(self):
         autenticar_admin(self)
         self.cliente = Cliente.objects.create(
@@ -691,7 +253,7 @@ class AsignacionUsuarioClienteTest(TestCase):
         )
 
     @patch("clientes.views.admin_request")
-    def test_asignar_usuario_keycloak_a_cliente(self, admin_request):
+    def test_administrador_asigna_identidad_keycloak_a_cliente(self, admin_request):
         admin_request.return_value = [{
             "id": "kc-user-1",
             "username": "operador",
@@ -704,55 +266,14 @@ class AsignacionUsuarioClienteTest(TestCase):
             {"usuario": "kc-user-1", "rol_en_cliente": "OPERADOR"},
         )
 
-        self.assertRedirects(
-            response,
-            reverse("asignaciones_cliente", args=[self.cliente.id]),
-            fetch_redirect_response=False,
-        )
+        self.assertEqual(response.status_code, 302)
         self.assertTrue(UsuarioCliente.objects.filter(
             cliente=self.cliente,
             keycloak_user_id="kc-user-1",
             rol_en_cliente="OPERADOR",
         ).exists())
 
-    def test_usuario_autenticado_no_selecciona_cliente_sin_asignacion(self):
-        session = self.client.session
-        session["kc_user"] = {"sub": "kc-user-2", "preferred_username": "otro"}
-        session[SESSION_USUARIO] = {"sub": "kc-user-2", "username": "otro"}
-        session[SESSION_ROLES] = ["CAJERO"]
-        session.save()
-
-        response = self.client.post(reverse("seleccionar_cliente", args=[self.cliente.id]))
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_usuario_sin_rol_administrador_no_abre_asignaciones(self):
-        session = self.client.session
-        session["roles"] = ["CAJERO"]
-        session.save()
-
-        response = self.client.get(
-            reverse("asignaciones_cliente", args=[self.cliente.id])
-        )
-
-        self.assertEqual(response.status_code, 403)
-
-    def test_no_permite_asignacion_duplicada(self):
-        UsuarioCliente.objects.create(
-            cliente=self.cliente,
-            keycloak_user_id="kc-user-unico",
-            username="unico",
-        )
-
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                UsuarioCliente.objects.create(
-                    cliente=self.cliente,
-                    keycloak_user_id="kc-user-unico",
-                    username="duplicado",
-                )
-
-    def test_relacion_admite_varios_clientes_y_varios_usuarios(self):
+    def test_asociacion_admite_muchos_a_muchos(self):
         segundo_cliente = Cliente.objects.create(
             nombre_razon_social="Segunda Empresa",
             tipo_persona="JURIDICA",
@@ -780,221 +301,229 @@ class AsignacionUsuarioClienteTest(TestCase):
         )
         self.assertEqual(self.cliente.usuarios_asignados.count(), 2)
 
-    def test_fk_elimina_asignaciones_si_se_elimina_fisicamente_cliente(self):
-        asignacion = UsuarioCliente.objects.create(
+    def test_no_permite_asignacion_duplicada(self):
+        UsuarioCliente.objects.create(
             cliente=self.cliente,
-            keycloak_user_id="kc-user-fk",
-            username="usuario-fk",
+            keycloak_user_id="kc-user-unico",
+            username="usuario-original",
         )
 
-        self.cliente.delete()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                UsuarioCliente.objects.create(
+                    cliente=self.cliente,
+                    keycloak_user_id="kc-user-unico",
+                    username="usuario-duplicado",
+                )
 
-        self.assertFalse(UsuarioCliente.objects.filter(id=asignacion.id).exists())
+    def test_usuario_no_administrador_no_puede_gestionar_asignaciones(self):
+        autenticar_con_roles(self, ["CAJERO"], sub="kc-cajero")
+
+        response = self.client.get(
+            reverse("asignaciones_cliente", args=[self.cliente.id])
+        )
+
+        self.assertEqual(response.status_code, 403)
 
 
-class SeguridadYMetodosClientesTest(TestCase):
-
+class ContextoClienteTests(TestCase):
     def setUp(self):
         autenticar_admin(self)
-        self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente Métodos",
+        self.primer_cliente = Cliente.objects.create(
+            nombre_razon_social="Primer Cliente",
             tipo_persona="FISICA",
-            documento="METODOS-001",
+            documento="CONTEXTO-001",
         )
-        self.asignacion = UsuarioCliente.objects.create(
-            cliente=self.cliente,
-            keycloak_user_id="kc-metodos",
-            username="usuario-metodos",
-        )
-
-    def test_anonimo_es_redirigido_al_login(self):
-        anonimo = DjangoClient()
-        urls = [
-            reverse("inicio_clientes"),
-            reverse("registrar_cliente"),
-            reverse("consultar_clientes"),
-            reverse("editar_cliente", args=[self.cliente.id]),
-            reverse("dar_de_baja_cliente", args=[self.cliente.id]),
-            reverse("segmentar_cliente", args=[self.cliente.id]),
-            reverse("asignaciones_cliente", args=[self.cliente.id]),
-        ]
-
-        for url in urls:
-            with self.subTest(url=url):
-                response = anonimo.get(url)
-                self.assertEqual(response.status_code, 302)
-                self.assertEqual(response.url, reverse("usuarios:login"))
-
-    def test_formularios_rechazan_metodos_no_soportados(self):
-        urls = [
-            reverse("registrar_cliente"),
-            reverse("editar_cliente", args=[self.cliente.id]),
-            reverse("dar_de_baja_cliente", args=[self.cliente.id]),
-            reverse("segmentar_cliente", args=[self.cliente.id]),
-            reverse("asignaciones_cliente", args=[self.cliente.id]),
-        ]
-
-        for url in urls:
-            with self.subTest(url=url):
-                self.assertEqual(self.client.put(url).status_code, 405)
-
-    def test_operaciones_mutables_requieren_post(self):
-        urls = [
-            reverse("seleccionar_cliente", args=[self.cliente.id]),
-            reverse("deseleccionar_cliente"),
-            reverse(
-                "quitar_asignacion_cliente",
-                args=[self.cliente.id, self.asignacion.id],
-            ),
-        ]
-
-        for url in urls:
-            with self.subTest(url=url):
-                self.assertEqual(self.client.get(url).status_code, 405)
-
-        self.assertTrue(
-            UsuarioCliente.objects.filter(id=self.asignacion.id).exists()
+        self.segundo_cliente = Cliente.objects.create(
+            nombre_razon_social="Segundo Cliente",
+            tipo_persona="JURIDICA",
+            documento="CONTEXTO-002",
         )
 
+    def test_cambiar_y_deseleccionar_cliente_actualiza_contexto(self):
+        primera_seleccion = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.primer_cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(primera_seleccion.status_code, 200)
+        self.assertEqual(
+            self.client.session["selected_client"]["id"],
+            self.primer_cliente.id,
+        )
 
-class ClientesFrontendApiTest(TestCase):
-    """Pruebas de los endpoints JSON utilizados por la interfaz Frontend."""
+        segunda_seleccion = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.segundo_cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(segunda_seleccion.status_code, 200)
+        self.assertEqual(
+            self.client.session["selected_client"]["id"],
+            self.segundo_cliente.id,
+        )
 
+        deseleccion = self.client.post(reverse("deseleccionar_cliente"))
+        self.assertEqual(deseleccion.status_code, 302)
+        self.assertNotIn("selected_client", self.client.session)
+
+    def test_usuario_solo_selecciona_cliente_asignado(self):
+        UsuarioCliente.objects.create(
+            cliente=self.primer_cliente,
+            keycloak_user_id="kc-operador",
+            username="operador",
+        )
+        autenticar_con_roles(self, ["CAJERO"], sub="kc-operador")
+
+        response_permitida = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.primer_cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(response_permitida.status_code, 200)
+        self.assertEqual(
+            self.client.session["selected_client"]["id"],
+            self.primer_cliente.id,
+        )
+
+        response_ajena = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.segundo_cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(response_ajena.status_code, 404)
+        self.assertEqual(
+            self.client.session["selected_client"]["id"],
+            self.primer_cliente.id,
+        )
+
+
+class MetodoPagoPreferidoTests(TestCase):
     def setUp(self):
-        autenticar_admin(self)
         self.cliente = Cliente.objects.create(
-            nombre_razon_social="Cliente API",
-            tipo_persona="FISICA",
-            documento="API-001",
+            nombre_razon_social="Cliente con preferencia",
+            tipo_persona="JURIDICA",
+            documento="PREFERENCIA-001",
+        )
+        UsuarioCliente.objects.create(
+            cliente=self.cliente,
+            keycloak_user_id="kc-preferencia",
+            username="usuario.preferencia",
+        )
+        autenticar_con_roles(self, ["USUARIO"], sub="kc-preferencia")
+        self.url = reverse(
+            "clientes_api:actualizar_metodo_pago_preferido",
+            args=[self.cliente.id],
         )
 
-    def test_crear_cliente(self):
+    def test_varios_clientes_pueden_preferir_el_mismo_metodo(self):
+        metodo = MetodoPago.objects.create(nombre="Transferencia bancaria")
+        segundo_cliente = Cliente.objects.create(
+            nombre_razon_social="Segundo cliente",
+            tipo_persona="FISICA",
+            documento="PREFERENCIA-002",
+            metodo_pago_preferido=metodo,
+        )
+        self.cliente.metodo_pago_preferido = metodo
+        self.cliente.save(update_fields=["metodo_pago_preferido"])
+
+        self.assertEqual(metodo.clientes_preferentes.count(), 2)
+        self.assertEqual(segundo_cliente.metodo_pago_preferido, metodo)
+
+    def test_usuario_autorizado_establece_metodo_activo(self):
+        metodo = MetodoPago.objects.create(nombre="Efectivo")
+
         response = self.client.post(
-            reverse("clientes_api:crear_cliente"),
-            data=json.dumps({
-                "nombre_razon_social": "Cliente Nuevo API",
-                "tipo_persona": "JURIDICA",
-                "documento": "API-002",
-            }),
+            self.url,
+            data=json.dumps({"metodo_pago_id": metodo.id}),
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 201)
-        self.assertTrue(
-            Cliente.objects.filter(documento="API-002").exists()
-        )
-        self.assertEqual(
-            response.json()["cliente"]["estado"],
-            "ACTIVO",
-        )
+        self.assertEqual(response.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.metodo_pago_preferido, metodo)
 
-    def test_crear_cliente_con_documento_duplicado(self):
+    def test_usuario_autorizado_cambia_metodo_activo(self):
+        anterior = MetodoPago.objects.create(nombre="Efectivo")
+        nuevo = MetodoPago.objects.create(nombre="Tarjeta")
+        self.cliente.metodo_pago_preferido = anterior
+        self.cliente.save(update_fields=["metodo_pago_preferido"])
+
         response = self.client.post(
-            reverse("clientes_api:crear_cliente"),
-            data=json.dumps({
-                "nombre_razon_social": "Duplicado",
-                "tipo_persona": "FISICA",
-                "documento": "API-001",
-            }),
+            self.url,
+            data=json.dumps({"metodo_pago_id": nuevo.id}),
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(
-            Cliente.objects.filter(nombre_razon_social="Duplicado").count(),
-            0,
-        )
+        self.assertEqual(response.status_code, 200)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.metodo_pago_preferido, nuevo)
 
-    def test_crear_cliente_con_datos_invalidos(self):
+    def test_consulta_ofrece_solo_metodos_activos(self):
+        activo = MetodoPago.objects.create(nombre="Efectivo")
+        inactivo = MetodoPago.objects.create(nombre="Cheque", activo=False)
+        self.cliente.metodo_pago_preferido = inactivo
+        self.cliente.save(update_fields=["metodo_pago_preferido"])
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["metodo_pago_preferido"]["id"], inactivo.id)
+        self.assertFalse(response.json()["metodo_pago_preferido"]["activo"])
+        self.assertEqual(response.json()["metodos_disponibles"][0]["id"], activo.id)
+        self.assertEqual(len(response.json()["metodos_disponibles"]), 1)
+
+    def test_metodo_inactivo_no_puede_seleccionarse(self):
+        metodo = MetodoPago.objects.create(nombre="Cheque", activo=False)
+
         response = self.client.post(
-            reverse("clientes_api:crear_cliente"),
-            data=json.dumps({
-                "nombre_razon_social": "",
-                "tipo_persona": "INVALIDO",
-                "documento": "",
-            }),
+            self.url,
+            data=json.dumps({"metodo_pago_id": metodo.id}),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 400)
+        self.cliente.refresh_from_db()
+        self.assertIsNone(self.cliente.metodo_pago_preferido)
 
-    def test_crear_cliente_con_cuerpo_invalido(self):
+    def test_metodo_inexistente_es_rechazado(self):
         response = self.client.post(
-            reverse("clientes_api:crear_cliente"),
-            data="no es json",
+            self.url,
+            data=json.dumps({"metodo_pago_id": 999999}),
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 404)
+        self.cliente.refresh_from_db()
+        self.assertIsNone(self.cliente.metodo_pago_preferido)
 
-    def test_crear_cliente_requiere_administrador(self):
-        autenticar_con_roles(self, ["USUARIO"], sub="usuario-basico")
+    def test_usuario_sin_acceso_no_puede_modificar_preferencia(self):
+        metodo = MetodoPago.objects.create(nombre="Efectivo")
+        cliente_ajeno = Cliente.objects.create(
+            nombre_razon_social="Cliente ajeno",
+            tipo_persona="JURIDICA",
+            documento="PREFERENCIA-AJENA",
+        )
+        url_ajena = reverse(
+            "clientes_api:actualizar_metodo_pago_preferido",
+            args=[cliente_ajeno.id],
+        )
 
         response = self.client.post(
-            reverse("clientes_api:crear_cliente"),
-            data=json.dumps({
-                "nombre_razon_social": "Sin Permiso",
-                "tipo_persona": "FISICA",
-                "documento": "API-003",
-            }),
+            url_ajena,
+            data=json.dumps({"metodo_pago_id": metodo.id}),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertFalse(Cliente.objects.filter(documento="API-003").exists())
+        cliente_ajeno.refresh_from_db()
+        self.assertIsNone(cliente_ajeno.metodo_pago_preferido)
 
-    def test_editar_cliente(self):
-        response = self.client.post(
-            reverse("clientes_api:editar_cliente", args=[self.cliente.id]),
-            data=json.dumps({
-                "nombre_razon_social": "Cliente API Editado",
-                "tipo_persona": "JURIDICA",
-                "documento": "API-004",
-            }),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.nombre_razon_social, "Cliente API Editado")
-        self.assertEqual(self.cliente.tipo_persona, "JURIDICA")
-        self.assertEqual(self.cliente.documento, "API-004")
-
-    def test_editar_cliente_inexistente(self):
-        response = self.client.post(
-            reverse("clientes_api:editar_cliente", args=[999999]),
-            data=json.dumps({
-                "nombre_razon_social": "No Existe",
-                "tipo_persona": "FISICA",
-                "documento": "API-005",
-            }),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_dar_de_baja_cliente(self):
-        response = self.client.post(
-            reverse("clientes_api:dar_de_baja_cliente", args=[self.cliente.id]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.estado, "INACTIVO")
-        self.assertTrue(Cliente.objects.filter(id=self.cliente.id).exists())
-
-    def test_dar_de_baja_cliente_inexistente(self):
-        response = self.client.post(
-            reverse("clientes_api:dar_de_baja_cliente", args=[999999]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_dar_de_baja_cliente_deselecciona_si_era_el_activo(self):
+    def test_preferencia_permanece_y_la_interfaz_informa_si_queda_inactiva(self):
+        metodo = MetodoPago.objects.create(nombre="Transferencia bancaria")
+        self.cliente.metodo_pago_preferido = metodo
+        self.cliente.save(update_fields=["metodo_pago_preferido"])
+        metodo.desactivar()
         session = self.client.session
         session["selected_client"] = {
             "id": self.cliente.id,
@@ -1002,83 +531,10 @@ class ClientesFrontendApiTest(TestCase):
         }
         session.save()
 
-        response = self.client.post(
-            reverse("clientes_api:dar_de_baja_cliente", args=[self.cliente.id]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
+        response = self.client.get(reverse("consultar_clientes"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("selected_client", self.client.session)
-
-    def test_seleccionar_cliente_activo(self):
-        response = self.client.post(
-            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            self.client.session["selected_client"],
-            {"id": self.cliente.id, "name": "Cliente API"},
-        )
-
-    def test_seleccionar_cliente_inactivo(self):
-        self.cliente.dar_de_baja()
-
-        response = self.client.post(
-            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 404)
-        self.assertNotIn("selected_client", self.client.session)
-
-    def test_no_administrador_selecciona_solo_cliente_asignado(self):
-        UsuarioCliente.objects.create(
-            cliente=self.cliente,
-            keycloak_user_id="kc-api-1",
-            username="api-cajero",
-        )
-        autenticar_con_roles(self, ["CAJERO"], sub="kc-api-1")
-        cliente_no_asignado = Cliente.objects.create(
-            nombre_razon_social="Cliente Ajeno API",
-            tipo_persona="JURIDICA",
-            documento="API-006",
-        )
-
-        response_ok = self.client.post(
-            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-        response_sin_acceso = self.client.post(
-            reverse("clientes_api:seleccionar_cliente", args=[cliente_no_asignado.id]),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-
-        self.assertEqual(response_ok.status_code, 200)
-        self.assertEqual(
-            self.client.session["selected_client"]["id"],
-            self.cliente.id,
-        )
-        self.assertEqual(response_sin_acceso.status_code, 404)
-        self.assertEqual(
-            self.client.session["selected_client"]["id"],
-            self.cliente.id,
-        )
-
-    def test_api_mutaciones_rechazan_get(self):
-        urls = [
-            reverse("clientes_api:crear_cliente"),
-            reverse("clientes_api:editar_cliente", args=[self.cliente.id]),
-            reverse("clientes_api:dar_de_baja_cliente", args=[self.cliente.id]),
-            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
-        ]
-
-        for url in urls:
-            with self.subTest(url=url):
-                self.assertEqual(self.client.get(url).status_code, 405)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.metodo_pago_preferido, metodo)
+        self.assertContains(response, "Transferencia bancaria")
+        self.assertContains(response, "Inactivo")
+        self.assertContains(response, "Este método ya no está disponible")

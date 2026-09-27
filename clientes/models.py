@@ -53,6 +53,14 @@ class Cliente(models.Model):
         blank=True
     )
 
+    metodo_pago_preferido = models.ForeignKey(
+        "metodos_pago.MetodoPago",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="clientes_preferentes",
+    )
+
     fecha_registro = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -5,6 +5,8 @@
   if (!page) return;
 
   var body = page.querySelector('[data-api-body]');
+  var ratesBody = page.querySelector('[data-rates-body]');
+  var historyBody = page.querySelector('[data-history-body]');
   var csrfInput = page.querySelector('input[name="csrfmiddlewaretoken"]');
   var csrfToken = csrfInput ? csrfInput.value : '';
   var state = { items: [], clients: [], currencies: [], history: [], rateQuery: '' };
@@ -204,8 +206,12 @@
       var pair = (rate.moneda_origen.codigo + '/' + rate.moneda_destino.codigo).toLowerCase();
       return !state.rateQuery || pair.indexOf(state.rateQuery) !== -1;
     });
-    if (!current.length) return emptyRow(state.rateQuery ? 'No hay tasas comerciales que coincidan con la búsqueda.' : 'No hay tasas comerciales configuradas.');
-    body.innerHTML = current.map(function (rate) {
+    if (!ratesBody) return;
+    if (!current.length) {
+      ratesBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + esc(state.rateQuery ? 'No hay tasas comerciales que coincidan con la búsqueda.' : 'No hay tasas comerciales configuradas.') + '</td></tr>';
+      return;
+    }
+    ratesBody.innerHTML = current.map(function (rate) {
       var previous = history.find(function (candidate) { return pairKey(candidate) === pairKey(rate) && candidate.id !== rate.id; });
       var change = previous ? ((Number(rate.compra) - Number(previous.compra)) / Number(previous.compra)) * 100 : 0;
       var trendClass = change > 0 ? 'ge-trend-up' : change < 0 ? 'ge-trend-down' : '';
@@ -227,11 +233,32 @@
     }).join('');
   }
 
+  function renderHistory(history) {
+    if (!historyBody) return;
+    if (!history.length) {
+      historyBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">No existe un historial comercial registrado.</td></tr>';
+      return;
+    }
+    historyBody.innerHTML = history.map(function (entry) {
+      var pair = entry.moneda_origen.codigo + '/' + entry.moneda_destino.codigo;
+      var status = entry.vigente ? '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>' : '<span class="ge-state-dot"><i></i>Histórica</span>';
+      var user = entry.usuario_username || entry.usuario_id || '—';
+      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + esc(pair) + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td>' + status + '</td><td>' + esc(user) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
+    }).join('');
+  }
+
   function loadRates() {
-    return request(page.dataset.listUrl).then(function (data) {
+    return request(page.dataset.historyUrl).then(function (data) {
       state.currencies = data.monedas || [];
-      renderRates(data.tasas || []);
-    }).catch(fail);
+      state.history = data.tasas || [];
+      renderRates(state.history);
+      renderHistory(state.history);
+    }).catch(function (error) {
+      var message = error.message || 'No fue posible cargar las tasas comerciales.';
+      if (ratesBody) ratesBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + esc(message) + '</td></tr>';
+      if (historyBody) historyBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + esc(message) + '</td></tr>';
+      notify(message, 'error');
+    });
   }
 
   function currencyOptions(selected) {
@@ -275,6 +302,16 @@
   }
 
   function initRates() {
+    request(page.dataset.listUrl).then(renderReferenceRates).catch(function (error) {
+      body.setAttribute('aria-busy', 'false');
+      var commercialBody = page.querySelector('[data-commercial-rates]');
+      if (commercialBody) commercialBody.setAttribute('aria-busy', 'false');
+      body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
+        esc(error.message) + '</p></article>';
+      notify(error.message, 'error');
+    });
+
+    if (page.dataset.canViewHistory !== 'true') return;
     loadRates();
     var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
     var search = page.querySelector('.ge-search-box input');
@@ -286,7 +323,7 @@
       if (page.dataset.canManage !== 'true') return notify('Solo un analista cambiario puede actualizar tasas.', 'warning');
       rateForm(null);
     });
-    body.addEventListener('click', function (event) {
+    if (ratesBody) ratesBody.addEventListener('click', function (event) {
       var button = event.target.closest('[data-action]');
       if (!button) return;
       var id = Number(button.closest('tr').dataset.id);
@@ -313,11 +350,11 @@
 
   function renderPayments(items) {
     state.items = items;
-    if (!items.length) return emptyRow('No hay medios de pago configurados.');
+    if (!items.length) return emptyRow('No hay métodos de pago configurados.');
     body.innerHTML = items.map(function (item) {
-      var active = item.estado === 'ACTIVO';
-      return '<tr data-id="' + item.id + '"><td>' + esc(item.cliente.nombre) + '</td><td>' + esc(item.nombre) + '</td>' +
-        '<td><span class="ge-chip">' + esc(item.tipo_display) + '</span></td><td class="ge-mono">—</td>' +
+      var active = item.activo;
+      return '<tr data-id="' + item.id + '"><td><strong>' + esc(item.nombre) + '</strong></td>' +
+        '<td>' + esc(item.descripcion || '—') + '</td>' +
         '<td><span class="ge-state-dot ' + (active ? 'ge-state-dot--on' : '') + '"><i></i>' + (active ? 'Activo' : 'Inactivo') + '</span></td>' +
         '<td><div class="ge-btn-row"><button class="ge-btn-ghost" data-action="edit" style="font-size:11px;padding:3px 8px">Editar</button>' +
         '<button class="ge-btn-ghost ge-btn-ghost--danger" data-action="state" style="font-size:11px;padding:3px 8px">' + (active ? 'Desactivar' : 'Activar') + '</button></div></td></tr>';
@@ -326,30 +363,19 @@
 
   function loadPayments() {
     return request(page.dataset.listUrl).then(function (data) {
-      state.clients = data.clientes || state.clients;
       renderPayments(data.metodos || []);
     }).catch(fail);
   }
 
-  function clientOptions(selected) {
-    return state.clients.map(function (client) {
-      return '<option value="' + client.id + '" ' + (client.id === selected ? 'selected' : '') + '>' + esc(client.nombre) + '</option>';
-    }).join('');
-  }
-
   function paymentForm(item) {
-    var selectedClient = item ? item.cliente.id : (state.clients[0] || {}).id;
-    var type = item ? item.tipo : 'EFECTIVO';
-    var types = [['EFECTIVO', 'Efectivo'], ['TARJETA', 'Tarjeta'], ['TRANSFERENCIA', 'Transferencia'], ['OTRO', 'Otro']];
-    var typeOptions = types.map(function (entry) { return '<option value="' + entry[0] + '" ' + (entry[0] === type ? 'selected' : '') + '>' + entry[1] + '</option>'; }).join('');
-    var content = '<form data-api-form>' + field('CLIENTE ASOCIADO', '<select class="ge-input" name="cliente" required>' + clientOptions(selectedClient) + '</select>') +
-      '<div class="ge-form-grid">' + field('TIPO DE MEDIO', '<select class="ge-input" name="tipo" required>' + typeOptions + '</select>') +
-      field('NOMBRE / ENTIDAD', '<input class="ge-input" name="nombre" required placeholder="Banco, tarjeta o efectivo" value="' + esc(item ? item.nombre : '') + '">') + '</div>' +
-      '<label class="ge-crud-check"><input type="checkbox" name="activo" ' + (!item || item.estado === 'ACTIVO' ? 'checked' : '') + '> Medio de pago activo</label></form>';
-    dialog('ge-payment-form', item ? 'Editar medio de pago' : 'Nuevo medio de pago', content, 'Guardar medio de pago', function (box, close) {
+    var content = '<form data-api-form>' +
+      field('NOMBRE', '<input class="ge-input" name="nombre" required maxlength="100" placeholder="Ej. Transferencia bancaria" value="' + esc(item ? item.nombre : '') + '">') +
+      field('DESCRIPCIÓN', '<textarea class="ge-input" name="descripcion" rows="3" placeholder="Describe cuándo o cómo se utiliza">' + esc(item ? item.descripcion : '') + '</textarea>') +
+      '<label class="ge-crud-check"><input type="checkbox" name="activo" ' + (!item || item.activo ? 'checked' : '') + '> Método de pago activo</label></form>';
+    dialog('ge-payment-form', item ? 'Editar método de pago' : 'Nuevo método de pago', content, 'Guardar método de pago', function (box, close) {
       var form = box.querySelector('form');
       if (!form.reportValidity()) return false;
-      var payload = { cliente: Number(form.elements.cliente.value), nombre: formValue(form, 'nombre'), tipo: form.elements.tipo.value, estado: form.elements.activo.checked ? 'ACTIVO' : 'INACTIVO' };
+      var payload = { nombre: formValue(form, 'nombre'), descripcion: formValue(form, 'descripcion'), activo: form.elements.activo.checked };
       request(item ? endpoint(page.dataset.editUrl, item.id) : page.dataset.createUrl, { method: 'POST', body: JSON.stringify(payload) })
         .then(function (data) { close(); notify(data.message); loadPayments(); }).catch(function (error) { notify(error.message, 'error'); });
       return false;
@@ -359,10 +385,7 @@
   function initPayments() {
     loadPayments();
     var primary = page.querySelector('.ge-frontend-section-head .ge-btn-primary');
-    if (primary) primary.addEventListener('click', function () {
-      if (!state.clients.length) return notify('Primero debe existir un cliente para asociar el medio de pago.', 'warning');
-      paymentForm(null);
-    });
+    if (primary) primary.addEventListener('click', function () { paymentForm(null); });
     body.addEventListener('click', function (event) {
       var button = event.target.closest('[data-action]');
       if (!button) return;
@@ -370,13 +393,13 @@
       var item = state.items.find(function (entry) { return entry.id === id; });
       if (!item) return;
       if (button.dataset.action === 'edit') return paymentForm(item);
-      dialog('ge-payment-state', item.estado === 'ACTIVO' ? 'Desactivar Medio de Pago' : 'Activar Medio de Pago',
-        '<p>¿Confirmás esta acción sobre <strong>' + esc(item.nombre) + '</strong>?</p>', item.estado === 'ACTIVO' ? 'Desactivar' : 'Activar',
+      dialog('ge-payment-state', item.activo ? 'Desactivar método de pago' : 'Activar método de pago',
+        '<p>¿Confirmás esta acción sobre <strong>' + esc(item.nombre) + '</strong>?</p>', item.activo ? 'Desactivar' : 'Activar',
         function (_box, close) {
           request(endpoint(page.dataset.stateUrl, item.id), { method: 'POST', body: JSON.stringify({}) })
             .then(function (data) { close(); notify(data.message); loadPayments(); }).catch(function (error) { notify(error.message, 'error'); });
           return false;
-        }, item.estado === 'ACTIVO');
+        }, item.activo);
     });
   }
 
@@ -444,17 +467,6 @@
         esc(relativeDate(item.fecha_hora)) + ' · Vigente hasta ' +
         esc(new Date(item.vigente_hasta).toLocaleString('es-PY')) + '</div></article>';
     }).join('');
-  }
-
-  function initReferenceRates() {
-    request(page.dataset.listUrl).then(renderReferenceRates).catch(function (error) {
-      var commercialBody = page.querySelector('[data-commercial-rates]');
-      body.setAttribute('aria-busy', 'false');
-      if (commercialBody) commercialBody.setAttribute('aria-busy', 'false');
-      body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
-        esc(error.message) + '</p></article>';
-      notify(error.message, 'error');
-    });
   }
 
   function initSimulator() {
@@ -570,6 +582,5 @@
   if (page.dataset.geApi === 'currencies') initCurrencies();
   if (page.dataset.geApi === 'rates') initRates();
   if (page.dataset.geApi === 'payments') initPayments();
-  if (page.dataset.geApi === 'reference-rates') initReferenceRates();
   if (page.dataset.geApi === 'simulator') initSimulator();
 }());

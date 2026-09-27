@@ -617,7 +617,8 @@ def tasas(request):
 @requiere_roles_web("ADMINISTRADOR", "ANALISTA_CAMBIARIO")
 @require_GET
 def tasas_comerciales(request):
-    return render(request, "frontend/tasas_comerciales.html")
+    """Compatibilidad temporal: redirige a la pantalla única de Tasas."""
+    return redirect("usuarios:tasas")
 
 
 @requiere_roles_web(*ROLES_PANEL)
