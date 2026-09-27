@@ -1,55 +1,33 @@
 from django.db import models
+from django.db.models.functions import Lower
 
 
-from clientes.models import Cliente
 class MetodoPagoQuerySet(models.QuerySet):
-    """Consultas reutilizables para los métodos de pago."""
+    """Consultas reutilizables para el catálogo global de métodos de pago."""
 
     def activos(self):
         """Devuelve únicamente los métodos disponibles para nuevas operaciones."""
-        return self.filter(estado="ACTIVO")
+        return self.filter(activo=True)
 
 
 class MetodoPago(models.Model):
     """
-    Representa un método de pago configurado para un cliente.
+    Representa una opción del catálogo global de métodos de pago.
 
-    La entidad permite registrar y administrar los métodos de pago
-    disponibles para el cliente sin realizar procesamiento real
-    de pagos.
+    El catálogo no pertenece a clientes ni procesa pagos. Una operación futura
+    podrá seleccionar uno de sus registros activos en el momento de operar.
     """
-
-    TIPOS_METODO = [
-        ("EFECTIVO", "Efectivo"),
-        ("TARJETA", "Tarjeta"),
-        ("TRANSFERENCIA", "Transferencia"),
-        ("OTRO", "Otro"),
-    ]
-
-    ESTADOS_METODO = [
-        ("ACTIVO", "Activo"),
-        ("INACTIVO", "Inactivo"),
-    ]
-
-    cliente = models.ForeignKey(
-        Cliente,
-        on_delete=models.PROTECT,
-        related_name="metodos_pago",
-    )
 
     nombre = models.CharField(
         max_length=100,
     )
 
-    tipo = models.CharField(
-        max_length=20,
-        choices=TIPOS_METODO,
+    descripcion = models.TextField(
+        blank=True,
     )
 
-    estado = models.CharField(
-        max_length=10,
-        choices=ESTADOS_METODO,
-        default="ACTIVO",
+    activo = models.BooleanField(
+        default=True,
     )
 
     fecha_registro = models.DateTimeField(
@@ -59,13 +37,15 @@ class MetodoPago(models.Model):
     fecha_actualizacion = models.DateTimeField(
         auto_now=True,
     )
+
     objects = MetodoPagoQuerySet.as_manager()
+
     class Meta:
         ordering = ("nombre",)
         constraints = [
             models.UniqueConstraint(
-                fields=("cliente", "nombre"),
-                name="cliente_metodo_pago_nombre_unico",
+                Lower("nombre"),
+                name="metodo_pago_nombre_global_unico",
             ),
         ]
 
@@ -77,24 +57,24 @@ class MetodoPago(models.Model):
         evitar duplicados causados únicamente por diferencias de formato.
         """
         self.nombre = self.nombre.strip()
+        self.descripcion = self.descripcion.strip()
 
         super().save(*args, **kwargs)
 
     def __str__(self):
         """Devuelve una representación legible del método de pago."""
-        return f"{self.nombre} - {self.cliente}"
+        return self.nombre
 
     def activar(self):
         """Habilita el método de pago para nuevas operaciones."""
-        self.estado = "ACTIVO"
-        self.save(update_fields=["estado", "fecha_actualizacion"])
+        self.activo = True
+        self.save(update_fields=["activo", "fecha_actualizacion"])
 
     def desactivar(self):
         """
         Deshabilita el método de pago sin eliminar sus datos.
 
-        La información se conserva para mantener el historial
-        de configuración del cliente.
+        La información se conserva para la trazabilidad de futuras operaciones.
         """
-        self.estado = "INACTIVO"
-        self.save(update_fields=["estado", "fecha_actualizacion"])
+        self.activo = False
+        self.save(update_fields=["activo", "fecha_actualizacion"])

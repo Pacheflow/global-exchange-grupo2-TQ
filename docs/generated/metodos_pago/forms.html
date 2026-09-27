@@ -51,7 +51,7 @@
                                 <a class="function" href="#MetodoPagoForm.clean_nombre">clean_nombre</a>
                         </li>
                         <li>
-                                <a class="function" href="#MetodoPagoForm.clean">clean</a>
+                                <a class="function" href="#MetodoPagoForm.clean_descripcion">clean_descripcion</a>
                         </li>
                         <li>
                                 <a class="variable" href="#MetodoPagoForm.media">media</a>
@@ -99,8 +99,7 @@ metodos_pago<wbr>.forms    </h1>
             <div class="docstring"><p>Valida los datos utilizados para registrar o editar un método de pago.</p>
 
 <p>Las validaciones se ejecutan en Backend antes de persistir los datos,
-garantizando que el nombre sea válido y que no existan métodos de pago
-duplicados para un mismo cliente.</p>
+garantizando que el nombre sea válido y único dentro del catálogo global.</p>
 </div>
 
 
@@ -114,28 +113,25 @@ duplicados para un mismo cliente.</p>
     </div>
     <a class="headerlink" href="#MetodoPagoForm.clean_nombre"></a>
 
-            <div class="docstring"><p>Normaliza el nombre y valida que no esté vacío.</p>
+            <div class="docstring"><p>Normaliza el nombre y evita duplicados globales sin distinguir mayúsculas.</p>
 
-<p>Los espacios al inicio y al final se eliminan para evitar que dos
-métodos aparentemente iguales sean tratados como diferentes.</p>
+<p>Durante una edición se excluye la instancia actual para permitir
+guardar el método sin considerarlo un duplicado de sí mismo.</p>
 </div>
 
 
                             </div>
-                            <div id="MetodoPagoForm.clean" class="classattr">
+                            <div id="MetodoPagoForm.clean_descripcion" class="classattr">
                                 <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">clean</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+        <span class="name">clean_descripcion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
-    <a class="headerlink" href="#MetodoPagoForm.clean"></a>
+    <a class="headerlink" href="#MetodoPagoForm.clean_descripcion"></a>
 
-            <div class="docstring"><p>Valida que no exista otro método con el mismo nombre para el cliente.</p>
-
-<p>Durante una edición se excluye la instancia actual para permitir
-guardar el método sin considerarlo un duplicado de sí mismo.</p>
+            <div class="docstring"><p>Normaliza la descripción opcional antes de persistirla.</p>
 </div>
 
 
@@ -148,7 +144,7 @@ guardar el método sin considerarlo un duplicado de sí mismo.</p>
     </div>
     <a class="headerlink" href="#MetodoPagoForm.media"></a>
 
-            <div class="docstring"><p>Return all media required to render the widgets on this form.</p>
+            <div class="docstring"><p>The type of the None singleton.</p>
 </div>
 
 
@@ -169,7 +165,7 @@ guardar el método sin considerarlo un duplicado de sí mismo.</p>
                                 <div class="attr variable">
             <span class="name">base_fields</span>        =
 <input id="MetodoPagoForm.base_fields-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="MetodoPagoForm.base_fields-view-value"></label><span class="default_value">{&#39;cliente&#39;: &lt;django.forms.models.ModelChoiceField object&gt;, &#39;nombre&#39;: &lt;django.forms.fields.CharField object&gt;, &#39;tipo&#39;: &lt;django.forms.fields.TypedChoiceField object&gt;, &#39;estado&#39;: &lt;django.forms.fields.TypedChoiceField object&gt;}</span>
+            <label class="view-value-button pdoc-button" for="MetodoPagoForm.base_fields-view-value"></label><span class="default_value">{&#39;nombre&#39;: &lt;django.forms.fields.CharField object&gt;, &#39;descripcion&#39;: &lt;django.forms.fields.CharField object&gt;, &#39;activo&#39;: &lt;django.forms.fields.BooleanField object&gt;}</span>
 
 
     </div>
@@ -206,7 +202,7 @@ guardar el método sin considerarlo un duplicado de sí mismo.</p>
                             <div id="MetodoPagoForm.Meta.fields" class="classattr">
                                 <div class="attr variable">
             <span class="name">fields</span>        =
-<span class="default_value">[&#39;cliente&#39;, &#39;nombre&#39;, &#39;tipo&#39;, &#39;estado&#39;]</span>
+<span class="default_value">[&#39;nombre&#39;, &#39;descripcion&#39;, &#39;activo&#39;]</span>
 
 
     </div>

@@ -9,7 +9,8 @@
          data-editar-url="{% url 'clientes_api:editar_cliente' 0 %}"
          data-baja-url="{% url 'clientes_api:dar_de_baja_cliente' 0 %}"
        {% endif %}
-       data-seleccionar-url="{% url 'clientes_api:seleccionar_cliente' 0 %}">
+       data-seleccionar-url="{% url 'clientes_api:seleccionar_cliente' 0 %}"
+       data-preferencia-url="{% url 'clientes_api:actualizar_metodo_pago_preferido' 0 %}">
     {% csrf_token %}
     <div class="ge-frontend-section-head">
       <div>
@@ -39,6 +40,47 @@
           {% csrf_token %}
           <button class="ge-btn-ghost" type="submit">Dejar de seleccionar</button>
         </form>
+      </div>
+    {% endif %}
+
+    {% if cliente_seleccionado %}
+      <div class="ge-card ge-card--pad24" style="margin-bottom:20px">
+        <div style="display:flex;align-items:flex-start;gap:16px">
+          <div style="flex:1">
+            <div class="ge-note-label ge-note-label--10">Método de pago preferido</div>
+            {% if cliente_seleccionado.metodo_pago_preferido %}
+              <strong style="display:block;color:var(--text);font-size:15px;margin-top:4px">
+                {{ cliente_seleccionado.metodo_pago_preferido.nombre }}
+              </strong>
+              {% if not cliente_seleccionado.metodo_pago_preferido.activo %}
+                <span class="ge-state-dot ge-state-dot--off" style="margin-top:8px"><i aria-hidden="true"></i>Inactivo</span>
+                <p class="ge-frontend-subtitle" style="margin-top:8px;color:var(--danger)">
+                  Este método ya no está disponible. Seleccioná otro método de pago.
+                </p>
+              {% endif %}
+            {% else %}
+              <strong style="display:block;color:var(--text-muted);font-size:15px;margin-top:4px">No configurado</strong>
+            {% endif %}
+          </div>
+          <button type="button" class="ge-btn-outline" data-ge-modal-open="metodo-pago-preferido" data-metodo-preferido-abrir>
+            {% if cliente_seleccionado.metodo_pago_preferido %}Cambiar{% else %}Seleccionar{% endif %}
+          </button>
+        </div>
+      </div>
+
+      <div class="ge-modal-backdrop" id="metodo-pago-preferido" aria-hidden="true">
+        <div class="ge-modal" role="dialog" aria-modal="true" aria-labelledby="metodo-pago-preferido-title">
+          <h3 id="metodo-pago-preferido-title">Seleccionar método de pago preferido</h3>
+          <form data-metodo-preferido-form data-cliente-id="{{ cliente_seleccionado.id }}">
+            <div data-metodos-pago-activos style="display:grid;gap:10px;margin:18px 0">
+              <p class="ge-frontend-subtitle">Cargando métodos disponibles…</p>
+            </div>
+            <div class="ge-modal-actions">
+              <button type="button" class="ge-btn-outline" data-ge-modal-close="metodo-pago-preferido">Cancelar</button>
+              <button type="submit" class="ge-btn-primary" data-metodo-preferido-guardar disabled>Guardar</button>
+            </div>
+          </form>
+        </div>
       </div>
     {% endif %}
 

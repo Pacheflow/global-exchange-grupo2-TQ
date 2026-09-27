@@ -96,6 +96,9 @@
                                 <a class="variable" href="#Cliente.categoria">categoria</a>
                         </li>
                         <li>
+                                <a class="variable" href="#Cliente.metodo_pago_preferido">metodo_pago_preferido</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#Cliente.fecha_registro">fecha_registro</a>
                         </li>
                         <li>
@@ -132,6 +135,9 @@
                                 <a class="variable" href="#Cliente.categoria_id">categoria_id</a>
                         </li>
                         <li>
+                                <a class="variable" href="#Cliente.metodo_pago_preferido_id">metodo_pago_preferido_id</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#Cliente.get_next_by_fecha_registro">get_next_by_fecha_registro</a>
                         </li>
                         <li>
@@ -145,9 +151,6 @@
                         </li>
                         <li>
                                 <a class="variable" href="#Cliente.usuarios_asignados">usuarios_asignados</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#Cliente.metodos_pago">metodos_pago</a>
                         </li>
                 </ul>
 
@@ -308,6 +311,8 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#CategoriaCliente.objects"></a>
 
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
 
 
                             </div>
@@ -509,6 +514,28 @@ one-to-one (via ForwardOneToOneDescriptor subclass) relation.</p>
 
 
                             </div>
+                            <div id="Cliente.metodo_pago_preferido" class="classattr">
+                                <div class="attr variable">
+            <span class="name">metodo_pago_preferido</span>
+
+
+    </div>
+    <a class="headerlink" href="#Cliente.metodo_pago_preferido"></a>
+
+            <div class="docstring"><p>Accessor to the related object on the forward side of a many-to-one or
+one-to-one (via ForwardOneToOneDescriptor subclass) relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Child.parent</code> is a <code>ForwardManyToOneDescriptor</code> instance.</p>
+</div>
+
+
+                            </div>
                             <div id="Cliente.fecha_registro" class="classattr">
                                 <div class="attr function">
 
@@ -535,7 +562,9 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#Cliente.activar"></a>
 
-            <div class="docstring"><p>Cambia el estado del cliente a ACTIVO.</p>
+            <div class="docstring"><p>Cambia el estado del cliente a ACTIVO y persiste el cambio.</p>
+
+<p>Deja al cliente disponible para nuevas operaciones del sistema.</p>
 </div>
 
 
@@ -551,6 +580,9 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#Cliente.dar_de_baja"></a>
 
             <div class="docstring"><p>Cambia el estado del cliente a INACTIVO sin eliminarlo.</p>
+
+<p>Conserva el registro para preservar el historial; el cliente deja de
+estar disponible para nuevas operaciones.</p>
 </div>
 
 
@@ -600,6 +632,17 @@ callables as instance methods.</p>
 
     </div>
     <a class="headerlink" href="#Cliente.categoria_id"></a>
+
+
+
+                            </div>
+                            <div id="Cliente.metodo_pago_preferido_id" class="classattr">
+                                <div class="attr variable">
+            <span class="name">metodo_pago_preferido_id</span>
+
+
+    </div>
+    <a class="headerlink" href="#Cliente.metodo_pago_preferido_id"></a>
 
 
 
@@ -668,6 +711,8 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#Cliente.objects"></a>
 
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
 
 
                             </div>
@@ -678,31 +723,6 @@ object the first time, the query is executed.</p>
 
     </div>
     <a class="headerlink" href="#Cliente.usuarios_asignados"></a>
-
-            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
-many-to-one relation.</p>
-
-<p>In the example::</p>
-
-<pre><code>class Child(Model):
-    parent = ForeignKey(Parent, related_name='children')
-</code></pre>
-
-<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
-
-<p>Most of the implementation is delegated to a dynamically defined manager
-class built by <code>create_reverse_many_to_one_manager()</code> defined below.</p>
-</div>
-
-
-                            </div>
-                            <div id="Cliente.metodos_pago" class="classattr">
-                                <div class="attr variable">
-            <span class="name">metodos_pago</span>
-
-
-    </div>
-    <a class="headerlink" href="#Cliente.metodos_pago"></a>
 
             <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
 many-to-one relation.</p>
@@ -989,6 +1009,8 @@ object the first time, the query is executed.</p>
     </div>
     <a class="headerlink" href="#UsuarioCliente.objects"></a>
 
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
 
 
                             </div>

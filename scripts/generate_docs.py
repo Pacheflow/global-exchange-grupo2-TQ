@@ -70,6 +70,13 @@ MODULOS = [
     "tasas.services",
     "tasas.providers",
     "tasas.simulador",
+    "clientes.tests",
+    "monedas.tests",
+    "metodos_pago.tests",
+    "tasas.tests",
+    "tasas.test_reference_rates",
+    "tasas.test_simulator",
+    "usuarios.tests",
     "config.settings",
     "config.urls",
 ]

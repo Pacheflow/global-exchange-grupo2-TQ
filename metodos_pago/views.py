@@ -22,32 +22,20 @@ def _solicita_json(request):
 
 
 def _metodo_data(metodo):
-    """Serializa un método de pago usando únicamente campos persistidos."""
+    """Serializa una opción del catálogo global con sus campos persistidos."""
 
     return {
         "id": metodo.id,
-        "cliente": {
-            "id": metodo.cliente_id,
-            "nombre": metodo.cliente.nombre_razon_social,
-        },
         "nombre": metodo.nombre,
-        "tipo": metodo.tipo,
-        "tipo_display": metodo.get_tipo_display(),
-        "estado": metodo.estado,
+        "descripcion": metodo.descripcion,
+        "activo": metodo.activo,
         "fecha_registro": metodo.fecha_registro.isoformat(),
         "fecha_actualizacion": metodo.fecha_actualizacion.isoformat(),
     }
 
 
 def _datos_json(request):
-    """Decodifica el cuerpo JSON de una solicitud de la interfaz Frontend.
-
-    Args:
-        request: Solicitud HTTP entrante.
-
-    Returns:
-        dict | None: Datos decodificados, o ``None`` si el cuerpo no es JSON válido.
-    """
+    """Decodifica el cuerpo JSON y devuelve ``None`` cuando es inválido."""
     try:
         return json.loads(request.body)
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -55,14 +43,7 @@ def _datos_json(request):
 
 
 def _respuesta_formulario_invalido(form):
-    """Construye una respuesta JSON describiendo los errores del formulario.
-
-    Args:
-        form (MetodoPagoForm): Formulario con errores de validación.
-
-    Returns:
-        JsonResponse: Respuesta 400 con los errores normalizados a JSON.
-    """
+    """Construye la respuesta JSON estándar para errores de formulario."""
     return JsonResponse(
         {
             "error": "Los datos del método de pago no son válidos.",
@@ -80,24 +61,11 @@ def inicio_metodos_pago(request):
 
     Presenta los métodos de pago configurados en el sistema.
     """
-    metodos = MetodoPago.objects.select_related("cliente").all()
+    metodos = MetodoPago.objects.all()
 
     if _solicita_json(request):
-        from clientes.models import Cliente
-
-        clientes = Cliente.objects.order_by("nombre_razon_social")
         return JsonResponse(
-            {
-                "metodos": [_metodo_data(metodo) for metodo in metodos],
-                "clientes": [
-                    {
-                        "id": cliente.id,
-                        "nombre": cliente.nombre_razon_social,
-                        "estado": cliente.estado,
-                    }
-                    for cliente in clientes
-                ],
-            }
+            {"metodos": [_metodo_data(metodo) for metodo in metodos]}
         )
 
     return render(
@@ -146,7 +114,6 @@ def registrar_metodo_pago(request):
                 )
             else:
                 if respuesta_json:
-                    metodo = MetodoPago.objects.select_related("cliente").get(pk=metodo.pk)
                     return JsonResponse(
                         {
                             "message": "Método de pago registrado correctamente.",
@@ -181,10 +148,9 @@ def consultar_metodos_pago(request):
     """
     Lista los métodos de pago configurados.
 
-    Los registros se consultan junto con su cliente para evitar
-    consultas adicionales innecesarias a la base de datos.
+    El listado representa un catálogo único y no aplica filtros por cliente.
     """
-    metodos = MetodoPago.objects.select_related("cliente").all()
+    metodos = MetodoPago.objects.all()
 
     if _solicita_json(request):
         return JsonResponse(
@@ -244,7 +210,7 @@ def editar_metodo_pago(request, metodo_id):
                 )
             else:
                 if respuesta_json:
-                    metodo = MetodoPago.objects.select_related("cliente").get(pk=metodo.pk)
+                    metodo.refresh_from_db()
                     return JsonResponse(
                         {
                             "message": "Método de pago actualizado correctamente.",
@@ -289,7 +255,7 @@ def cambiar_estado_metodo_pago(request, metodo_id):
         id=metodo_id,
     )
 
-    if metodo.estado == "ACTIVO":
+    if metodo.activo:
         metodo.desactivar()
         mensaje = "Método de pago desactivado correctamente."
     else:
@@ -302,7 +268,7 @@ def cambiar_estado_metodo_pago(request, metodo_id):
     )
 
     if _solicita_json(request):
-        metodo = MetodoPago.objects.select_related("cliente").get(pk=metodo.pk)
+        metodo.refresh_from_db()
         return JsonResponse(
             {
                 "message": mensaje,

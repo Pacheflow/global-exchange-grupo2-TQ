@@ -337,16 +337,9 @@ usuarios<wbr>.views    </h1>
 
             <div class="docstring"><p>Renderiza el panel principal según el rol del usuario.</p>
 
-<p>Para ADMINISTRADOR agrega al contexto los totales de clientes, monedas
-activas y métodos de pago; para CAJERO/ANALISTA_CAMBIARIO agrega los
-contadores de clientes asociados, monedas activas y tasas vigentes, y
-para analistas cambiarios calcula también las tasas USD/EUR a PYG.</p>
-
-<p>Args:
-    request: Solicitud HTTP entrante.</p>
-
-<p>Returns:
-    HttpResponse: Plantilla de dashboard según el rol.</p>
+<p>Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
+de pago; para CAJERO/ANALISTA_CAMBIARIO contadores de clientes asociados,
+monedas activas y tasas vigentes (y las tasas USD/EUR a PYG para analistas).</p>
 </div>
 
 
@@ -382,16 +375,8 @@ para analistas cambiarios calcula también las tasas USD/EUR a PYG.</p>
 
             <div class="docstring"><p>Lista los usuarios registrados en Keycloak.</p>
 
-<p>Consulta hasta 100 usuarios de la API de administración de Keycloak; si
-la API no responde o devuelve un error, muestra la página con el error
-al usuario en lugar de fallar.</p>
-
-<p>Args:
-    request: Solicitud HTTP entrante.</p>
-
-<p>Returns:
-    HttpResponse: Plantilla <code>usuarios.html</code> con los usuarios, el error
-    de API (si lo hay) y los roles de negocio disponibles.</p>
+<p>Consulta hasta 100 usuarios de la API de administración; si la API falla,
+muestra la página con el error en lugar de romper el flujo.</p>
 </div>
 
 
@@ -410,16 +395,8 @@ al usuario en lugar de fallar.</p>
 
             <div class="docstring"><p>Crea un usuario en Keycloak con sus roles de negocio.</p>
 
-<p>En POST valida que se envíen usuario, email y una contraseña de al menos
-8 caracteres; crea el usuario en Keycloak y, si corresponde, asigna los
-roles de negocio seleccionados.</p>
-
-<p>Args:
-    request: Solicitud HTTP entrante (GET o POST).</p>
-
-<p>Returns:
-    HttpResponse: Redirige al listado de usuarios en caso de éxito, o
-    vuelve a renderizar el formulario con los errores y valores previos.</p>
+<p>En POST valida usuario, email y una contraseña de al menos 8 caracteres;
+crea el usuario en Keycloak y asigna los roles de negocio seleccionados.</p>
 </div>
 
 
@@ -438,17 +415,8 @@ roles de negocio seleccionados.</p>
 
             <div class="docstring"><p>Edita los datos de un usuario y sus roles de negocio en Keycloak.</p>
 
-<p>En POST actualiza email, nombre, apellido y estado de habilitación del
-usuario en Keycloak y redefine sus roles de negocio. En GET carga los
-valores actuales para precargar el formulario.</p>
-
-<p>Args:
-    request: Solicitud HTTP entrante (GET o POST).
-    user_id: Identificador del usuario en Keycloak a editar.</p>
-
-<p>Returns:
-    HttpResponse: Redirige al listado de usuarios ante éxito o error de
-    API, o renderiza el formulario de edición precargado.</p>
+<p>En POST actualiza email, nombre, apellido, estado de habilitación y roles.
+En GET precarga los valores actuales en el formulario.</p>
 </div>
 
 
@@ -467,16 +435,7 @@ valores actuales para precargar el formulario.</p>
 
             <div class="docstring"><p>Da de baja (deshabilita) un usuario en Keycloak conservando sus datos.</p>
 
-<p>En POST deshabilita el usuario (<code>enabled=False</code>) en Keycloak; los datos
-no se eliminan. Informa el resultado mediante mensajes de sesión y se
-obtienen de la API del usuario previamente.</p>
-
-<p>Args:
-    request: Solicitud HTTP entrante (POST).
-    user_id: Identificador del usuario en Keycloak a deshabilitar.</p>
-
-<p>Returns:
-    HttpResponse: Redirige al listado de usuarios.</p>
+<p>En POST deshabilita el usuario (<code>enabled=False</code>); los datos no se eliminan.</p>
 </div>
 
 
@@ -567,6 +526,8 @@ obtienen de la API del usuario previamente.</p>
     </div>
     <a class="headerlink" href="#tasas_comerciales"></a>
 
+            <div class="docstring"><p>Compatibilidad temporal: redirige a la pantalla única de Tasas.</p>
+</div>
 
 
                 </section>

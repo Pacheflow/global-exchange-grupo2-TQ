@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 {% load static %}
-{% block title %}Cotizaciones actuales · Global Exchange{% endblock %}
+{% block title %}Tasas · Global Exchange{% endblock %}
 {% block extra_head %}
   <style>
     .ge-quote-cards > .ge-card,
@@ -57,6 +57,34 @@
     .ge-rates-group-title {
       margin: 0 0 14px;
     }
+    .ge-rates-group-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .ge-rates-group-head .ge-rates-group-title {
+      margin: 0;
+    }
+    .ge-rates-subgroup {
+      margin-top: 18px;
+    }
+    .ge-rates-subgroup-title {
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+    .ge-rates-group .ge-inline-banner {
+      margin: 0 0 16px;
+    }
+    .ge-rates-group .ge-card:has(> .ge-table) {
+      overflow-x: auto;
+    }
     @media (min-width: 1281px) and (max-width: 1500px) {
       .ge-quote-rates strong.ge-mono { font-size: 16px; }
     }
@@ -71,37 +99,92 @@
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
   <div class="ge-frontend-main-pad"
-       data-ge-api="reference-rates"
-       data-list-url="{% url 'tasas:consultar' %}">
+       data-ge-api="rates"
+       data-list-url="{% url 'tasas:consultar' %}"
+       data-history-url="{% url 'tasas:historial_tasas_comerciales' %}"
+       data-create-url="{% url 'tasas:administrar_tasa_comercial' %}"
+       {% if 'ANALISTA_CAMBIARIO' in kc_roles %}data-deactivate-url="{% url 'tasas:desactivar_tasa_comercial' 0 %}"{% endif %}
+       data-can-manage="{% if 'ANALISTA_CAMBIARIO' in kc_roles %}true{% else %}false{% endif %}"
+       {% if 'ANALISTA_CAMBIARIO' in kc_roles or 'ADMINISTRADOR' in kc_roles %}data-can-view-history="true"{% endif %}>
+    {% csrf_token %}
     <div class="ge-frontend-section-head">
       <div>
-        <h2 class="ge-frontend-h2">Cotizaciones actuales</h2>
-        <p class="ge-frontend-note">Referencia externa y tasas comerciales vigentes de Global Exchange.</p>
+        <h2 class="ge-frontend-h2">Tasas</h2>
+        <p class="ge-frontend-note">Cotizaciones de referencia externa, tasas comerciales vigentes y gestión de las tasas de Global Exchange.</p>
       </div>
-      <span class="ge-chip" data-reference-status>Consultando</span>
+      <div class="ge-frontend-section-actions">
+        <span class="ge-chip" data-reference-status>Consultando</span>
+        {% if 'ANALISTA_CAMBIARIO' in kc_roles %}
+          <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">Nueva tasa comercial</button>
+        {% endif %}
+      </div>
     </div>
 
     <div class="ge-inline-banner" data-reference-message hidden role="status"></div>
-    <section class="ge-rates-group" aria-labelledby="reference-rates-title">
-      <h3 class="ge-frontend-h3 ge-rates-group-title" id="reference-rates-title">Tasas de referencia</h3>
-      <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
-        <article class="ge-card" style="padding:24px">
-          <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
-          <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
-          <div class="ge-skeleton" style="height:12px;width:65%"></div>
-        </article>
+
+    <section class="ge-rates-group" aria-labelledby="rates-cotizaciones-title">
+      <h3 class="ge-frontend-h3 ge-rates-group-title" id="rates-cotizaciones-title">Cotizaciones actuales</h3>
+      <div class="ge-rates-subgroup">
+        <h4 class="ge-rates-subgroup-title" id="reference-rates-title">Tasas de referencia</h4>
+        <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
+          <article class="ge-card" style="padding:24px">
+            <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+            <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+            <div class="ge-skeleton" style="height:12px;width:65%"></div>
+          </article>
+        </div>
+      </div>
+      <div class="ge-rates-subgroup">
+        <h4 class="ge-rates-subgroup-title" id="commercial-rates-title">Tasas comerciales vigentes</h4>
+        <div class="ge-quote-cards" data-commercial-rates aria-live="polite" aria-busy="true">
+          <article class="ge-card" style="padding:24px">
+            <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
+            <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
+            <div class="ge-skeleton" style="height:12px;width:65%"></div>
+          </article>
+        </div>
       </div>
     </section>
-    <section class="ge-rates-group" aria-labelledby="commercial-rates-title">
-      <h3 class="ge-frontend-h3 ge-rates-group-title" id="commercial-rates-title">Tasas comerciales vigentes</h3>
-      <div class="ge-quote-cards" data-commercial-rates aria-live="polite" aria-busy="true">
-        <article class="ge-card" style="padding:24px">
-          <div class="ge-skeleton" style="height:18px;width:42%;margin-bottom:20px"></div>
-          <div class="ge-skeleton" style="height:56px;margin-bottom:18px"></div>
-          <div class="ge-skeleton" style="height:12px;width:65%"></div>
-        </article>
+
+    {% if 'ANALISTA_CAMBIARIO' in kc_roles or 'ADMINISTRADOR' in kc_roles %}
+    <section class="ge-rates-group" aria-labelledby="rates-gestion-title">
+      <div class="ge-rates-group-head">
+        <h3 class="ge-frontend-h3 ge-rates-group-title" id="rates-gestion-title">Gestión de tasas comerciales</h3>
+        <div class="ge-search-box">
+          <span aria-hidden="true">{% include 'components/icon.html' with name='search' size=13 %}</span>
+          <input type="text" class="ge-input" placeholder="Buscar moneda..." style="width:200px;font-size:12px;padding:8px 12px 8px 30px">
+        </div>
+      </div>
+      <div class="ge-inline-banner">
+        <span aria-hidden="true">{% include 'components/icon.html' with name='history' size=18 %}</span>
+        <span>Las tasas comerciales no se eliminan: cada modificación crea una nueva versión y conserva la anterior en el historial.</span>
+      </div>
+      <div class="ge-card" style="overflow:hidden">
+        <table class="ge-table">
+          <thead>
+            <tr><th>Moneda</th><th>Compra</th><th>Venta</th><th>Tendencia</th><th>Estado</th><th>Última act.</th><th>Acciones</th></tr>
+          </thead>
+          <tbody data-rates-body>
+            <tr><td colspan="7" class="ge-frontend-note">Cargando tasas comerciales...</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
+
+    <section class="ge-rates-group" aria-labelledby="rates-historial-title">
+      <h3 class="ge-frontend-h3 ge-rates-group-title" id="rates-historial-title">Historial</h3>
+      <div class="ge-card" style="overflow:hidden">
+        <table class="ge-table">
+          <thead>
+            <tr><th>Versión</th><th>Par</th><th>Compra</th><th>Venta</th><th>Estado</th><th>Usuario</th><th>Fecha</th></tr>
+          </thead>
+          <tbody data-history-body>
+            <tr><td colspan="7" class="ge-frontend-note">Cargando historial...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
   </div>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/frontend-api.js' %}"></script>{% endblock %}

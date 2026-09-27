@@ -353,16 +353,9 @@ ROLES_PANEL_INFO = (
 def dashboard(request):
     """Renderiza el panel principal según el rol del usuario.
 
-    Para ADMINISTRADOR agrega al contexto los totales de clientes, monedas
-    activas y métodos de pago; para CAJERO/ANALISTA_CAMBIARIO agrega los
-    contadores de clientes asociados, monedas activas y tasas vigentes, y
-    para analistas cambiarios calcula también las tasas USD/EUR a PYG.
-
-    Args:
-        request: Solicitud HTTP entrante.
-
-    Returns:
-        HttpResponse: Plantilla de dashboard según el rol.
+    Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
+    de pago; para CAJERO/ANALISTA_CAMBIARIO contadores de clientes asociados,
+    monedas activas y tasas vigentes (y las tasas USD/EUR a PYG para analistas).
     """
     profile = request.session["kc_user"]
     display_name = (
@@ -462,16 +455,8 @@ def roles_permisos(request):
 def usuarios(request):
     """Lista los usuarios registrados en Keycloak.
 
-    Consulta hasta 100 usuarios de la API de administración de Keycloak; si
-    la API no responde o devuelve un error, muestra la página con el error
-    al usuario en lugar de fallar.
-
-    Args:
-        request: Solicitud HTTP entrante.
-
-    Returns:
-        HttpResponse: Plantilla ``usuarios.html`` con los usuarios, el error
-        de API (si lo hay) y los roles de negocio disponibles.
+    Consulta hasta 100 usuarios de la API de administración; si la API falla,
+    muestra la página con el error en lugar de romper el flujo.
     """
     try:
         rows, error = admin_request("/users?max=100"), None
@@ -493,16 +478,8 @@ def usuarios(request):
 def crear_usuario(request):
     """Crea un usuario en Keycloak con sus roles de negocio.
 
-    En POST valida que se envíen usuario, email y una contraseña de al menos
-    8 caracteres; crea el usuario en Keycloak y, si corresponde, asigna los
-    roles de negocio seleccionados.
-
-    Args:
-        request: Solicitud HTTP entrante (GET o POST).
-
-    Returns:
-        HttpResponse: Redirige al listado de usuarios en caso de éxito, o
-        vuelve a renderizar el formulario con los errores y valores previos.
+    En POST valida usuario, email y una contraseña de al menos 8 caracteres;
+    crea el usuario en Keycloak y asigna los roles de negocio seleccionados.
     """
     if request.method == "POST":
         password = request.POST.get("password", "")
@@ -547,17 +524,8 @@ def crear_usuario(request):
 def editar_usuario(request, user_id):
     """Edita los datos de un usuario y sus roles de negocio en Keycloak.
 
-    En POST actualiza email, nombre, apellido y estado de habilitación del
-    usuario en Keycloak y redefine sus roles de negocio. En GET carga los
-    valores actuales para precargar el formulario.
-
-    Args:
-        request: Solicitud HTTP entrante (GET o POST).
-        user_id: Identificador del usuario en Keycloak a editar.
-
-    Returns:
-        HttpResponse: Redirige al listado de usuarios ante éxito o error de
-        API, o renderiza el formulario de edición precargado.
+    En POST actualiza email, nombre, apellido, estado de habilitación y roles.
+    En GET precarga los valores actuales en el formulario.
     """
     try:
         user = cast(dict[str, object], admin_request(f"/users/{user_id}"))
@@ -595,16 +563,7 @@ def editar_usuario(request, user_id):
 def baja_usuario(request, user_id):
     """Da de baja (deshabilita) un usuario en Keycloak conservando sus datos.
 
-    En POST deshabilita el usuario (``enabled=False``) en Keycloak; los datos
-    no se eliminan. Informa el resultado mediante mensajes de sesión y se
-    obtienen de la API del usuario previamente.
-
-    Args:
-        request: Solicitud HTTP entrante (POST).
-        user_id: Identificador del usuario en Keycloak a deshabilitar.
-
-    Returns:
-        HttpResponse: Redirige al listado de usuarios.
+    En POST deshabilita el usuario (``enabled=False``); los datos no se eliminan.
     """
     if request.method == "POST":
         try:
@@ -686,7 +645,8 @@ def tasas(request):
 @requiere_roles_web("ADMINISTRADOR", "ANALISTA_CAMBIARIO")
 @require_GET
 def tasas_comerciales(request):
-    return render(request, "frontend/tasas_comerciales.html")
+    """Compatibilidad temporal: redirige a la pantalla única de Tasas."""
+    return redirect("usuarios:tasas")
 
 
 @requiere_roles_web(*ROLES_PANEL)

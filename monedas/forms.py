@@ -4,9 +4,7 @@ from .models import Moneda
 
 
 class MonedaForm(forms.ModelForm):
-    """
-    Valida y normaliza los datos de una moneda antes de persistirlos.
-    """
+    """Valida y normaliza los datos de una moneda antes de persistirlos."""
 
     class Meta:
         model = Moneda
@@ -18,6 +16,11 @@ class MonedaForm(forms.ModelForm):
         ]
 
     def clean_codigo(self):
+        """Normaliza y valida el código.
+
+        Convierte el código a mayúsculas y elimina espacios externos, y
+        verifica que no exista otra moneda con el mismo código.
+        """
         codigo = self.cleaned_data["codigo"].strip().upper()
 
         if not codigo:
@@ -39,6 +42,7 @@ class MonedaForm(forms.ModelForm):
         return codigo
 
     def clean_nombre(self):
+        """Elimina los espacios externos del nombre y exige que no quede vacío."""
         nombre = self.cleaned_data["nombre"].strip()
 
         if not nombre:
@@ -49,6 +53,7 @@ class MonedaForm(forms.ModelForm):
         return nombre
 
     def clean_simbolo(self):
+        """Elimina los espacios externos del símbolo y exige que no quede vacío."""
         simbolo = self.cleaned_data["simbolo"].strip()
 
         if not simbolo:
