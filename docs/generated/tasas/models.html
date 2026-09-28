@@ -245,6 +245,9 @@
                         <li>
                                 <a class="function" href="#TasaComercial.objects">objects</a>
                         </li>
+                        <li>
+                                <a class="variable" href="#TasaComercial.transacciones">transacciones</a>
+                        </li>
                 </ul>
 
             </li>
@@ -1215,6 +1218,31 @@ object the first time, the query is executed.</p>
     <a class="headerlink" href="#TasaComercial.objects"></a>
 
             <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="TasaComercial.transacciones" class="classattr">
+                                <div class="attr variable">
+            <span class="name">transacciones</span>
+
+
+    </div>
+    <a class="headerlink" href="#TasaComercial.transacciones"></a>
+
+            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
+many-to-one relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
+
+<p>Most of the implementation is delegated to a dynamically defined manager
+class built by <code>create_reverse_many_to_one_manager()</code> defined below.</p>
 </div>
 
 
