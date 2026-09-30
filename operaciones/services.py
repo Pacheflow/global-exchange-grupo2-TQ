@@ -22,6 +22,9 @@ COMISION_POR_CATEGORIA = {
 }
 
 MOTIVO_CAMBIO_COTIZACION = "La cotización cambió antes de confirmar la operación."
+MOTIVO_CANCELACION_CAMBIO_COTIZACION = (
+    "La cotización cambió o dejó de estar disponible."
+)
 
 
 @dataclass(frozen=True)
@@ -611,6 +614,65 @@ def crear_transaccion(
         transaccion=transaccion,
         cambio_cotizacion=cambio_cotizacion,
     )
+
+
+def cancelar_transaccion(
+    *,
+    transaccion_id,
+    usuario_id,
+    usuario_username="",
+):
+    """Cancela una transacción que se encuentre pendiente.
+
+    La transacción se conserva en el historial y solamente cambia
+    su estado a CANCELADA, registrando los datos de la cancelación.
+
+    Requisito relacionado: HU-25.
+    """
+
+    usuario_id = _validar_identidad(usuario_id)
+
+    with transaction.atomic():
+        try:
+            transaccion_obj = (
+                Transaccion.objects
+                .select_for_update()
+                .select_related(
+                    "cliente",
+                    "moneda_origen",
+                    "moneda_destino",
+                )
+                .get(pk=transaccion_id)
+            )
+        except (Transaccion.DoesNotExist, ValueError, TypeError):
+            raise ValidationError(
+                {"transaccion": "La transacción seleccionada no existe."}
+            )
+
+        _validar_acceso_usuario_cliente(
+            transaccion_obj.cliente,
+            usuario_id,
+        )
+
+        # Solo una transaccion pendiente puede cancelarse.
+        if transaccion_obj.estado != "PENDIENTE":
+            raise ValidationError(
+                {"estado": "Solo una transacción PENDIENTE puede cancelarse."}
+            )
+
+        # Se conserva la operacion y se registran los datos de cancelacion.
+        transaccion_obj.estado = "CANCELADA"
+        transaccion_obj.cancelado_por_keycloak_id = usuario_id
+        transaccion_obj.cancelado_por_username = usuario_username
+        transaccion_obj.cancelado_en = timezone.now()
+        transaccion_obj.motivo_cancelacion = (
+            "Cancelación solicitada por el usuario."
+        )
+
+        transaccion_obj.full_clean()
+        transaccion_obj.save()
+
+    return transaccion_obj
 
 
 def listar_transacciones(*, usuario_id, es_admin=False):

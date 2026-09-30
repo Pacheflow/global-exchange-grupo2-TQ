@@ -16,6 +16,11 @@ urlpatterns = [
         name="crear_transaccion",
     ),
     path(
+        "cancelar/",
+        views.cancelar_transaccion_view,
+        name="cancelar_transaccion",
+    ),
+    path(
         "historial/",
         views.historial_transacciones_view,
         name="historial_transacciones",
