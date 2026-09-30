@@ -494,3 +494,340 @@ Al finalizar la revisión del módulo de clientes:
 - Se realizaron pruebas manuales de HU-09 a HU-13.
 - El entorno Docker fue verificado.
 - El Pull Request fue creado desde la rama de clientes hacia `develop`.
+
+---
+
+## 12. Continuación del uso de IA — Sprint 3
+
+Durante el Sprint 3 se utilizó nuevamente Inteligencia Artificial como
+herramienta de apoyo para resolver dudas relacionadas con las operaciones
+de cambio del proyecto.
+
+Las consultas se enfocaron principalmente en:
+
+- comprender las reglas de HU-22 y HU-25;
+- revisar el funcionamiento existente del módulo `operaciones`;
+- identificar qué partes podían reutilizarse;
+- revisar casos de prueba;
+- comprobar cambios mediante Git y Django;
+- mejorar comentarios y documentación del código.
+
+Las modificaciones y verificaciones se realizaron posteriormente sobre el
+proyecto real.
+
+---
+
+## 13. HU-22 — Compra de divisas
+
+### Consulta 22 – Tasa que corresponde a una compra
+
+**Pregunta realizada**
+
+> Para una operación de compra, ¿debo utilizar la tasa de compra o la tasa
+> de venta y cómo puedo comprobar que ya existe esa lógica?
+
+**Respuesta / orientación obtenida**
+
+Se revisó la diferencia entre compra y venta desde el punto de vista de
+Global Exchange.
+
+También se recomendó revisar primero el servicio común de operaciones para
+evitar repetir cálculos que ya estuvieran implementados.
+
+**Aplicación en el proyecto**
+
+Revisé el servicio de operaciones y los tests existentes.
+
+Se comprobó que una operación de tipo `COMPRA` utiliza la tasa comercial de
+`compra`.
+
+También se verificó que una operación válida pueda confirmarse y quedar
+registrada inicialmente con estado `PENDIENTE`.
+
+No fue necesario crear una segunda lógica de cálculo exclusiva para HU-22.
+
+---
+
+## 14. HU-25 ? Revisi?n de la regla de cancelaci?n
+
+### Pregunta realizada
+
+> Al comparar Jira con la gu?a del Sprint, ?qu? condici?n debe utilizar HU-25 para cancelar una transacci?n?
+
+### Respuesta / orientaci?n obtenida
+
+Durante la revisi?n se detect? una diferencia entre las fuentes. La gu?a del Sprint describe un caso relacionado con `CAMBIO_COTIZACION`, mientras que los criterios de aceptaci?n de Jira proporcionados para HU-25 permiten cancelar una transacci?n existente siempre que contin?e pendiente.
+
+La IA ayud? a localizar las partes del servicio, las pruebas y la documentaci?n que depend?an de la interpretaci?n anterior.
+
+Tambi?n se recomend? mantener las validaciones de autorizaci?n, estado y auditor?a, sin eliminar la transacci?n ni modificar sus valores hist?ricos.
+
+### Aplicaci?n en el proyecto
+
+Se ajust? HU-25 para comprobar que:
+
+- la transacci?n exista;
+- el usuario tenga acceso al cliente asociado;
+- la transacci?n est? `PENDIENTE`;
+- pase a `CANCELADA`;
+- se registre usuario, fecha y motivo;
+- permanezca en el historial;
+- no pueda cancelarse nuevamente.
+
+Las pruebas fueron actualizadas y ejecutadas nuevamente.
+
+La confirmaci?n visual previa a la cancelaci?n queda pendiente de la integraci?n de frontend.
+
+## 15. Pruebas de HU-25
+
+### Consulta 26 – Casos de prueba necesarios
+
+**Pregunta realizada**
+
+> ¿Qué casos tengo que probar para demostrar que la cancelación funciona
+> correctamente?
+
+**Respuesta / orientación obtenida**
+
+Se revisaron casos válidos e inválidos para cubrir la regla principal de la
+historia de usuario.
+
+**Aplicación en el proyecto**
+
+Se agregaron pruebas para comprobar:
+
+- cancelación válida cuando cambia la cotización;
+- rechazo cuando la cotización sigue igual;
+- cancelación cuando la cotización deja de estar disponible;
+- conservación de los valores históricos;
+- registro de los datos de cancelación;
+- rechazo de una segunda cancelación sobre una transacción ya cancelada.
+
+Después de los cambios se ejecutó:
+
+```powershell
+python manage.py test operaciones
+```
+
+**Resultado obtenido**
+
+```text
+Found 43 test(s).
+
+Ran 43 tests
+
+OK
+```
+
+---
+
+## 16. Revisión del simulador
+
+### Consulta 27 – Evitar letras en el campo de monto
+
+**Pregunta realizada**
+
+> El conversor me permite escribir letras en el monto. ¿Cómo puedo hacer
+> para que solamente permita números?
+
+**Respuesta / orientación obtenida**
+
+Se revisó el tipo de campo utilizado en la interfaz y se recomendó mantener
+también la validación del Backend, aunque la interfaz limite el ingreso.
+
+**Aplicación en el proyecto**
+
+Se modificó el campo del monto en:
+
+```text
+templates/frontend/simulador.html
+```
+
+Después se realizó una prueba manual desde el navegador.
+
+Se comprobó que:
+
+- las letras ya no podían ingresarse;
+- los valores numéricos continuaban funcionando;
+- el simulador seguía realizando la conversión correctamente.
+
+---
+
+## 17. Revisión de comentarios y documentación del código
+
+### Consulta 28 – Qué partes conviene comentar
+
+**Pregunta realizada**
+
+> Quiero que mi código tenga comentarios, pero sin llenar cada línea.
+> ¿Qué partes conviene explicar?
+
+**Respuesta / orientación obtenida**
+
+Se recomendó comentar principalmente las decisiones importantes del flujo y
+las reglas que pueden no resultar evidentes al leer el código.
+
+**Aplicación en el proyecto**
+
+Se revisaron:
+
+```text
+tasas/services.py
+tasas/simulador.py
+operaciones/services.py
+operaciones/views.py
+operaciones/tests.py
+```
+
+Se agregaron o revisaron comentarios relacionados con:
+
+- validación de tasas;
+- versionado de tasas comerciales;
+- conservación del histórico;
+- baja lógica;
+- búsqueda de tasa directa;
+- búsqueda de tasa inversa;
+- cálculo mediante tasa cruzada;
+- cancelación por cambio de cotización.
+
+No se buscó comentar cada línea, sino explicar los bloques importantes.
+
+---
+
+## 18. Documentación funcional
+
+### Consulta 29 – Documentación de endpoints y pruebas
+
+**Pregunta realizada**
+
+> ¿Dónde conviene documentar las nuevas operaciones y las pruebas del Sprint 3?
+
+**Respuesta / orientación obtenida**
+
+Se recomendó actualizar la documentación existente del proyecto antes de
+crear nuevos archivos con información repetida.
+
+**Aplicación en el proyecto**
+
+Se actualizó:
+
+```text
+docs/endpoints_api.md
+```
+
+para incluir las operaciones de:
+
+- previsualización;
+- creación;
+- cancelación;
+- historial.
+
+También se actualizó:
+
+```text
+docs/pruebas.md
+```
+
+para reflejar el estado actual de la suite y las pruebas correspondientes a
+HU-22 y HU-25.
+
+---
+
+## 19. Verificación de los cambios
+
+### Consulta 30 – Comprobaciones antes de continuar con Git
+
+**Pregunta realizada**
+
+> ¿Cómo puedo comprobar que todos estos cambios siguen funcionando y que no
+> generé migraciones o errores nuevos?
+
+**Respuesta / orientación obtenida**
+
+Se recomendó ejecutar los checks de Django, verificar migraciones, correr la
+suite completa y revisar el diff de Git.
+
+**Aplicación en el proyecto**
+
+Se ejecutaron:
+
+```powershell
+python manage.py check
+python manage.py makemigrations --check --dry-run
+python manage.py test
+git diff --check
+```
+
+**Resultado obtenido**
+
+```text
+System check identified no issues (0 silenced).
+No changes detected
+Found 159 test(s).
+
+Ran 159 tests in 4.013s
+
+OK
+```
+
+`git diff --check` no mostró errores.
+
+También se ejecutaron pruebas específicas de las partes revisadas:
+
+```powershell
+python manage.py test operaciones
+python manage.py test tasas
+python manage.py test tasas.test_simulator
+```
+
+Los resultados fueron:
+
+```text
+operaciones: 43 tests OK
+tasas: 34 tests OK
+simulador: 12 tests OK
+```
+
+---
+
+## 20. Validación humana de las orientaciones
+
+Las respuestas de la IA fueron utilizadas como apoyo para interpretar los
+requisitos, revisar alternativas y detectar puntos que debían comprobarse.
+
+Los cambios no se consideraron terminados únicamente por recibir una
+respuesta de la IA.
+
+Las modificaciones se revisaron posteriormente mediante:
+
+- lectura del código;
+- ejecución de pruebas automatizadas;
+- prueba manual del simulador;
+- revisión de rutas;
+- comprobación del estado de Git;
+- revisión de diferencias con `git diff`;
+- verificación de migraciones;
+- ejecución de los checks de Django.
+
+Cuando durante la revisión se encontró un problema, como la ruta de
+cancelación que no había quedado agregada, se corrigió y se volvió a
+comprobar el funcionamiento.
+
+---
+
+## 21. Resultado de la revisión de Sprint 3
+
+Al finalizar esta etapa:
+
+- se revisó el funcionamiento de HU-22;
+- se incorporó y verificó la cancelación correspondiente a HU-25;
+- se comprobó el uso de la tasa comercial de compra;
+- se comprobó el estado `PENDIENTE` al confirmar una operación válida;
+- se verificó la transición de `PENDIENTE` a `CANCELADA`;
+- se conservaron los datos históricos de las operaciones canceladas;
+- se registraron los datos de auditoría de la cancelación;
+- se corrigió el campo numérico del simulador;
+- se revisaron comentarios y docstrings relacionados con las funcionalidades trabajadas;
+- se actualizaron los documentos de endpoints y pruebas;
+- no se detectaron migraciones pendientes;
+- la suite completa terminó con **159 pruebas correctas**.

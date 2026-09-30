@@ -42,6 +42,9 @@
                     <a class="variable" href="#MOTIVO_CAMBIO_COTIZACION">MOTIVO_CAMBIO_COTIZACION</a>
             </li>
             <li>
+                    <a class="variable" href="#MOTIVO_CANCELACION_CAMBIO_COTIZACION">MOTIVO_CANCELACION_CAMBIO_COTIZACION</a>
+            </li>
+            <li>
                     <a class="class" href="#ResultadoPreviewOperacion">ResultadoPreviewOperacion</a>
                             <ul class="memberlist">
                         <li>
@@ -111,6 +114,9 @@
                     <a class="function" href="#crear_transaccion">crear_transaccion</a>
             </li>
             <li>
+                    <a class="function" href="#cancelar_transaccion">cancelar_transaccion</a>
+            </li>
+            <li>
                     <a class="function" href="#listar_transacciones">listar_transacciones</a>
             </li>
     </ul>
@@ -166,6 +172,18 @@ operaciones<wbr>.services    </h1>
 
     </div>
     <a class="headerlink" href="#MOTIVO_CAMBIO_COTIZACION"></a>
+
+
+
+                </section>
+                <section id="MOTIVO_CANCELACION_CAMBIO_COTIZACION">
+                    <div class="attr variable">
+            <span class="name">MOTIVO_CANCELACION_CAMBIO_COTIZACION</span>        =
+<span class="default_value">&#39;La cotización cambió o dejó de estar disponible.&#39;</span>
+
+
+    </div>
+    <a class="headerlink" href="#MOTIVO_CANCELACION_CAMBIO_COTIZACION"></a>
 
 
 
@@ -494,6 +512,26 @@ guardando el motivo y conservando el historial.</p>
     ResultadoCrearTransaccion: Transacción creada o ya existente.</p>
 
 <p>Requisito relacionado: RF-11 y RF-12.</p>
+</div>
+
+
+                </section>
+                <section id="cancelar_transaccion">
+                    <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">cancelar_transaccion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">transaccion_id</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">usuario_username</span><span class="o">=</span><span class="s1">''</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#cancelar_transaccion"></a>
+
+            <div class="docstring"><p>Cancela una transacción que se encuentre pendiente.</p>
+
+<p>La transacción se conserva en el historial y solamente cambia
+su estado a CANCELADA, registrando los datos de la cancelación.</p>
+
+<p>Requisito relacionado: HU-25.</p>
 </div>
 
 

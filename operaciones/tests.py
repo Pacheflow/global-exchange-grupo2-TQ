@@ -15,6 +15,7 @@ from tasas.services import actualizar_tasa_comercial
 
 from .models import Transaccion
 from .services import (
+    cancelar_transaccion,
     crear_transaccion,
     listar_transacciones,
     previsualizar_operacion,
@@ -545,6 +546,132 @@ class CrearTransaccionTests(BaseOperacionesTests):
         self.assertEqual(Transaccion.objects.count(), 0)
 
 
+class CancelarTransaccionTests(BaseOperacionesTests):
+    """Pruebas de la cancelación de transacciones pendientes de HU-25."""
+
+    def test_transaccion_pendiente_se_puede_cancelar(self):
+        """Comprueba que una transacción PENDIENTE pueda cancelarse.
+
+        Se espera que pase a CANCELADA, registre la auditoría y conserve
+        los valores históricos de la operación.
+        """
+        transaccion = self.crear().transaccion
+
+        monto_destino_original = transaccion.monto_destino
+        tasa_aplicada_original = transaccion.tasa_aplicada
+        comision_original = transaccion.importe_comision
+
+        cancelada = cancelar_transaccion(
+            transaccion_id=transaccion.id,
+            usuario_id=self.usuario_id,
+            usuario_username=self.usuario_username,
+        )
+
+        self.assertEqual(cancelada.estado, "CANCELADA")
+        self.assertEqual(
+            cancelada.cancelado_por_keycloak_id,
+            self.usuario_id,
+        )
+        self.assertEqual(
+            cancelada.cancelado_por_username,
+            self.usuario_username,
+        )
+        self.assertIsNotNone(cancelada.cancelado_en)
+        self.assertEqual(
+            cancelada.motivo_cancelacion,
+            "Cancelación solicitada por el usuario.",
+        )
+
+        # La cancelación no debe modificar los valores históricos.
+        self.assertEqual(
+            cancelada.tasa_aplicada,
+            tasa_aplicada_original,
+        )
+        self.assertEqual(
+            cancelada.monto_destino,
+            monto_destino_original,
+        )
+        self.assertEqual(
+            cancelada.importe_comision,
+            comision_original,
+        )
+
+        # La transacción se conserva en la base de datos.
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_transaccion_inexistente_no_se_puede_cancelar(self):
+        """Comprueba que una transacción inexistente sea rechazada.
+
+        Se espera un error porque el usuario debe seleccionar
+        una transacción existente.
+        """
+        with self.assertRaises(ValidationError):
+            cancelar_transaccion(
+                transaccion_id=999999,
+                usuario_id=self.usuario_id,
+                usuario_username=self.usuario_username,
+            )
+
+    def test_usuario_sin_acceso_no_puede_cancelar(self):
+        """Comprueba que un usuario no pueda cancelar una operación ajena.
+
+        La cancelación debe respetar la asociación entre usuario y cliente.
+        """
+        transaccion = self.crear().transaccion
+
+        with self.assertRaises(ValidationError):
+            cancelar_transaccion(
+                transaccion_id=transaccion.id,
+                usuario_id="usuario-sin-acceso",
+                usuario_username="otro.usuario",
+            )
+
+        transaccion.refresh_from_db()
+        self.assertEqual(
+            transaccion.estado,
+            "PENDIENTE",
+        )
+
+    def test_transaccion_cancelada_no_se_cancela_de_nuevo(self):
+        """Comprueba que una transacción CANCELADA no pueda cancelarse otra vez.
+
+        Se espera que el segundo intento sea rechazado y se conserve
+        la información de la primera cancelación.
+        """
+        transaccion = self.crear().transaccion
+
+        primera = cancelar_transaccion(
+            transaccion_id=transaccion.id,
+            usuario_id=self.usuario_id,
+            usuario_username=self.usuario_username,
+        )
+
+        fecha_cancelacion = primera.cancelado_en
+        motivo_cancelacion = primera.motivo_cancelacion
+
+        with self.assertRaises(ValidationError):
+            cancelar_transaccion(
+                transaccion_id=transaccion.id,
+                usuario_id=self.usuario_id,
+                usuario_username=self.usuario_username,
+            )
+
+        primera.refresh_from_db()
+
+        self.assertEqual(
+            primera.estado,
+            "CANCELADA",
+        )
+        self.assertEqual(
+            primera.cancelado_en,
+            fecha_cancelacion,
+        )
+        self.assertEqual(
+            primera.motivo_cancelacion,
+            motivo_cancelacion,
+        )
+
+
 class IdempotenciaTests(BaseOperacionesTests):
     """Pruebas de la idempotencia por clave idempotencia en confirmación."""
 
@@ -809,6 +936,10 @@ class OperacionesUrlTests(TestCase):
         self.assertEqual(
             reverse("operaciones:crear_transaccion"),
             "/api/operaciones/crear/",
+        )
+        self.assertEqual(
+            reverse("operaciones:cancelar_transaccion"),
+            "/api/operaciones/cancelar/",
         )
         self.assertEqual(
             reverse("operaciones:historial_transacciones"),

@@ -42,6 +42,9 @@
                     <a class="function" href="#crear_transaccion_view">crear_transaccion_view</a>
             </li>
             <li>
+                    <a class="function" href="#cancelar_transaccion_view">cancelar_transaccion_view</a>
+            </li>
+            <li>
                     <a class="function" href="#historial_transacciones_view">historial_transacciones_view</a>
             </li>
     </ul>
@@ -111,6 +114,26 @@ operaciones<wbr>.views    </h1>
 <p>Revalida la versión de la tasa vigente contra la versión mostrada en
 la previsualización; si la cotización cambió, la operación se registra
 como cancelada conservando el motivo en el historial.</p>
+</div>
+
+
+                </section>
+                <section id="cancelar_transaccion_view">
+                    <div class="attr function">
+                    <div class="decorator decorator-require_POST">@require_POST</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERACIONES)</div>
+
+        <span class="def">def</span>
+        <span class="name">cancelar_transaccion_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#cancelar_transaccion_view"></a>
+
+            <div class="docstring"><p>Cancela una transacción pendiente (JSON).</p>
+
+<p>La verificación se realiza en el servicio de dominio. La vista solo
+obtiene la identidad de sesión, lee los datos y devuelve la respuesta.</p>
 </div>
 
 

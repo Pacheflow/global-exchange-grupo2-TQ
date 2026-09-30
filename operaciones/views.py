@@ -10,6 +10,7 @@ from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO
 
 from .services import (
     PRECISION_MONTO,
+    cancelar_transaccion,
     crear_transaccion,
     listar_transacciones,
     previsualizar_operacion,
@@ -278,6 +279,53 @@ def crear_transaccion_view(request):
     return JsonResponse(
         payload,
         status=200 if resultado.repetida else 201,
+    )
+
+
+@require_POST
+@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+def cancelar_transaccion_view(request):
+    """Cancela una transacción pendiente (JSON).
+
+    La verificación se realiza en el servicio de dominio. La vista solo
+    obtiene la identidad de sesión, lee los datos y devuelve la respuesta.
+    """
+
+    usuario_id, usuario_username = _usuario_sesion(request)
+    if not usuario_id:
+        return JsonResponse(
+            {"error": "No se encontró una identidad Keycloak válida."},
+            status=401,
+        )
+
+    datos = _leer_cuerpo_json(request)
+    if datos is None:
+        return JsonResponse(
+            {"error": "El cuerpo de la solicitud debe contener un objeto JSON."},
+            status=400,
+        )
+
+    try:
+        transaccion_obj = cancelar_transaccion(
+            transaccion_id=datos.get("transaccion_id"),
+            usuario_id=usuario_id,
+            usuario_username=usuario_username,
+        )
+    except ValidationError as exc:
+        return JsonResponse(
+            {
+                "error": "No se pudo cancelar la transacción.",
+                "detalles": _detalles_error(exc),
+            },
+            status=400,
+        )
+
+    return JsonResponse(
+        {
+            "mensaje": "La transacción fue cancelada correctamente.",
+            "transaccion": _serializar_transaccion(transaccion_obj),
+        },
+        status=200,
     )
 
 

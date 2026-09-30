@@ -17,9 +17,7 @@ from .models import (
 from .providers import ProveedorTasasError, ProveedorTasasHTTP
 
 
-
 # HU-17 - Consultar y visualizar tasas de referencia
-
 
 
 @dataclass(frozen=True)
@@ -154,9 +152,7 @@ def consultar_tasas_referencia(*, proveedor=None):
     )
 
 
-
 # HU-21 - Administrar tasas comerciales
-
 
 
 PRECISION_TASA = Decimal("0.000001")
@@ -165,9 +161,13 @@ PRECISION_TASA = Decimal("0.000001")
 def _convertir_tasa(valor, campo):
     """Convierte y valida un valor de tasa comercial."""
 
+    # Si no se recibió un valor, se devuelve None.
+    # Esto permite modificar solamente compra o solamente venta.
     if valor is None or valor == "":
         return None
 
+    # Convertimos el valor recibido a Decimal para trabajar
+    # correctamente con valores monetarios.
     try:
         valor_decimal = Decimal(
             str(valor)
@@ -185,6 +185,7 @@ def _convertir_tasa(valor, campo):
             }
         )
 
+    # Las tasas comerciales siempre deben ser mayores que cero.
     if valor_decimal <= 0:
         raise ValidationError(
             {
@@ -194,6 +195,7 @@ def _convertir_tasa(valor, campo):
             }
         )
 
+    # Se aplica la precisión definida para guardar la tasa.
     return valor_decimal.quantize(
         PRECISION_TASA,
         rounding=ROUND_HALF_UP,
@@ -216,6 +218,8 @@ def actualizar_tasa_comercial(
     Se permite modificar compra, venta o ambas.
     """
 
+    # La moneda de origen y la moneda de destino
+    # deben ser diferentes.
     if moneda_origen_id == moneda_destino_id:
         raise ValidationError(
             {
@@ -226,6 +230,8 @@ def actualizar_tasa_comercial(
             }
         )
 
+    # Buscamos la moneda de origen y comprobamos
+    # que realmente exista.
     try:
         moneda_origen = Moneda.objects.get(
             pk=moneda_origen_id
@@ -239,6 +245,7 @@ def actualizar_tasa_comercial(
             }
         )
 
+    # Buscamos la moneda de destino.
     try:
         moneda_destino = Moneda.objects.get(
             pk=moneda_destino_id
@@ -252,6 +259,8 @@ def actualizar_tasa_comercial(
             }
         )
 
+    # No se pueden crear tasas nuevas utilizando
+    # una moneda que se encuentre inactiva.
     if moneda_origen.estado != "ACTIVA":
         raise ValidationError(
             {
@@ -270,6 +279,7 @@ def actualizar_tasa_comercial(
             }
         )
 
+    # Convertimos y validamos los valores de compra y venta.
     compra_nueva = _convertir_tasa(
         compra,
         "compra",
@@ -280,6 +290,7 @@ def actualizar_tasa_comercial(
         "venta",
     )
 
+    # Se debe modificar por lo menos uno de los dos valores.
     if (
         compra_nueva is None
         and venta_nueva is None
@@ -293,6 +304,9 @@ def actualizar_tasa_comercial(
             }
         )
 
+    # Buscamos todas las tasas que pertenecen al mismo par.
+    # select_for_update evita que dos cambios simultáneos
+    # modifiquen el versionado al mismo tiempo.
     tasas_del_par = (
         TasaComercial.objects
         .select_for_update()
@@ -301,11 +315,16 @@ def actualizar_tasa_comercial(
             moneda_destino=moneda_destino,
         )
     )
+
+    # Obtenemos la tasa que está vigente actualmente.
     tasa_actual = (
         tasas_del_par
         .filter(vigente=True)
         .first()
     )
+
+    # Buscamos la última versión registrada para continuar
+    # correctamente con el número de versión.
     ultima_version = (
         tasas_del_par
         .order_by("-version")
@@ -314,7 +333,12 @@ def actualizar_tasa_comercial(
         or 0
     )
 
+    # Si todavía no existe una tasa vigente para este par,
+    # se trata del primer registro.
     if tasa_actual is None:
+
+        # Para la primera tasa es obligatorio ingresar
+        # tanto compra como venta.
         if (
             compra_nueva is None
             or venta_nueva is None
@@ -332,23 +356,33 @@ def actualizar_tasa_comercial(
         version = ultima_version + 1
 
     else:
+
+        # Si no se modificó la compra, conservamos
+        # el valor que tenía la tasa actual.
         if compra_nueva is None:
             compra_nueva = (
                 tasa_actual.compra
             )
 
+        # Si no se modificó la venta, conservamos
+        # el valor anterior.
         if venta_nueva is None:
             venta_nueva = (
                 tasa_actual.venta
             )
 
+        # Cada modificación crea una nueva versión.
         version = ultima_version + 1
 
+        # La versión anterior deja de estar vigente,
+        # pero no se elimina porque forma parte del historial.
         tasa_actual.vigente = False
         tasa_actual.save(
             update_fields=["vigente"]
         )
 
+    # Creamos la nueva versión de la tasa comercial.
+    # También guardamos quién realizó la modificación.
     nueva_tasa = TasaComercial(
         moneda_origen=moneda_origen,
         moneda_destino=moneda_destino,
@@ -360,6 +394,7 @@ def actualizar_tasa_comercial(
         usuario_username=usuario_username,
     )
 
+    # Ejecutamos las validaciones del modelo antes de guardar.
     nueva_tasa.full_clean()
     nueva_tasa.save()
 
@@ -370,17 +405,34 @@ def actualizar_tasa_comercial(
 def desactivar_tasa_comercial(tasa_id):
     """Da de baja lógicamente una tasa sin eliminar su historial."""
 
+    # Buscamos y bloqueamos la tasa mientras se realiza
+    # la modificación.
     tasa = (
         TasaComercial.objects
         .select_for_update()
-        .select_related("moneda_origen", "moneda_destino")
+        .select_related(
+            "moneda_origen",
+            "moneda_destino",
+        )
         .get(pk=tasa_id)
     )
+
+    # Si ya estaba inactiva, no se puede volver
+    # a realizar la misma acción.
     if not tasa.vigente:
         raise ValidationError(
-            {"tasa": "La tasa comercial ya se encuentra inactiva."}
+            {
+                "tasa": (
+                    "La tasa comercial ya se encuentra inactiva."
+                )
+            }
         )
 
+    # Se realiza una baja lógica: cambiamos el estado,
+    # pero no eliminamos el registro de la base de datos.
     tasa.vigente = False
-    tasa.save(update_fields=["vigente"])
+    tasa.save(
+        update_fields=["vigente"]
+    )
+
     return tasa
