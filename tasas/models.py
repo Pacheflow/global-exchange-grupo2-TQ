@@ -130,13 +130,13 @@ class TasaComercial(models.Model):
     )
 
     compra = models.DecimalField(
-        max_digits=18,
-        decimal_places=6,
+        max_digits=24,
+        decimal_places=10,
     )
 
     venta = models.DecimalField(
-        max_digits=18,
-        decimal_places=6,
+        max_digits=24,
+        decimal_places=10,
     )
 
     vigente = models.BooleanField(

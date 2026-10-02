@@ -14,11 +14,11 @@
     <div class="ge-frontend-kpis">
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='currencies' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">USD/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_usd_pyg %}{{ tasa_usd_pyg.tasa|floatformat:6 }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_usd_pyg %}Referencia vigente{% else %}Sin tasa disponible{% endif %}</span></div>
+        <div><span class="ge-kpi--simple-label">USD/PYG REFERENCIA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_usd_pyg %}{{ tasa_usd_pyg.tasa|floatformat:"-10" }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_usd_pyg %}Referencia de mercado vigente{% else %}Sin tasa disponible{% endif %}</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='euro' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">EUR/PYG COMPRA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_eur_pyg %}{{ tasa_eur_pyg.tasa|floatformat:6 }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_eur_pyg %}Referencia vigente{% else %}Sin tasa disponible{% endif %}</span></div>
+        <div><span class="ge-kpi--simple-label">EUR/PYG REFERENCIA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_eur_pyg %}{{ tasa_eur_pyg.tasa|floatformat:"-10" }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_eur_pyg %}Referencia de mercado vigente{% else %}Sin tasa disponible{% endif %}</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>

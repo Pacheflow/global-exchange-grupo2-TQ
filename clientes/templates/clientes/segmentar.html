@@ -1,26 +1,33 @@
-{% extends 'usuarios/base.html' %}
+{% extends 'frontend/base.html' %}
 {% block title %}Segmentar cliente · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-<div class="ge-app">
-  <div class="ge-page">
-    <div class="ge-back-row">
-      <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">← Volver a clientes</a>
-      <h1 class="ge-title-h2">Segmentar cliente</h1>
+<div class="ge-frontend-main-pad">
+  <div class="ge-frontend-section-head">
+    <div>
+      <span class="ge-frontend-eyebrow">Gestión comercial</span>
+      <h2 class="ge-frontend-h2">Segmentar cliente</h2>
+      <p class="ge-frontend-subtitle">Asigná manualmente la categoría comercial de {{ cliente.nombre_razon_social }}.</p>
     </div>
-    <p style="font-size: 13px; color: var(--text-2); margin: -16px 0 24px 68px">{% if cliente %}Asigná una categoría comercial a {{ cliente.nombre_razon_social }}.{% endif %}</p>
-    {% if cliente_no_encontrado %}
-      <div class="ge-card ge-empty"><strong>Cliente no encontrado</strong></div>
-    {% else %}
-      <div class="ge-card ge-card--pad32" style="max-width: 640px">
-        <form method="post" novalidate>{% csrf_token %}
-          {% include 'clientes/partials/form_fields.html' %}
-          <div class="ge-form-actions">
-            <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">Cancelar</a>
-            <button class="ge-btn-primary" type="submit">Guardar segmentación</button>
-          </div>
-        </form>
+    <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">← Volver a clientes</a>
+  </div>
+
+  <div class="ge-card ge-card--pad24" style="max-width:680px;margin-bottom:20px">
+    <div class="ge-note-label ge-note-label--10">Categoría actual</div>
+    <strong style="display:block;color:var(--text);font-size:18px;margin-top:5px">
+      {{ cliente.categoria.nombre|default:'Sin categoría' }}
+    </strong>
+    <p class="ge-frontend-subtitle" style="margin-top:8px">La categoría determina la comisión aplicable a las nuevas operaciones.</p>
+  </div>
+
+  <div class="ge-card ge-card--pad32" style="max-width:680px">
+    <form method="post" novalidate>{% csrf_token %}
+      {% include 'clientes/partials/form_fields.html' %}
+      <div class="ge-form-actions">
+        <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">Cancelar</a>
+        <button class="ge-btn-primary" type="submit">Guardar segmentación</button>
       </div>
-    {% endif %}
+    </form>
   </div>
 </div>
 {% endblock %}

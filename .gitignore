@@ -38,3 +38,7 @@ AGENTS.md
 
 # Prototipos/exportaciones frontend no utilizados
 front_actualizado/
+
+# Certificados TLS locales de producción (solo se conserva el directorio)
+docker/nginx/certs/*
+!docker/nginx/certs/.gitkeep

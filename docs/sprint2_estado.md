@@ -15,7 +15,8 @@
 - `static/js/landing.js` consume `/api/tasas/`, `/api/monedas/activas/` y `/api/tasas/simular/`.
 - `static/js/frontend-api.js` integra las pantallas autenticadas y consume el mismo `/api/tasas/simular/` que la landing para HU-19.
 - El Conversor no integra cliente ni Compra/Venta: HU-19 termina en el resultado estimado previo a una operación.
-- `static/js/ge-data.js` y `static/js/frontend.js` se conservan como prototipos futuros, pero ninguna template activa los carga.
+- `static/js/ge-data.js` y `static/js/frontend.js` no tenían consumidores activos y
+  fueron retirados del control de versiones el 02/10/2026 durante la limpieza legacy.
 - La landing no presenta variaciones, históricos, compra/venta ni horas inventadas cuando esos datos no forman parte de la respuesta real.
 
 ## Funciones futuras preservadas

@@ -1,19 +1,21 @@
 import json
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from usuarios.keycloak import KeycloakError, admin_request
 from usuarios.decorators import requiere_alguno_de_roles, requiere_rol, requiere_roles_web
-from usuarios.services.keycloak import SESSION_ROLES
+from usuarios.services.keycloak import SESSION_ROLES, rol_efectivo
 
 from metodos_pago.models import MetodoPago
 
 from .forms import AsignacionUsuarioClienteForm, ClienteForm, SegmentacionClienteForm
-from .models import Cliente, UsuarioCliente
+from .models import CategoriaCliente, Cliente, UsuarioCliente
 
 
 def _keycloak_user_id(request):
@@ -35,11 +37,11 @@ def _clientes_asignados_a(request, queryset=None):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_GET
 def inicio_clientes(request):
-    """Muestra la pantalla principal del módulo de clientes."""
-    return render(request, "clientes/inicio.html")
+    """Conserva la URL histórica y dirige a la consulta vigente."""
+    return redirect("consultar_clientes")
 
 
 @requiere_roles_web("ADMINISTRADOR")
@@ -65,16 +67,15 @@ def registrar_cliente(request):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_GET
 def consultar_clientes(request):
     """Muestra y permite buscar los clientes registrados."""
 
     busqueda = request.GET.get("buscar", "")
 
-    clientes = Cliente.objects.select_related("metodo_pago_preferido")
-    roles = set(request.session.get("roles", []))
-    if "ADMINISTRADOR" not in roles:
+    clientes = Cliente.objects.select_related("categoria", "metodo_pago_preferido")
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         clientes = _clientes_asignados_a(request, clientes)
 
     cliente_seleccionado = clientes.filter(
@@ -177,14 +178,13 @@ def segmentar_cliente(request, cliente_id):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_POST
 def seleccionar_cliente(request, cliente_id):
     """Define el cliente activo utilizado como contexto de trabajo."""
 
     cliente = get_object_or_404(Cliente, id=cliente_id, estado="ACTIVO")
-    roles = set(request.session.get("roles", []))
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         get_object_or_404(
             UsuarioCliente,
             cliente=cliente,
@@ -199,7 +199,7 @@ def seleccionar_cliente(request, cliente_id):
     return redirect("usuarios:dashboard")
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_POST
 def deseleccionar_cliente(request):
     """Elimina el contexto de cliente sin modificar el registro del cliente."""
@@ -371,6 +371,78 @@ def crear_cliente_api(request):
 
 
 @requiere_rol("ADMINISTRADOR")
+@require_http_methods(["GET", "POST"])
+def comisiones_categorias_api(request):
+    """Consulta o actualiza las comisiones persistentes de las categorías."""
+
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "categorias": [
+                    {
+                        "id": categoria.id,
+                        "nombre": categoria.nombre,
+                        "porcentaje_comision": str(categoria.porcentaje_comision),
+                    }
+                    for categoria in CategoriaCliente.objects.order_by("nombre")
+                ]
+            }
+        )
+
+    datos = _json_body(request)
+    if not isinstance(datos, dict) or not isinstance(datos.get("comisiones"), list):
+        return JsonResponse(
+            {"error": "Debe enviar la lista de comisiones por categoría."},
+            status=400,
+        )
+
+    entradas = datos["comisiones"]
+    try:
+        ids = [int(entrada.get("id")) for entrada in entradas if isinstance(entrada, dict)]
+    except (TypeError, ValueError):
+        ids = []
+    if len(ids) != len(entradas) or len(set(ids)) != len(ids):
+        return JsonResponse({"error": "La lista de categorías no es válida."}, status=400)
+
+    with transaction.atomic():
+        categorias = {
+            categoria.id: categoria
+            for categoria in CategoriaCliente.objects.select_for_update().filter(id__in=ids)
+        }
+        if len(categorias) != len(ids):
+            return JsonResponse({"error": "Una categoría no existe."}, status=404)
+
+        actualizadas = []
+        for entrada in entradas:
+            try:
+                porcentaje = Decimal(str(entrada.get("porcentaje_comision")))
+            except (InvalidOperation, TypeError, ValueError):
+                return JsonResponse(
+                    {"error": "Cada comisión debe ser un número entre 0 y 100."},
+                    status=400,
+                )
+            if not porcentaje.is_finite():
+                return JsonResponse(
+                    {"error": "Cada comisión debe ser un número entre 0 y 100."},
+                    status=400,
+                )
+            categoria = categorias[int(entrada["id"])]
+            categoria.porcentaje_comision = porcentaje
+            try:
+                categoria.full_clean()
+            except ValidationError:
+                return JsonResponse(
+                    {"error": "Cada comisión debe ser un número entre 0 y 100."},
+                    status=400,
+                )
+            actualizadas.append(categoria)
+
+        CategoriaCliente.objects.bulk_update(actualizadas, ["porcentaje_comision"])
+
+    return JsonResponse({"message": "Comisiones actualizadas correctamente."})
+
+
+@requiere_rol("ADMINISTRADOR")
 @require_POST
 def editar_cliente_api(request, cliente_id):
     """Actualiza los datos de un cliente desde la interfaz Frontend (JSON)."""
@@ -431,7 +503,7 @@ def dar_de_baja_cliente_api(request, cliente_id):
     )
 
 
-@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_POST
 def seleccionar_cliente_api(request, cliente_id):
     """Define el cliente activo sin salir de la interfaz Frontend (JSON)."""
@@ -444,9 +516,7 @@ def seleccionar_cliente_api(request, cliente_id):
             status=404,
         )
 
-    roles = set(request.session.get(SESSION_ROLES, []))
-
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         user_id = request.session.get("kc_user", {}).get("sub")
         if not user_id:
             return JsonResponse(
@@ -474,7 +544,7 @@ def seleccionar_cliente_api(request, cliente_id):
     )
 
 
-@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_http_methods(["GET", "POST"])
 def actualizar_metodo_pago_preferido_api(request, cliente_id):
     """Consulta o actualiza la preferencia usando el catálogo global activo."""
@@ -486,8 +556,7 @@ def actualizar_metodo_pago_preferido_api(request, cliente_id):
     except Cliente.DoesNotExist:
         return JsonResponse({"error": "El cliente no existe."}, status=404)
 
-    roles = set(request.session.get(SESSION_ROLES, []))
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         user_id = request.session.get("kc_user", {}).get("sub")
         if not user_id:
             return JsonResponse(

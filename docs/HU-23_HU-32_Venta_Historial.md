@@ -16,9 +16,21 @@ devuelve una previsualización sin persistir.
 
 Al confirmar, el backend vuelve a validar identidad Keycloak, cliente,
 asociación `UsuarioCliente`, monedas, tasa vigente, método activo y comisión.
-Luego recalcula y crea una `Transaccion` `PENDIENTE`. La clave de idempotencia
-impide duplicados y un cambio de versión de la cotización conserva el intento
-como `CANCELADA`, según el comportamiento del núcleo integrado.
+Luego bloquea las filas relevantes, vuelve a leer la configuración vigente,
+recalcula y crea una `Transaccion` `COMPLETADA`. La confirmación incluye como
+huella la versión de tasa, la categoría y el porcentaje vistos en el preview;
+si alguno cambió, se rechaza sin crear una transacción y se exige previsualizar
+de nuevo. No se agregó un snapshot histórico de categoría.
+
+La idempotencia sí incorpora una migración mínima para una huella SHA-256
+nullable del payload canónico. Esa huella incluye la categoría observada, pero
+no funciona como snapshot histórico ni participa en el cálculo económico.
+
+La clave de idempotencia solo devuelve una operación existente cuando coinciden
+el usuario autorizado, cliente y la huella persistida del payload: tipo, par de
+monedas, monto, método, versión de tasa, categoría y comisión. La misma
+comparación se aplica después de una carrera de unicidad; una fila histórica sin
+huella se rechaza. Ningún rechazo revela los datos de la operación original.
 
 ## Métodos de pago
 
@@ -36,9 +48,10 @@ cuando el catálogo cambie posteriormente.
 
 ## Historial y detalle
 
-`GET /api/operaciones/historial/` requiere `selected_client` en sesión. Esa
-selección no se considera autorización: el servicio vuelve a comprobar la
-asociación activa del usuario y filtra estrictamente por el cliente.
+`GET /api/operaciones/historial/` requiere `selected_client` para CAJERO y
+USUARIO. Esa selección no se considera autorización: el servicio vuelve a
+comprobar la asociación activa y filtra estrictamente por el cliente. El
+ADMINISTRADOR usa el mismo endpoint como supervisor global.
 
 `GET /api/operaciones/<id>/detalle/` exige además que la transacción pertenezca
 al cliente seleccionado. Una transacción de otro cliente responde como recurso
@@ -54,13 +67,16 @@ historial.
 
 | Criterio | Prueba |
 |---|---|
-| Venta usa `TasaComercial.venta` y crea `PENDIENTE` | `test_venta_previsualiza_y_confirma_con_tasa_de_venta` |
+| Venta usa `TasaComercial.venta` y crea `COMPLETADA` | `test_venta_previsualiza_y_confirma_con_tasa_de_venta` |
 | Solo se ofrecen métodos activos y se preselecciona el preferido válido | `test_metodos_expone_solo_activos_y_preselecciona_preferido` |
 | Un preferido inactivo no se ofrece | `test_metodo_preferido_inactivo_no_se_preselecciona` |
 | El historial se limita al cliente seleccionado | `test_historial_muestra_solo_el_cliente_seleccionado` |
 | El detalle de otro cliente no se expone | `test_detalle_de_otro_cliente_no_es_accesible` |
 | El detalle conserva snapshots | `test_detalle_incluye_snapshots_y_cancelacion_sin_recalcular` |
 | Historial y detalle son de solo lectura | `test_historial_y_detalle_rechazan_escrituras` |
+| Cambio de categoría o comisión invalida el preview | `test_cambio_de_categoria_desde_preview_rechaza_confirmacion`, `test_cambio_de_porcentaje_desde_preview_rechaza_confirmacion` |
+| Reutilización de clave con otro usuario, cliente o payload se rechaza | `IdempotenciaTests` |
+| Categorías distintas con igual porcentaje no comparten payload | `test_misma_clave_categoria_distinta_con_igual_porcentaje_es_rechazada` |
 
 ## Ejecución
 

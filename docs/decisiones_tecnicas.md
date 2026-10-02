@@ -1,7 +1,7 @@
 # Decisiones Técnicas — Global Exchange
 
-> Decisiones confirmadas por el equipo y estado verificado el 10/09/2026 en la
-> rama `fix/keycloak-session-and-default-role`, HEAD `9085a47`.
+> Decisiones confirmadas por el equipo y estado verificado el 02/10/2026 en
+> `develop`, con el merge actual todavía sin commit.
 
 ## 1. Identidad: Keycloak como proveedor único
 
@@ -33,13 +33,14 @@
 - **Estado:** Implementado.
 - **Fuente:** Diseño del equipo.
 
-## 6. Decisión histórica sobre React y frontend activo actual
+## 6. Frontend activo sin React
 
-- **Decisión histórica:** se evaluó React como capa visual de islas y se
-  conservaron fuentes y un bundle bajo `frontend/` y `static/react/`.
-- **Estado actual:** React no forma parte del frontend activo. La landing y el
-  panel usan Django Templates, HTML, CSS y JavaScript convencional; ninguna
-  template carga el bundle heredado.
+- **Decisión:** la landing y el panel usan Django Templates, HTML, CSS y
+  JavaScript convencional. Se retiraron del control de versiones las fuentes
+  Vite/React y el bundle compilado después de verificar que no tenían consumidores.
+- **Estado actual:** no existe una segunda implementación React versionada.
+- **Aclaración:** `front_actualizado/` es una referencia local ignorada y no fue
+  eliminada ni incorporada al producto.
 - **Fuente:** Decisión del equipo 2026-09-03.
 
 ## 7. GitFlow: feature → develop → main → tag
@@ -70,7 +71,8 @@
 
 - **Decisión:** Renombrar toda la capa de presentación de "figma" a "frontend" para reflejar que el panel pertenece a la capa frontend del proyecto, no al nombre del proyecto de diseño Figma.
 - **Estado:** Commit `590f131` (40 archivos, 2026-09-06). Sin cambios funcionales.
-- **Exclusiones:** `frontend/src/` + `static/react/` (bundle React), `front_actualizado/` (referencia), `AGENTS.md`/`.agent-context/`.
+- **Exclusiones históricas:** `front_actualizado/` continúa como referencia local
+  ignorada; `AGENTS.md` y `.agent-context/` permanecen fuera del producto.
 - **Fuente:** Decisión del equipo.
 
 ## Decisiones pendientes de confirmación
@@ -78,6 +80,5 @@
 - **Cierre Git de Sprint 2:** la integración previa ya forma parte de `develop`
   en `9085a47`; permanecen pendientes la revisión del worktree actual, el commit,
   el merge final autorizado y el tag de Sprint 2.
-- **Limpieza de archivos React/TypeScript/Vite:** pendiente de decisión separada (código compilado sin uso actual).
 - **Permisos granulares (policies/scopes):** definidos en diseño pero no implementados.
 - **Alta administrativa de usuarios y correo de verificación:** no dispara automáticamente el envío.

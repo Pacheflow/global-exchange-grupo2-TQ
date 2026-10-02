@@ -129,6 +129,9 @@
                     <a class="variable" href="#ALLOWED_HOSTS">ALLOWED_HOSTS</a>
             </li>
             <li>
+                    <a class="variable" href="#USE_X_FORWARDED_HOST">USE_X_FORWARDED_HOST</a>
+            </li>
+            <li>
                     <a class="variable" href="#INSTALLED_APPS">INSTALLED_APPS</a>
             </li>
             <li>
@@ -219,7 +222,7 @@ config<wbr>.settings    </h1>
                 <section id="KEYCLOAK_PUBLIC_URL">
                     <div class="attr variable">
             <span class="name">KEYCLOAK_PUBLIC_URL</span>        =
-<span class="default_value">$KEYCLOAK_SERVER_URL</span>
+<span class="default_value">$KEYCLOAK_PUBLIC_URL</span>
 
 
     </div>
@@ -231,7 +234,7 @@ config<wbr>.settings    </h1>
                 <section id="KEYCLOAK_SERVER_URL">
                     <div class="attr variable">
             <span class="name">KEYCLOAK_SERVER_URL</span>        =
-<span class="default_value">$KEYCLOAK_SERVER_URL</span>
+<span class="default_value">$KEYCLOAK_PUBLIC_URL</span>
 
 
     </div>
@@ -243,7 +246,7 @@ config<wbr>.settings    </h1>
                 <section id="KEYCLOAK_INTERNAL_URL">
                     <div class="attr variable">
             <span class="name">KEYCLOAK_INTERNAL_URL</span>        =
-<span class="default_value">$KEYCLOAK_SERVER_URL</span>
+<span class="default_value">$KEYCLOAK_INTERNAL_URL</span>
 
 
     </div>
@@ -279,7 +282,7 @@ config<wbr>.settings    </h1>
                 <section id="KEYCLOAK_ADMIN_CLIENT_ID">
                     <div class="attr variable">
             <span class="name">KEYCLOAK_ADMIN_CLIENT_ID</span>        =
-<span class="default_value">&#39;global-exchange-admin-api&#39;</span>
+<span class="default_value">$KEYCLOAK_ADMIN_CLIENT_ID</span>
 
 
     </div>
@@ -303,7 +306,7 @@ config<wbr>.settings    </h1>
                 <section id="KEYCLOAK_EXPECTED_ISSUER">
                     <div class="attr variable">
             <span class="name">KEYCLOAK_EXPECTED_ISSUER</span>        =
-<span class="default_value">&#39;http://localhost:8080/realms/global-exchange&#39;</span>
+<span class="default_value">$KEYCLOAK_EXPECTED_ISSUER</span>
 
 
     </div>
@@ -315,7 +318,7 @@ config<wbr>.settings    </h1>
                 <section id="BACKEND_PUBLIC_URL">
                     <div class="attr variable">
             <span class="name">BACKEND_PUBLIC_URL</span>        =
-<span class="default_value">&#39;http://localhost:8000&#39;</span>
+<span class="default_value">$BACKEND_PUBLIC_URL</span>
 
 
     </div>
@@ -327,7 +330,7 @@ config<wbr>.settings    </h1>
                 <section id="OIDC_CALLBACK_URL">
                     <div class="attr variable">
             <span class="name">OIDC_CALLBACK_URL</span>        =
-<span class="default_value">&#39;http://localhost:8000/callback/&#39;</span>
+<span class="default_value">$OIDC_CALLBACK_URL</span>
 
 
     </div>
@@ -339,7 +342,7 @@ config<wbr>.settings    </h1>
                 <section id="FRONTEND_BASE_URL">
                     <div class="attr variable">
             <span class="name">FRONTEND_BASE_URL</span>        =
-<span class="default_value">&#39;http://localhost:3000&#39;</span>
+<span class="default_value">$FRONTEND_BASE_URL</span>
 
 
     </div>
@@ -423,7 +426,7 @@ config<wbr>.settings    </h1>
                 <section id="TASAS_PROVIDER_URL">
                     <div class="attr variable">
             <span class="name">TASAS_PROVIDER_URL</span>        =
-<span class="default_value">&#39;https://open.er-api.com/v6/latest/__BASE__&#39;</span>
+<span class="default_value">$TASAS_PROVIDER_URL</span>
 
 
     </div>
@@ -459,7 +462,7 @@ config<wbr>.settings    </h1>
                 <section id="TASAS_PROVIDER_NAME">
                     <div class="attr variable">
             <span class="name">TASAS_PROVIDER_NAME</span>        =
-<span class="default_value">&#39;ExchangeRate-API&#39;</span>
+<span class="default_value">$TASAS_PROVIDER_NAME</span>
 
 
     </div>
@@ -543,7 +546,7 @@ config<wbr>.settings    </h1>
                 <section id="BASE_DIR">
                     <div class="attr variable">
             <span class="name">BASE_DIR</span>        =
-<span class="default_value">WindowsPath(&#39;C:/Users/elias/Documents/GitHub/global-exchange&#39;)</span>
+<span class="default_value">PosixPath(&#39;/app&#39;)</span>
 
 
     </div>
@@ -584,6 +587,18 @@ config<wbr>.settings    </h1>
 
     </div>
     <a class="headerlink" href="#ALLOWED_HOSTS"></a>
+
+
+
+                </section>
+                <section id="USE_X_FORWARDED_HOST">
+                    <div class="attr variable">
+            <span class="name">USE_X_FORWARDED_HOST</span>        =
+<span class="default_value">False</span>
+
+
+    </div>
+    <a class="headerlink" href="#USE_X_FORWARDED_HOST"></a>
 
 
 
@@ -630,7 +645,7 @@ config<wbr>.settings    </h1>
                     <div class="attr variable">
             <span class="name">TEMPLATES</span>        =
 <input id="TEMPLATES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="TEMPLATES-view-value"></label><span class="default_value">[{&#39;BACKEND&#39;: &#39;django.template.backends.django.DjangoTemplates&#39;, &#39;DIRS&#39;: [WindowsPath(&#39;C:/Users/elias/Documents/GitHub/global-exchange/templates&#39;)], &#39;OPTIONS&#39;: {&#39;context_processors&#39;: [&#39;django.template.context_processors.request&#39;, &#39;django.contrib.auth.context_processors.auth&#39;, &#39;django.contrib.messages.context_processors.messages&#39;, &#39;<a href="../usuarios/context_processors.html#kc_user_context">usuarios.context_processors.kc_user_context</a>&#39;], &#39;loaders&#39;: [(&#39;django.template.loaders.cached.Loader&#39;, [&#39;django_cotton.cotton_loader.Loader&#39;, &#39;django.template.loaders.filesystem.Loader&#39;, &#39;django.template.loaders.app_directories.Loader&#39;])], &#39;builtins&#39;: [&#39;django_cotton.templatetags.cotton&#39;]}}]</span>
+            <label class="view-value-button pdoc-button" for="TEMPLATES-view-value"></label><span class="default_value">[{&#39;BACKEND&#39;: &#39;django.template.backends.django.DjangoTemplates&#39;, &#39;DIRS&#39;: [PosixPath(&#39;/app/templates&#39;)], &#39;OPTIONS&#39;: {&#39;context_processors&#39;: [&#39;django.template.context_processors.request&#39;, &#39;django.contrib.auth.context_processors.auth&#39;, &#39;django.contrib.messages.context_processors.messages&#39;, &#39;<a href="../usuarios/context_processors.html#kc_user_context">usuarios.context_processors.kc_user_context</a>&#39;], &#39;loaders&#39;: [(&#39;django.template.loaders.cached.Loader&#39;, [&#39;django_cotton.cotton_loader.Loader&#39;, &#39;django.template.loaders.filesystem.Loader&#39;, &#39;django.template.loaders.app_directories.Loader&#39;])], &#39;builtins&#39;: [&#39;django_cotton.templatetags.cotton&#39;]}}]</span>
 
 
     </div>
@@ -692,7 +707,7 @@ config<wbr>.settings    </h1>
                 <section id="TIME_ZONE">
                     <div class="attr variable">
             <span class="name">TIME_ZONE</span>        =
-<span class="default_value">&#39;America/Asuncion&#39;</span>
+<span class="default_value">$TZ</span>
 
 
     </div>
@@ -740,7 +755,7 @@ config<wbr>.settings    </h1>
                 <section id="STATICFILES_DIRS">
                     <div class="attr variable">
             <span class="name">STATICFILES_DIRS</span>        =
-<span class="default_value">[WindowsPath(&#39;C:/Users/elias/Documents/GitHub/global-exchange/static&#39;)]</span>
+<span class="default_value">[PosixPath(&#39;/app/static&#39;)]</span>
 
 
     </div>
@@ -752,7 +767,7 @@ config<wbr>.settings    </h1>
                 <section id="STATIC_ROOT">
                     <div class="attr variable">
             <span class="name">STATIC_ROOT</span>        =
-<span class="default_value">WindowsPath(&#39;C:/Users/elias/Documents/GitHub/global-exchange/staticfiles&#39;)</span>
+<span class="default_value">PosixPath(&#39;/app/staticfiles&#39;)</span>
 
 
     </div>

@@ -1,6 +1,12 @@
 .git
+.github
+.agent-context
+.agents
+.codex
+AGENTS.md
 .env
 .env.production
+.env.*.local
 .venv
 __pycache__
 *.py[cod]
@@ -9,5 +15,9 @@ __pycache__
 .mypy_cache
 .idea
 .vscode
+front_actualizado
+node_modules
 media
 staticfiles
+docker/nginx/certs
+docs/generated

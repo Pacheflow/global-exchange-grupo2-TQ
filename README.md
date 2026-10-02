@@ -161,50 +161,38 @@ docs/generated/
 El script configura el entorno Django antes de invocar `pdoc.pdoc()`, por lo
 que no requiere PostgreSQL ni Keycloak para importar los módulos.
 
-## Ambiente de producción local
+## Producción en una VM
 
-El ambiente productivo está separado del Compose de desarrollo. Utiliza
-Gunicorn, `DEBUG=false`, archivos estáticos recolectados y servidos mediante
-WhiteNoise, PostgreSQL persistente y Keycloak iniciado sin el perfil `start-dev`.
+Producción utiliza un Compose separado con Gunicorn, WhiteNoise, PostgreSQL
+persistente, Keycloak en modo `start` y Nginx como única entrada pública. Los
+servicios `web`, `keycloak` y `postgres` no publican puertos del host.
 
-1. Copiar `.env.production.example` como `.env.production`.
-2. Reemplazar todos los valores `CAMBIAR_*` por secretos propios.
-3. Detener el ambiente de desarrollo si está usando los puertos 8000, 8080 y
-   8025. Este paso no elimina contenedores ni volúmenes:
+El despliegue admite dos configuraciones controladas por entorno:
 
-```powershell
-docker compose stop
-```
+- demostración HTTP por IP/hostname (aplicación en 80 y Keycloak detrás de
+  Nginx en 8080);
+- HTTPS por dominios (aplicación y Keycloak por virtual hosts en 443).
 
-4. Construir y levantar producción:
+Inicio básico, después de copiar y completar `.env.production.example`:
 
-```powershell
+```bash
+docker compose --env-file .env.production -f compose.prod.yaml config --quiet
 docker compose --env-file .env.production -f compose.prod.yaml up --build -d
-```
-
-5. Verificar el ambiente:
-
-```powershell
 docker compose --env-file .env.production -f compose.prod.yaml ps
-docker compose --env-file .env.production -f compose.prod.yaml exec web python manage.py check
-docker compose --env-file .env.production -f compose.prod.yaml exec web python manage.py makemigrations --check --dry-run
 ```
 
-La demostración local utiliza HTTP. Para desplegar detrás de HTTPS deben
-activarse las opciones seguras indicadas en `.env.production.example` y
-configurarse los hosts, orígenes CSRF y URLs públicas reales.
+Mailpit no forma parte del stack real. Solo se habilita para una demostración
+con `--profile demo`. La guía completa de variables, certificados, firewall,
+correo, validación, actualización, rollback, backup y restore está en
+[docs/deployment_vm.md](docs/deployment_vm.md).
 
-Para detener los contenedores conservando los datos:
+Para detener los contenedores conservando el volumen:
 
-```powershell
-docker compose down
+```bash
+docker compose --env-file .env.production -f compose.prod.yaml down
 ```
 
-Los datos solo se eliminan si se solicita expresamente:
-
-```powershell
-docker compose down --volumes
-```
+No usar `down --volumes` en producción: elimina los datos persistentes.
 
 ---
 

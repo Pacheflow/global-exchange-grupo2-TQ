@@ -22,7 +22,7 @@
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">OPERACIONES HOY</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+        <div><span class="ge-kpi--simple-label">SUPERVISIÓN</span><span class="ge-kpi--simple-value">✓</span><span class="ge-kpi--simple-sub">Historial global disponible</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
@@ -38,7 +38,7 @@
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='history' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">PENDIENTES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+        <div><span class="ge-kpi--simple-label">OPERACIONES</span><span class="ge-kpi--simple-value">✓</span><span class="ge-kpi--simple-sub">Consulta y detalle global</span></div>
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
@@ -46,7 +46,7 @@
       </article>
       <article class="ge-card ge-kpi--icon">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">OPERACIONES MES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+        <div><span class="ge-kpi--simple-label">OPERACIONES MES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Reporte futuro</span></div>
       </article>
     </div>
 
@@ -76,14 +76,14 @@
     <div class="ge-card" style="overflow:hidden">
       <div class="ge-card-head">
         <span class="ge-card-title">Actividad reciente</span>
-        <button class="ge-btn-ghost" style="font-size:12px" disabled title="Disponible próximamente">Ver todo →</button>
+        <a class="ge-btn-ghost" style="font-size:12px" href="{% url 'operaciones_web:inicio' %}">Ver operaciones →</a>
       </div>
       <table class="ge-table">
         <thead>
           <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th><th>Estado</th></tr>
         </thead>
         <tbody>
-          <tr><td colspan="6" class="ge-frontend-note">Actividad operativa · Próximamente</td></tr>
+          <tr><td colspan="6" class="ge-frontend-note">El historial global y cada detalle están disponibles en Operaciones.</td></tr>
         </tbody>
       </table>
     </div>

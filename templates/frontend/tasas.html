@@ -105,26 +105,27 @@
        data-create-url="{% url 'tasas:administrar_tasa_comercial' %}"
        {% if 'ANALISTA_CAMBIARIO' in kc_roles %}data-deactivate-url="{% url 'tasas:desactivar_tasa_comercial' 0 %}"{% endif %}
        data-can-manage="{% if 'ANALISTA_CAMBIARIO' in kc_roles %}true{% else %}false{% endif %}"
-       {% if 'ANALISTA_CAMBIARIO' in kc_roles or 'ADMINISTRADOR' in kc_roles %}data-can-view-history="true"{% endif %}>
+       data-show-reference="{% if 'ANALISTA_CAMBIARIO' in kc_roles %}true{% else %}false{% endif %}"
+       {% if 'ANALISTA_CAMBIARIO' in kc_roles %}data-can-view-history="true"{% endif %}>
     {% csrf_token %}
     <div class="ge-frontend-section-head">
       <div>
         <h2 class="ge-frontend-h2">Tasas</h2>
-        <p class="ge-frontend-note">Cotizaciones de referencia externa, tasas comerciales vigentes y gestión de las tasas de Global Exchange.</p>
+        <p class="ge-frontend-note">{% if 'ANALISTA_CAMBIARIO' in kc_roles %}Compará las tasas de referencia con las tasas comerciales y administrá sus versiones.{% else %}Consultá las tasas comerciales vigentes de compra y venta.{% endif %}</p>
       </div>
       <div class="ge-frontend-section-actions">
-        <span class="ge-chip" data-reference-status>Consultando</span>
+        {% if 'ANALISTA_CAMBIARIO' in kc_roles %}<span class="ge-chip" data-reference-status>Consultando</span>{% endif %}
         {% if 'ANALISTA_CAMBIARIO' in kc_roles %}
           <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">Nueva tasa comercial</button>
         {% endif %}
       </div>
     </div>
 
-    <div class="ge-inline-banner" data-reference-message hidden role="status"></div>
+    {% if 'ANALISTA_CAMBIARIO' in kc_roles %}<div class="ge-inline-banner" data-reference-message hidden role="status"></div>{% endif %}
 
     <section class="ge-rates-group" aria-labelledby="rates-cotizaciones-title">
       <h3 class="ge-frontend-h3 ge-rates-group-title" id="rates-cotizaciones-title">Cotizaciones actuales</h3>
-      <div class="ge-rates-subgroup">
+      {% if 'ANALISTA_CAMBIARIO' in kc_roles %}<div class="ge-rates-subgroup">
         <h4 class="ge-rates-subgroup-title" id="reference-rates-title">Tasas de referencia</h4>
         <div class="ge-quote-cards" data-api-body aria-live="polite" aria-busy="true">
           <article class="ge-card" style="padding:24px">
@@ -133,7 +134,7 @@
             <div class="ge-skeleton" style="height:12px;width:65%"></div>
           </article>
         </div>
-      </div>
+      </div>{% endif %}
       <div class="ge-rates-subgroup">
         <h4 class="ge-rates-subgroup-title" id="commercial-rates-title">Tasas comerciales vigentes</h4>
         <div class="ge-quote-cards" data-commercial-rates aria-live="polite" aria-busy="true">
@@ -146,7 +147,7 @@
       </div>
     </section>
 
-    {% if 'ANALISTA_CAMBIARIO' in kc_roles or 'ADMINISTRADOR' in kc_roles %}
+    {% if 'ANALISTA_CAMBIARIO' in kc_roles %}
     <section class="ge-rates-group" aria-labelledby="rates-gestion-title">
       <div class="ge-rates-group-head">
         <h3 class="ge-frontend-h3 ge-rates-group-title" id="rates-gestion-title">Gestión de tasas comerciales</h3>

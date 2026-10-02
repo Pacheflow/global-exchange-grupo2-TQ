@@ -69,6 +69,28 @@ class SimuladorConversionTests(TestCase):
         self.assertEqual(resultado.tasa, Decimal("7000.0000000000"))
         self.assertEqual(resultado.resultado, Decimal("700000.0000000000"))
 
+    def test_tasa_mayor_a_uno_se_redondea_antes_del_calculo(self):
+        """La tasa mostrada y usada aplica el mismo redondeo entero."""
+
+        self.tasa.valor = Decimal("5846.292042")
+        self.tasa.save(update_fields=["valor"])
+
+        resultado = simular_conversion(self.usd.id, self.pyg.id, "1")
+
+        self.assertEqual(resultado.tasa, Decimal("5846"))
+        self.assertEqual(resultado.resultado, Decimal("5846.0000000000"))
+
+    def test_tasa_menor_a_uno_conserva_decimales_significativos(self):
+        """La conversión inversa no se redondea erróneamente a cero."""
+
+        self.tasa.valor = Decimal("5846.292042")
+        self.tasa.save(update_fields=["valor"])
+
+        resultado = simular_conversion(self.pyg.id, self.usd.id, "1")
+
+        self.assertGreater(resultado.tasa, Decimal("0"))
+        self.assertEqual(resultado.tasa, Decimal("0.0001710486"))
+
     def test_simulacion_con_tasa_inversa(self):
         """Comprueba la conversión simulada cuando la tasa disponible está en sentido inverso.
 
@@ -80,7 +102,8 @@ class SimuladorConversionTests(TestCase):
             monto="7000",
         )
 
-        self.assertEqual(resultado.resultado, Decimal("1.0000000000"))
+        self.assertEqual(resultado.tasa, Decimal("0.0001428571"))
+        self.assertEqual(resultado.resultado, Decimal("0.9999997000"))
 
     def test_simulacion_con_tasa_cruzada(self):
         """Comprueba la conversión simulada cruzando por la moneda base configurada.

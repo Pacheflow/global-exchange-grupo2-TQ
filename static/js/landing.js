@@ -12,6 +12,10 @@
     return Number.isFinite(parsed) ? parsed.toLocaleString('es-PY', { maximumFractionDigits: 10 }) : '—';
   }
 
+  function rateNumber(value) {
+    return window.GEApp && window.GEApp.formatRate ? window.GEApp.formatRate(value) : number(value);
+  }
+
   function localDate(value) {
     var parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString('es-PY');
@@ -44,14 +48,16 @@
 
   function initMarketBoard(landing, data) {
     var board = landing.querySelector('[data-market-board]');
-    var rates = data.tasas_referencia || [];
+    var rates = data.tasas_comerciales || [];
 
     function byCode(code) {
-      return rates.find(function (rate) { return rate.moneda_cotizada === code; });
+      return rates.find(function (rate) {
+        return rate.moneda_origen === code || rate.moneda_destino === code;
+      });
     }
 
     function render(rate) {
-      board.querySelector('[data-market-status]').textContent = statusLabel(data, rate);
+      board.querySelector('[data-market-status]').textContent = rate ? 'Vigente' : 'Sin datos';
       if (!rate) {
         board.querySelector('[data-market-primary]').textContent = '—';
         board.querySelector('[data-market-buy]').textContent = '—';
@@ -60,11 +66,11 @@
         return;
       }
       board.querySelector('[data-market-pair]').textContent = rate.par;
-      board.querySelector('[data-market-subtitle]').textContent = rate.moneda_base + ' / ' + rate.moneda_cotizada;
-      board.querySelector('[data-market-primary]').textContent = number(rate.valor);
-      board.querySelector('[data-market-buy]').textContent = number(rate.valor);
-      board.querySelector('[data-market-sell]').textContent = rate.fuente;
-      board.querySelector('[data-market-change]').textContent = statusLabel(data, rate);
+      board.querySelector('[data-market-subtitle]').textContent = rate.moneda_origen + ' / ' + rate.moneda_destino;
+      board.querySelector('[data-market-primary]').textContent = rateNumber(rate.compra);
+      board.querySelector('[data-market-buy]').textContent = rateNumber(rate.compra);
+      board.querySelector('[data-market-sell]').textContent = rateNumber(rate.venta);
+      board.querySelector('[data-market-change]').textContent = 'Vigente';
       board.querySelector('[data-market-chart-pair]').textContent = rate.par;
       board.querySelector('[data-market-updated]').textContent = 'Actualizado · ' + localDate(rate.fecha_hora);
     }
@@ -72,28 +78,29 @@
     board.querySelectorAll('[data-market-code]').forEach(function (button) {
       var rate = byCode(button.dataset.marketCode);
       button.querySelector('small').textContent = rate ? rate.par : button.dataset.marketCode;
-      button.querySelector('[data-market-quote]').textContent = rate ? number(rate.valor) : '—';
-      button.querySelector('[data-market-option-state]').textContent = rate ? statusLabel(data, rate) : 'Sin datos';
+      button.querySelector('[data-market-quote]').textContent = rate ? rateNumber(rate.compra) : '—';
+      button.querySelector('[data-market-option-state]').textContent = rate ? 'Vigente' : 'Sin datos';
       button.addEventListener('click', function () { render(rate); });
     });
     board.querySelectorAll('[data-market-stage]').forEach(function (stage, index) {
       window.setTimeout(function () { stage.classList.add('is-visible'); }, [260, 560, 800, 1000][index]);
     });
-    render(byCode('PYG') || rates[0]);
+    render(byCode('USD') || rates[0]);
   }
 
   function renderRates(landing, data) {
-    var rates = data.tasas_referencia || [];
+    var rates = data.tasas_comerciales || [];
     var body = landing.querySelector('[data-public-rates-body]');
     body.innerHTML = rates.length ? rates.map(function (rate) {
-      return '<tr><td><strong>' + esc(rate.par) + '</strong><small>Base ' + esc(rate.moneda_base) + '</small></td>' +
-        '<td><span><span class="ge-animated-price">' + number(rate.valor) + '</span></span></td>' +
-        '<td><small>' + esc(rate.fuente) + '</small></td>' +
-        '<td><div class="frontend-table-chart">Próximamente</div></td>' +
-        '<td><span>' + esc(statusLabel(data, rate)) + '</span></td>' +
+      return '<tr><td><strong>' + esc(rate.par) + '</strong><small>' + esc(rate.moneda_origen + ' / ' + rate.moneda_destino) + '</small></td>' +
+        '<td><span class="ge-animated-price">' + rateNumber(rate.compra) + '</span></td>' +
+        '<td><span class="ge-animated-price">' + rateNumber(rate.venta) + '</span></td>' +
+        '<td><span>Vigente</span></td>' +
         '<td><small>' + esc(localDate(rate.fecha_hora)) + '</small></td></tr>';
-    }).join('') : '<tr><td colspan="6">' + esc(data.mensaje || 'No hay tasas disponibles.') + '</td></tr>';
-    landing.querySelector('[data-rates-status]').textContent = data.mensaje || ('Estado: ' + statusLabel(data));
+    }).join('') : '<tr><td colspan="5">No hay cotizaciones comerciales vigentes.</td></tr>';
+    landing.querySelector('[data-rates-status]').textContent = rates.length
+      ? 'Cotizaciones comerciales vigentes'
+      : 'Sin cotizaciones comerciales disponibles';
     initMarketBoard(landing, data);
   }
 
@@ -155,7 +162,7 @@
       request(landing.dataset.simulateUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token ? token.value : '' }, body: JSON.stringify({ moneda_origen_id: Number(from.value), moneda_destino_id: Number(to.value), monto: raw }) }).then(function (result) {
         if (!validResult(result)) throw new Error('El servicio devolvió una respuesta de simulación inválida.');
         output.textContent = number(result.resultado);
-        rateOutput.textContent = '1 ' + result.moneda_origen + ' = ' + number(result.tasa) + ' ' + result.moneda_destino;
+        rateOutput.textContent = '1 ' + result.moneda_origen + ' = ' + rateNumber(result.tasa) + ' ' + result.moneda_destino;
         rateType.textContent = result.tipo_tasa || '—';
         updated.textContent = localDate(result.fecha_hora);
       }).catch(function (requestError) { showError(requestError.message); });

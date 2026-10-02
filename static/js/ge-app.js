@@ -74,6 +74,13 @@ window.GEApp = (function () {
     return Number(value).toLocaleString('es-PY', { maximumFractionDigits: Number(value) < 100 ? 4 : 0 });
   }
 
+  function formatRate(value) {
+    var parsed = Number(value);
+    return Number.isFinite(parsed)
+      ? parsed.toLocaleString('es-PY', { maximumFractionDigits: 10 })
+      : '—';
+  }
+
   var loginRedirectScheduled = false;
 
   function authenticationError(response) {
@@ -142,6 +149,7 @@ window.GEApp = (function () {
     closeModal: closeModal,
     sparkline: sparklineSvg,
     formatValue: formatValue,
+    formatRate: formatRate,
     authenticationError: authenticationError
   };
 })();

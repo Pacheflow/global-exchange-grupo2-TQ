@@ -1,0 +1,177 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Operaciones · Global Exchange{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/operaciones.css' %}">{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+  <div class="ge-frontend-main-pad ge-operations" data-operaciones-page
+       data-preview-url="{% url 'operaciones:previsualizar_operacion' %}"
+       data-create-url="{% url 'operaciones:crear_transaccion' %}"
+       data-cancel-url="{% url 'operaciones:cancelar_transaccion' %}"
+       data-methods-url="{% url 'operaciones:metodos_pago_operacion' %}"
+       data-history-url="{% url 'operaciones:historial_transacciones' %}"
+       data-detail-url="{% url 'operaciones:detalle_transaccion' 0 %}"
+       data-can-cancel="{% if es_supervisor %}false{% else %}true{% endif %}">
+    {% csrf_token %}
+
+    <div class="ge-frontend-section-head">
+      <div>
+        <span class="ge-frontend-eyebrow">{% if es_supervisor %}Supervisión global{% else %}Compra y venta de divisas{% endif %}</span>
+        <h2 class="ge-frontend-h2">Operaciones</h2>
+        <p class="ge-frontend-subtitle">{% if es_supervisor %}Consultá el historial completo y la trazabilidad de las operaciones registradas.{% else %}Previsualizá los valores vigentes antes de confirmar y consultá las transacciones registradas.{% endif %}</p>
+      </div>
+    </div>
+
+    <div class="ge-operation-feedback" data-operation-feedback hidden role="status"></div>
+
+    {% if es_supervisor %}
+      <section class="ge-card ge-card--pad24 ge-operation-empty" aria-label="Modo supervisor">
+        <strong>Modo supervisor global</strong>
+        <p>No necesitás seleccionar un cliente. Este perfil permite consultar todas las operaciones, pero no crear compras o ventas.</p>
+      </section>
+    {% elif cliente_operacion %}
+      <section class="ge-client-context ge-card" aria-label="Cliente seleccionado">
+        <div>
+          <span class="ge-client-context-label">Cliente seleccionado</span>
+          <strong>{{ cliente_operacion.nombre_razon_social }}</strong>
+          <span>Documento {{ cliente_operacion.documento }} · Categoría {{ cliente_operacion.categoria.nombre|default:'Sin categoría' }}</span>
+        </div>
+        <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">Cambiar cliente</a>
+      </section>
+
+      <div class="ge-operations-grid">
+        <section class="ge-card ge-card--pad24" aria-labelledby="nueva-operacion-title">
+          <div class="ge-operation-section-head">
+            <div>
+              <h3 id="nueva-operacion-title">Nueva operación</h3>
+              <p>Los importes se calculan y validan en el servidor.</p>
+            </div>
+          </div>
+          <form data-operation-form novalidate>
+            <input type="hidden" name="cliente_id" value="{{ cliente_operacion.id }}">
+            <div class="ge-operation-type" role="group" aria-label="Tipo de operación">
+              <button type="button" class="is-active" data-operation-type="COMPRA" aria-pressed="true">Compra</button>
+              <button type="button" data-operation-type="VENTA" aria-pressed="false">Venta</button>
+            </div>
+            <input type="hidden" name="tipo" value="COMPRA">
+
+            <div class="ge-operation-form-grid">
+              <div class="ge-field">
+                <label for="moneda-origen">Moneda de origen</label>
+                <select id="moneda-origen" name="moneda_origen_id" required>
+                  <option value="">Seleccionar moneda</option>
+                  {% for moneda in monedas_activas %}<option value="{{ moneda.id }}">{{ moneda.codigo }} · {{ moneda.nombre }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="ge-field">
+                <label for="moneda-destino">Moneda de destino</label>
+                <select id="moneda-destino" name="moneda_destino_id" required>
+                  <option value="">Seleccionar moneda</option>
+                  {% for moneda in monedas_activas %}<option value="{{ moneda.id }}">{{ moneda.codigo }} · {{ moneda.nombre }}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <div class="ge-field">
+              <label for="monto-origen">Monto de origen</label>
+              <input id="monto-origen" name="monto_origen" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+            </div>
+
+            <div class="ge-field">
+              <label for="metodo-pago">Método de pago</label>
+              <select id="metodo-pago" name="metodo_pago_id" required>
+                <option value="">Seleccionar método</option>
+                {% for metodo in metodos_activos %}
+                  <option value="{{ metodo.id }}"{% if cliente_operacion.metodo_pago_preferido_id == metodo.id %} selected{% endif %}>{{ metodo.nombre }}{% if cliente_operacion.metodo_pago_preferido_id == metodo.id %} · Preferido{% endif %}</option>
+                {% endfor %}
+              </select>
+              {% if cliente_operacion.metodo_pago_preferido and not cliente_operacion.metodo_pago_preferido.activo %}
+                <small>El método preferido del cliente está inactivo. Seleccioná otro método disponible.</small>
+              {% endif %}
+            </div>
+
+            <div class="ge-operation-actions">
+              <button class="ge-btn-primary" type="submit" data-preview-button>Previsualizar operación</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="ge-card ge-card--pad24 ge-preview-card" data-preview-card hidden aria-labelledby="preview-title">
+          <div class="ge-operation-section-head">
+            <div>
+              <span class="ge-frontend-eyebrow">Valores del servidor</span>
+              <h3 id="preview-title">Resumen antes de confirmar</h3>
+            </div>
+            <span class="ge-status-badge ge-status-badge--success ge-status-badge--md"><span class="ge-status-dot"></span>Lista para confirmar</span>
+          </div>
+          <dl class="ge-preview-list">
+            <div><dt>Tipo</dt><dd data-preview-field="tipo">—</dd></div>
+            <div><dt>Cliente</dt><dd data-preview-field="cliente">—</dd></div>
+            <div><dt>Entregás</dt><dd data-preview-field="origen">—</dd></div>
+            <div><dt>Tasa aplicada</dt><dd data-preview-field="tasa">—</dd></div>
+            <div><dt>Monto convertido</dt><dd data-preview-field="convertido">—</dd></div>
+            <div><dt>Comisión</dt><dd data-preview-field="comision">—</dd></div>
+            <div class="ge-preview-total"><dt>Recibís</dt><dd data-preview-field="destino">—</dd></div>
+            <div><dt>Método de pago</dt><dd data-preview-field="metodo">—</dd></div>
+          </dl>
+          <p class="ge-preview-note">La cotización volverá a validarse al confirmar. Si cambió, la operación no se ejecutará.</p>
+          <button class="ge-btn-primary ge-operation-confirm" type="button" data-open-confirm>Confirmar operación</button>
+        </section>
+      </div>
+    {% else %}
+      <section class="ge-card ge-empty ge-operation-empty" aria-labelledby="cliente-required-title">
+        <span class="ge-operation-empty-icon" aria-hidden="true">{% include 'components/icon.html' with name='clients' size=28 %}</span>
+        <strong id="cliente-required-title">Seleccioná un cliente para operar</strong>
+        <p>La compra o venta necesita un cliente activo asociado a tu cuenta. El historial disponible puede consultarse debajo.</p>
+        <a class="ge-btn-primary" href="{% url 'consultar_clientes' %}">Ir a clientes</a>
+      </section>
+    {% endif %}
+
+    <section class="ge-card ge-history-card" aria-labelledby="historial-title">
+      <div class="ge-history-head">
+        <div>
+          <h3 id="historial-title">Historial de transacciones</h3>
+          <p>{% if es_supervisor %}Todas las operaciones registradas en la plataforma.{% else %}Operaciones disponibles para tus clientes asociados.{% endif %}</p>
+        </div>
+        <button type="button" class="ge-btn-ghost" data-reload-history>Actualizar</button>
+      </div>
+      <div class="ge-table-wrap">
+        <table class="ge-table ge-operations-table">
+          <thead><tr><th>ID / fecha</th><th>Cliente</th><th>Operación</th><th>Importes</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody data-history-body><tr><td colspan="6" class="no-data">Cargando historial…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="ge-modal-backdrop" id="confirmar-operacion" aria-hidden="true">
+    <div class="ge-modal" role="dialog" aria-modal="true" aria-labelledby="confirmar-operacion-title">
+      <h3 id="confirmar-operacion-title">Confirmar operación</h3>
+      <p data-confirm-summary>Revisá los valores antes de registrar la transacción.</p>
+      <div class="ge-modal-actions">
+        <button type="button" class="ge-btn-outline" data-ge-modal-close="confirmar-operacion">Volver</button>
+        <button type="button" class="ge-btn-primary" data-confirm-operation>Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ge-modal-backdrop" id="cancelar-operacion" aria-hidden="true">
+    <div class="ge-modal" role="dialog" aria-modal="true" aria-labelledby="cancelar-operacion-title">
+      <h3 id="cancelar-operacion-title">Cancelar transacción</h3>
+      <p data-cancel-summary>Esta acción cambiará el estado de la transacción a cancelada y conservará su trazabilidad.</p>
+      <div class="ge-modal-actions">
+        <button type="button" class="ge-btn-outline" data-ge-modal-close="cancelar-operacion">Volver</button>
+        <button type="button" class="ge-btn-primary ge-btn-primary--danger" data-confirm-cancel>Cancelar transacción</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ge-modal-backdrop" id="detalle-operacion" aria-hidden="true">
+    <div class="ge-modal ge-modal-wide" role="dialog" aria-modal="true" aria-labelledby="detalle-operacion-title">
+      <h3 id="detalle-operacion-title">Detalle de transacción</h3>
+      <div data-transaction-detail></div>
+      <div class="ge-modal-actions"><button type="button" class="ge-btn-outline" data-ge-modal-close="detalle-operacion">Cerrar</button></div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/operaciones.js' %}"></script>{% endblock %}

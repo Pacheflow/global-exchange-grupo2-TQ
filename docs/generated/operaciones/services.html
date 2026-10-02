@@ -36,15 +36,6 @@
                     <a class="variable" href="#PRECISION_MONTO">PRECISION_MONTO</a>
             </li>
             <li>
-                    <a class="variable" href="#COMISION_POR_CATEGORIA">COMISION_POR_CATEGORIA</a>
-            </li>
-            <li>
-                    <a class="variable" href="#MOTIVO_CAMBIO_COTIZACION">MOTIVO_CAMBIO_COTIZACION</a>
-            </li>
-            <li>
-                    <a class="variable" href="#MOTIVO_CANCELACION_CAMBIO_COTIZACION">MOTIVO_CANCELACION_CAMBIO_COTIZACION</a>
-            </li>
-            <li>
                     <a class="class" href="#ResultadoPreviewOperacion">ResultadoPreviewOperacion</a>
                             <ul class="memberlist">
                         <li>
@@ -154,42 +145,6 @@ operaciones<wbr>.services    </h1>
 
     </div>
     <a class="headerlink" href="#PRECISION_MONTO"></a>
-
-
-
-                </section>
-                <section id="COMISION_POR_CATEGORIA">
-                    <div class="attr variable">
-            <span class="name">COMISION_POR_CATEGORIA</span>        =
-<span class="default_value">{&#39;MINORISTA&#39;: Decimal(&#39;10.00&#39;), &#39;CORPORATIVO&#39;: Decimal(&#39;7.00&#39;), &#39;VIP&#39;: Decimal(&#39;5.00&#39;)}</span>
-
-
-    </div>
-    <a class="headerlink" href="#COMISION_POR_CATEGORIA"></a>
-
-
-
-                </section>
-                <section id="MOTIVO_CAMBIO_COTIZACION">
-                    <div class="attr variable">
-            <span class="name">MOTIVO_CAMBIO_COTIZACION</span>        =
-<span class="default_value">&#39;La cotización cambió antes de confirmar la operación.&#39;</span>
-
-
-    </div>
-    <a class="headerlink" href="#MOTIVO_CAMBIO_COTIZACION"></a>
-
-
-
-                </section>
-                <section id="MOTIVO_CANCELACION_CAMBIO_COTIZACION">
-                    <div class="attr variable">
-            <span class="name">MOTIVO_CANCELACION_CAMBIO_COTIZACION</span>        =
-<span class="default_value">&#39;La cotización cambió o dejó de estar disponible.&#39;</span>
-
-
-    </div>
-    <a class="headerlink" href="#MOTIVO_CANCELACION_CAMBIO_COTIZACION"></a>
 
 
 
@@ -478,7 +433,7 @@ persistir ninguna entidad.</p>
                     <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">crear_transaccion</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">usuario_id</span>,</span><span class="param">	<span class="n">usuario_username</span><span class="o">=</span><span class="s1">''</span>,</span><span class="param">	<span class="n">cliente_id</span>,</span><span class="param">	<span class="n">tipo</span>,</span><span class="param">	<span class="n">moneda_origen_id</span>,</span><span class="param">	<span class="n">moneda_destino_id</span>,</span><span class="param">	<span class="n">monto</span>,</span><span class="param">	<span class="n">metodo_pago_id</span>,</span><span class="param">	<span class="n">clave_idempotencia</span>,</span><span class="param">	<span class="n">version_preview</span>,</span><span class="param">	<span class="n">tasa_preview</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+        <span class="name">crear_transaccion</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">usuario_id</span>,</span><span class="param">	<span class="n">usuario_username</span><span class="o">=</span><span class="s1">''</span>,</span><span class="param">	<span class="n">cliente_id</span>,</span><span class="param">	<span class="n">tipo</span>,</span><span class="param">	<span class="n">moneda_origen_id</span>,</span><span class="param">	<span class="n">moneda_destino_id</span>,</span><span class="param">	<span class="n">monto</span>,</span><span class="param">	<span class="n">metodo_pago_id</span>,</span><span class="param">	<span class="n">clave_idempotencia</span>,</span><span class="param">	<span class="n">version_preview</span>,</span><span class="param">	<span class="n">tasa_preview</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">categoria_preview_id</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">porcentaje_comision_preview</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
@@ -493,12 +448,10 @@ tasa mostrada durante la previsualización contra la versión vigente y
 guarda los snapshots al crear una única Transaccion de forma atómica
 e idempotente.</p>
 
-<p>La decisión de cambio de cotización se basa exclusivamente en la
-versión de la tasa; el valor de tasa_preview se conserva solo como
-dato informativo y de compatibilidad, no para decidir la cancelación.</p>
-
-<p>Si la cotización cambió, la operación se registra como CANCELADA
-guardando el motivo y conservando el historial.</p>
+<p>La versión de tasa y la huella de categoría/comisión recibidas desde la
+previsualización solo se usan para detectar cambios. Los valores aplicados
+siempre se vuelven a obtener y calcular desde la configuración vigente.
+Si alguna condición cambió, la confirmación se rechaza sin crear registros.</p>
 
 <p>Args:
     usuario_id (str): Identidad Keycloak del usuario que confirma.
@@ -512,7 +465,9 @@ guardando el motivo y conservando el historial.</p>
     clave_idempotencia (str): Clave única para evitar duplicados.
     version_preview (int): Versión de la tasa mostrada en la previsualización.
     tasa_preview (str | int | Decimal | None): Valor de tasa mostrado en la
-        previsualización; solo informativo y de compatibilidad.</p>
+        previsualización; solo informativo y de compatibilidad.
+    categoria_preview_id (int): Categoría observada en la previsualización.
+    porcentaje_comision_preview (Decimal): Comisión observada en la preview.</p>
 
 <p>Returns:
     ResultadoCrearTransaccion: Transacción creada o ya existente.</p>
@@ -546,7 +501,7 @@ su estado a CANCELADA, registrando los datos de la cancelación.</p>
                     <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">listar_metodos_pago_operacion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">cliente_id</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
+        <span class="name">listar_metodos_pago_operacion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">cliente_id</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
@@ -561,10 +516,7 @@ previsualizar y confirmar una operación.</p>
 <p>Args:
     usuario_id (str): Identidad Keycloak del usuario que consulta.
     cliente_id (int): Cliente seleccionado para la operación.
-    es_admin (bool): Permite al administrador operar sobre cualquier
-        cliente activo.</p>
-
-<p>Returns:
+Returns:
     tuple: Cliente validado, lista de métodos activos y método preferido
     activo (o <code>None</code>).</p>
 
@@ -604,7 +556,7 @@ que utiliza los snapshots guardados sin recalcular valores.</p>
                     <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">obtener_detalle_transaccion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">transaccion_id</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">cliente_id</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
+        <span class="name">obtener_detalle_transaccion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">transaccion_id</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">cliente_id</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
@@ -619,8 +571,9 @@ revalida la asociación activa con ese cliente.</p>
 <p>Args:
     transaccion_id (int): Identificador de la transacción solicitada.
     usuario_id (str): Identidad Keycloak del usuario que consulta.
-    cliente_id (int): Cliente seleccionado y esperado para la transacción.
-    es_admin (bool): Permite consultar cualquier cliente activo.</p>
+    cliente_id (int | None): Cliente seleccionado y esperado para la
+        transacción; el administrador global puede omitirlo.
+    es_admin (bool): Permite consultar globalmente sin asociación.</p>
 
 <p>Returns:
     Transaccion: Registro histórico solicitado con sus relaciones.</p>

@@ -26,6 +26,7 @@ from .keycloak import (
 )
 from .services.keycloak import (
     SESSION_ROLES,
+    rol_efectivo,
     SESSION_USUARIO,
     establecer_sesion_oidc,
     validar_access_token,
@@ -354,8 +355,8 @@ def dashboard(request):
     """Renderiza el panel principal según el rol del usuario.
 
     Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
-    de pago; para CAJERO/ANALISTA_CAMBIARIO contadores de clientes asociados,
-    monedas activas y tasas vigentes (y las tasas USD/EUR a PYG para analistas).
+    de pago; para CAJERO agrega clientes asociados, monedas y tasas vigentes;
+    para ANALISTA_CAMBIARIO agrega únicamente información cambiaria.
     """
     profile = request.session["kc_user"]
     display_name = (
@@ -364,13 +365,10 @@ def dashboard(request):
         or profile.get("preferred_username")
         or "Usuario"
     )
-    roles = set(request.session.get("roles", []))
-    template = next(
-        (DASHBOARD_POR_ROL[rol] for rol in DASHBOARD_POR_ROL if rol in roles),
-        "frontend/dashboard_usuario.html",
-    )
+    rol_sesion = rol_efectivo(request.session.get(SESSION_ROLES, []))
+    template = DASHBOARD_POR_ROL.get(rol_sesion, "frontend/dashboard_usuario.html")
     context = {"display_name": display_name}
-    if "ADMINISTRADOR" in roles:
+    if rol_sesion == "ADMINISTRADOR":
         from clientes.models import Cliente
         from metodos_pago.models import MetodoPago
         from monedas.models import Moneda
@@ -380,7 +378,7 @@ def dashboard(request):
             monedas_activas_count=Moneda.objects.activas().count(),
             metodos_pago_count=MetodoPago.objects.count(),
         )
-    elif roles.intersection({"CAJERO", "ANALISTA_CAMBIARIO"}):
+    elif rol_sesion == "CAJERO":
         from clientes.models import UsuarioCliente
         from monedas.models import Moneda
         from tasas.models import TasaComercial
@@ -396,23 +394,31 @@ def dashboard(request):
                 vigente=True
             ).count(),
         )
-        if "ANALISTA_CAMBIARIO" in roles:
-            from tasas.simulador import simular_conversion
+    elif rol_sesion == "ANALISTA_CAMBIARIO":
+        from monedas.models import Moneda
+        from tasas.models import TasaComercial
+        from tasas.simulador import simular_conversion
 
-            for codigo, context_key in (
-                ("USD", "tasa_usd_pyg"),
-                ("EUR", "tasa_eur_pyg"),
-            ):
-                try:
-                    origen = Moneda.objects.get(codigo=codigo, estado="ACTIVA")
-                    destino = Moneda.objects.get(codigo="PYG", estado="ACTIVA")
-                    context[context_key] = simular_conversion(
-                        moneda_origen_id=origen.id,
-                        moneda_destino_id=destino.id,
-                        monto="1",
-                    )
-                except (Moneda.DoesNotExist, ValidationError):
-                    context[context_key] = None
+        context.update(
+            monedas_activas_count=Moneda.objects.activas().count(),
+            tasas_comerciales_vigentes_count=TasaComercial.objects.filter(
+                vigente=True
+            ).count(),
+        )
+        for codigo, context_key in (
+            ("USD", "tasa_usd_pyg"),
+            ("EUR", "tasa_eur_pyg"),
+        ):
+            try:
+                origen = Moneda.objects.get(codigo=codigo, estado="ACTIVA")
+                destino = Moneda.objects.get(codigo="PYG", estado="ACTIVA")
+                context[context_key] = simular_conversion(
+                    moneda_origen_id=origen.id,
+                    moneda_destino_id=destino.id,
+                    monto="1",
+                )
+            except (Moneda.DoesNotExist, ValidationError):
+                context[context_key] = None
     return render(request, template, context)
 
 
@@ -576,7 +582,7 @@ def baja_usuario(request, user_id):
     return redirect("usuarios:list")
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_GET
 def clientes(request):
     return redirect("consultar_clientes")

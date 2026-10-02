@@ -72,4 +72,4 @@ done
   --rname "default-roles-$REALM" \
   --rolename USUARIO
 
-echo "Cliente técnico de Keycloak configurado."
+echo "Cliente técnico y roles de Keycloak configurados."

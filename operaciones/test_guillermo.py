@@ -56,14 +56,14 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         return cliente
 
     def test_venta_previsualiza_y_confirma_con_tasa_de_venta(self):
-        """Comprueba el flujo HU-23 con la tasa de venta y estado PENDIENTE."""
+        """Comprueba el flujo HU-23 con tasa de venta y estado COMPLETADA."""
 
         preview = self.previsualizar(tipo="VENTA")
         resultado = self.crear(tipo="VENTA")
 
         self.assertEqual(preview.tasa, self.tasa.venta)
         self.assertEqual(resultado.transaccion.tasa_aplicada, self.tasa.venta)
-        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
+        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
 
     def test_metodos_expone_solo_activos_y_preselecciona_preferido(self):
         """Comprueba que HU-23 ofrezca solo métodos activos y el preferido."""

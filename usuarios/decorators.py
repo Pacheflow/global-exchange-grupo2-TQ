@@ -7,6 +7,7 @@ from django.shortcuts import redirect, render
 from .services.keycloak import (
     ROLES_SISTEMA,
     SESSION_ROLES,
+    rol_efectivo,
     sesion_oidc_vigente,
 )
 
@@ -44,9 +45,9 @@ def requiere_rol(rol_requerido):
                     status=401,
                 )
 
-            roles = request.session.get(SESSION_ROLES, [])
+            rol_sesion = rol_efectivo(request.session.get(SESSION_ROLES, []))
 
-            if rol_requerido not in roles:
+            if rol_sesion != rol_requerido:
                 return JsonResponse(
                     {
                         "error": "Acceso denegado",
@@ -75,8 +76,8 @@ def requiere_alguno_de_roles(*roles_permitidos):
             if not sesion_oidc_vigente(request):
                 return JsonResponse({"error": "Autenticación requerida"}, status=401)
 
-            roles_usuario = set(request.session.get(SESSION_ROLES, []))
-            if not roles_usuario.intersection(roles_permitidos):
+            rol_sesion = rol_efectivo(request.session.get(SESSION_ROLES, []))
+            if rol_sesion not in roles_permitidos:
                 return JsonResponse(
                     {
                         "error": "Acceso denegado",
@@ -111,8 +112,8 @@ def requiere_roles_web(*roles_permitidos):
                 request.session["next"] = request.get_full_path()
                 messages.info(request, "Iniciá sesión para continuar.")
                 return redirect("usuarios:login")
-            roles_usuario = set(request.session.get(SESSION_ROLES, []))
-            if not roles_usuario.intersection(roles_permitidos):
+            rol_sesion = rol_efectivo(request.session.get(SESSION_ROLES, []))
+            if rol_sesion not in roles_permitidos:
                 if request.path.startswith("/api/"):
                     return JsonResponse(
                         {

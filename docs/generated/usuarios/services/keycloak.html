@@ -34,6 +34,9 @@
                     <a class="variable" href="#ROLES_SISTEMA">ROLES_SISTEMA</a>
             </li>
             <li>
+                    <a class="variable" href="#PRIORIDAD_ROLES">PRIORIDAD_ROLES</a>
+            </li>
+            <li>
                     <a class="variable" href="#SESSION_AUTENTICADO">SESSION_AUTENTICADO</a>
             </li>
             <li>
@@ -59,6 +62,9 @@
             </li>
             <li>
                     <a class="function" href="#extraer_roles_sistema">extraer_roles_sistema</a>
+            </li>
+            <li>
+                    <a class="function" href="#rol_efectivo">rol_efectivo</a>
             </li>
             <li>
                     <a class="function" href="#validar_access_token">validar_access_token</a>
@@ -117,11 +123,23 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
                 <section id="ROLES_SISTEMA">
                     <div class="attr variable">
             <span class="name">ROLES_SISTEMA</span>        =
-<span class="default_value">frozenset({&#39;ADMINISTRADOR&#39;, &#39;USUARIO&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;})</span>
+<span class="default_value">frozenset({&#39;ANALISTA_CAMBIARIO&#39;, &#39;CAJERO&#39;, &#39;ADMINISTRADOR&#39;, &#39;USUARIO&#39;})</span>
 
 
     </div>
     <a class="headerlink" href="#ROLES_SISTEMA"></a>
+
+
+
+                </section>
+                <section id="PRIORIDAD_ROLES">
+                    <div class="attr variable">
+            <span class="name">PRIORIDAD_ROLES</span>        =
+<span class="default_value">(&#39;ADMINISTRADOR&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</span>
+
+
+    </div>
+    <a class="headerlink" href="#PRIORIDAD_ROLES"></a>
 
 
 
@@ -233,6 +251,25 @@ usuarios<wbr>.<a href="./../services.html">services</a><wbr>.keycloak    </h1>
     <a class="headerlink" href="#extraer_roles_sistema"></a>
 
             <div class="docstring"><p>Devuelve únicamente los roles de negocio definidos por Global Exchange.</p>
+</div>
+
+
+                </section>
+                <section id="rol_efectivo">
+                    <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">rol_efectivo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">roles</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#rol_efectivo"></a>
+
+            <div class="docstring"><p>Devuelve el rol funcional de mayor prioridad presente en la sesión.</p>
+
+<p>Keycloak conserva todos los roles asignados, pero la aplicación ejecuta
+un único modo funcional siguiendo la prioridad Administrador, Analista,
+Cajero y Usuario.</p>
 </div>
 
 

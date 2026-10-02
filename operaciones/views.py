@@ -3,10 +3,15 @@ from decimal import ROUND_HALF_UP
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
-from usuarios.decorators import requiere_alguno_de_roles
-from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO
+from clientes.models import Cliente
+from metodos_pago.models import MetodoPago
+from monedas.models import Moneda
+from tasas.precision import normalizar_tasa
+from usuarios.decorators import requiere_alguno_de_roles, requiere_roles_web
+from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO, rol_efectivo
 
 from .services import (
     PRECISION_MONTO,
@@ -18,12 +23,54 @@ from .services import (
     previsualizar_operacion,
 )
 
-ROLES_OPERACIONES = (
-    "ADMINISTRADOR",
+ROLES_OPERADORES = (
     "CAJERO",
-    "ANALISTA_CAMBIARIO",
     "USUARIO",
 )
+ROLES_HISTORIAL = ("ADMINISTRADOR", *ROLES_OPERADORES)
+
+
+@requiere_roles_web(*ROLES_HISTORIAL)
+@require_GET
+def inicio_operaciones(request):
+    """Presenta la interfaz de operaciones con catálogos activos.
+
+    La consulta del cliente seleccionado respeta el mismo alcance que los
+    servicios de operaciones. Las API vuelven a validar todos los datos al
+    previsualizar, confirmar o cancelar una transacción.
+    """
+
+    es_supervisor = rol_efectivo(
+        request.session.get(SESSION_ROLES, [])
+    ) == "ADMINISTRADOR"
+    cliente_operacion = None
+    seleccion = request.session.get("selected_client", {})
+    cliente_id = seleccion.get("id") if isinstance(seleccion, dict) else None
+
+    if cliente_id and not es_supervisor:
+        clientes = Cliente.objects.select_related(
+            "categoria",
+            "metodo_pago_preferido",
+        ).filter(id=cliente_id, estado="ACTIVO")
+
+        usuario_id, _ = _usuario_sesion(request)
+        clientes = clientes.filter(
+            usuarios_asignados__keycloak_user_id=usuario_id,
+            usuarios_asignados__activo=True,
+        )
+
+        cliente_operacion = clientes.first()
+
+    return render(
+        request,
+        "frontend/operaciones.html",
+        {
+            "cliente_operacion": cliente_operacion,
+            "monedas_activas": Moneda.objects.activas() if not es_supervisor else (),
+            "metodos_activos": MetodoPago.objects.activos() if not es_supervisor else (),
+            "es_supervisor": es_supervisor,
+        },
+    )
 
 
 def _usuario_sesion(request):
@@ -117,6 +164,7 @@ def _serializar_preview(resultado):
         },
         "monto_convertido": str(resultado.monto_convertido),
         "porcentaje_comision": str(resultado.porcentaje_comision),
+        "categoria_preview_id": resultado.cliente.categoria_id,
         "importe_comision": str(resultado.importe_comision),
         "monto_destino": str(resultado.monto_destino),
         "metodo_pago": {
@@ -146,6 +194,11 @@ def _serializar_transaccion(transaccion):
         "cliente": {
             "id": transaccion.cliente.id,
             "nombre_razon_social": transaccion.cliente.nombre_razon_social,
+            "categoria": (
+                transaccion.cliente.categoria.nombre
+                if transaccion.cliente.categoria_id
+                else None
+            ),
         },
         "moneda_origen": {
             "id": transaccion.moneda_origen.id,
@@ -157,7 +210,7 @@ def _serializar_transaccion(transaccion):
         },
         "monto_origen": str(transaccion.monto_origen),
         "monto_convertido": str(monto_convertido),
-        "tasa_aplicada": str(transaccion.tasa_aplicada),
+        "tasa_aplicada": str(normalizar_tasa(transaccion.tasa_aplicada)),
         "porcentaje_comision": str(transaccion.porcentaje_comision),
         "importe_comision": str(transaccion.importe_comision),
         "monto_destino": str(transaccion.monto_destino),
@@ -175,6 +228,7 @@ def _serializar_transaccion(transaccion):
             "username": transaccion.creado_por_username,
         },
         "fecha_creacion": transaccion.fecha_creacion.isoformat(),
+        "fecha_actualizacion": transaccion.fecha_actualizacion.isoformat(),
         "cancelacion": {
             "cancelado_por_keycloak_id": transaccion.cancelado_por_keycloak_id,
             "cancelado_por_username": transaccion.cancelado_por_username,
@@ -189,7 +243,7 @@ def _serializar_transaccion(transaccion):
 
 
 @require_POST
-@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+@requiere_alguno_de_roles(*ROLES_OPERADORES)
 def previsualizar_operacion_view(request):
     """Previsualiza una operación de cambio sin persistir nada (JSON)."""
 
@@ -231,13 +285,12 @@ def previsualizar_operacion_view(request):
 
 
 @require_POST
-@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+@requiere_alguno_de_roles(*ROLES_OPERADORES)
 def crear_transaccion_view(request):
     """Confirma y persiste una operación de cambio (JSON).
 
     Revalida la versión de la tasa vigente contra la versión mostrada en
-    la previsualización; si la cotización cambió, la operación se registra
-    como cancelada conservando el motivo en el historial.
+    la previsualización. Si cambió, rechaza la solicitud sin crear registros.
     """
 
     usuario_id, usuario_username = _usuario_sesion(request)
@@ -267,6 +320,8 @@ def crear_transaccion_view(request):
             clave_idempotencia=datos.get("clave_idempotencia"),
             version_preview=datos.get("version_preview"),
             tasa_preview=datos.get("tasa_preview"),
+            categoria_preview_id=datos.get("categoria_preview_id"),
+            porcentaje_comision_preview=datos.get("porcentaje_comision_preview"),
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -284,12 +339,6 @@ def crear_transaccion_view(request):
         "cambio_cotizacion": resultado.cambio_cotizacion,
     }
 
-    if transaccion.estado == "CANCELADA":
-        payload["mensaje"] = (
-            "La cotización cambió antes de confirmar; "
-            "la operación quedó cancelada."
-        )
-
     return JsonResponse(
         payload,
         status=200 if resultado.repetida else 201,
@@ -297,7 +346,7 @@ def crear_transaccion_view(request):
 
 
 @require_POST
-@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+@requiere_alguno_de_roles(*ROLES_OPERADORES)
 def cancelar_transaccion_view(request):
     """Cancela una transacción pendiente (JSON).
 
@@ -344,7 +393,7 @@ def cancelar_transaccion_view(request):
 
 
 @require_GET
-@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+@requiere_alguno_de_roles(*ROLES_OPERADORES)
 def metodos_pago_operacion_view(request):
     """Lista métodos activos y el preferido válido del cliente seleccionado."""
 
@@ -362,12 +411,10 @@ def metodos_pago_operacion_view(request):
             status=400,
         )
 
-    roles = set(request.session.get(SESSION_ROLES, []))
     try:
         cliente, metodos, preferido = listar_metodos_pago_operacion(
             usuario_id=usuario_id,
             cliente_id=cliente_id,
-            es_admin="ADMINISTRADOR" in roles,
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -398,9 +445,9 @@ def metodos_pago_operacion_view(request):
 
 
 @require_GET
-@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+@requiere_alguno_de_roles(*ROLES_HISTORIAL)
 def historial_transacciones_view(request):
-    """Consulta el historial del cliente seleccionado y autorizado (JSON)."""
+    """Consulta el historial del cliente o el historial global administrativo."""
 
     usuario_id, _ = _usuario_sesion(request)
     if not usuario_id:
@@ -409,10 +456,11 @@ def historial_transacciones_view(request):
             status=401,
         )
 
-    roles = set(request.session.get(SESSION_ROLES, []))
-    es_admin = "ADMINISTRADOR" in roles
-    cliente_id = _cliente_seleccionado_id(request)
-    if cliente_id is None:
+    es_admin = rol_efectivo(
+        request.session.get(SESSION_ROLES, [])
+    ) == "ADMINISTRADOR"
+    cliente_id = None if es_admin else _cliente_seleccionado_id(request)
+    if not es_admin and cliente_id is None:
         return JsonResponse(
             {"error": "Debe seleccionar un cliente para consultar su historial."},
             status=400,
@@ -444,7 +492,7 @@ def historial_transacciones_view(request):
 
 
 @require_GET
-@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+@requiere_alguno_de_roles(*ROLES_HISTORIAL)
 def detalle_transaccion_view(request, transaccion_id):
     """Devuelve el detalle histórico de una transacción autorizada (JSON)."""
 
@@ -455,20 +503,22 @@ def detalle_transaccion_view(request, transaccion_id):
             status=401,
         )
 
-    cliente_id = _cliente_seleccionado_id(request)
-    if cliente_id is None:
+    es_admin = rol_efectivo(
+        request.session.get(SESSION_ROLES, [])
+    ) == "ADMINISTRADOR"
+    cliente_id = None if es_admin else _cliente_seleccionado_id(request)
+    if not es_admin and cliente_id is None:
         return JsonResponse(
             {"error": "Debe seleccionar un cliente para consultar el detalle."},
             status=400,
         )
 
-    roles = set(request.session.get(SESSION_ROLES, []))
     try:
         transaccion = obtener_detalle_transaccion(
             transaccion_id=transaccion_id,
             usuario_id=usuario_id,
             cliente_id=cliente_id,
-            es_admin="ADMINISTRADOR" in roles,
+            es_admin=es_admin,
         )
     except ValidationError as exc:
         return JsonResponse(

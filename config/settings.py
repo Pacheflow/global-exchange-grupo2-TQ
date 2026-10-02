@@ -238,8 +238,12 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+# No se confía en X-Forwarded-Host en ningún entorno. El proxy conserva Host y
+# Django lo valida contra ALLOWED_HOSTS.
+USE_X_FORWARDED_HOST = False
+
 if DJANGO_ENVIRONMENT == "production":
-    if SECRET_KEY == "django-dev-only-change-me":
+    if not SECRET_KEY or SECRET_KEY == "django-dev-only-change-me":
         raise ImproperlyConfigured(
             "DJANGO_SECRET_KEY debe configurarse para produccion."
         )
@@ -424,6 +428,22 @@ if DJANGO_ENVIRONMENT == "production":
         ).split(",")
         if origin.strip()
     ]
+
+    # Solo se confía en X-Forwarded-Proto cuando la aplicación está detrás del
+    # proxy controlado por este despliegue. Nginx sobrescribe el encabezado que
+    # pudiera enviar el cliente antes de reenviar la petición a Django.
+    if os.getenv(
+        "DJANGO_BEHIND_HTTPS_PROXY",
+        "false",
+    ).lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        SECURE_PROXY_SSL_HEADER = (
+            "HTTP_X_FORWARDED_PROTO",
+            "https",
+        )
 
     SECURE_SSL_REDIRECT = os.getenv(
         "DJANGO_SECURE_SSL_REDIRECT",

@@ -82,6 +82,28 @@ services:
         condition: service_healthy
     networks: [global_exchange]
 
+  keycloak-web-config:
+    image: python:3.13-slim
+    container_name: global-exchange-keycloak-web-config
+    restart: "no"
+    command: ["python", "/config/configure-web-client.py"]
+    environment:
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-global-exchange}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin_dev}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-global-exchange-web}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      OIDC_CALLBACK_URL: ${OIDC_CALLBACK_URL:-http://localhost:8000/callback/}
+    volumes:
+      - ./docker/keycloak/configure-web-client.py:/config/configure-web-client.py:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      keycloak-config:
+        condition: service_completed_successfully
+    networks: [global_exchange]
+
   web:
     build:
       context: .
@@ -133,6 +155,8 @@ services:
       keycloak:
         condition: service_healthy
       keycloak-config:
+        condition: service_completed_successfully
+      keycloak-web-config:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]

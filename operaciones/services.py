@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -5,27 +8,16 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from clientes.models import Cliente, UsuarioCliente
+from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
 from tasas.models import TasaComercial
+from tasas.precision import normalizar_tasa
 
 from .models import Transaccion
 
 
 PRECISION_MONTO = Decimal("0.000001")
-
-COMISION_POR_CATEGORIA = {
-    "MINORISTA": Decimal("10.00"),
-    "CORPORATIVO": Decimal("7.00"),
-    "VIP": Decimal("5.00"),
-}
-
-MOTIVO_CAMBIO_COTIZACION = "La cotización cambió antes de confirmar la operación."
-MOTIVO_CANCELACION_CAMBIO_COTIZACION = (
-    "La cotización cambió o dejó de estar disponible."
-)
-
 
 @dataclass(frozen=True)
 class ResultadoPreviewOperacion:
@@ -92,7 +84,7 @@ def _obtener_cliente_activo(cliente_id):
     """Obtiene un cliente activo o rechaza la operación."""
 
     try:
-        cliente = Cliente.objects.get(pk=cliente_id)
+        cliente = Cliente.objects.select_related("categoria").get(pk=cliente_id)
     except (Cliente.DoesNotExist, ValueError, TypeError):
         raise ValidationError(
             {"cliente": "El cliente seleccionado no existe."}
@@ -152,6 +144,73 @@ def _convertir_monto(monto):
         raise ValidationError({"monto": "El monto debe ser mayor que cero."})
 
     return monto_decimal
+
+
+def _convertir_porcentaje_preview(porcentaje):
+    """Valida la huella de comisión recibida desde la previsualización."""
+
+    try:
+        valor = Decimal(str(porcentaje))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValidationError(
+            {"porcentaje_comision_preview": "La comisión de la previsualización no es válida."}
+        )
+
+    if not valor.is_finite() or valor < 0 or valor > 100:
+        raise ValidationError(
+            {"porcentaje_comision_preview": "La comisión de la previsualización no es válida."}
+        )
+    return valor
+
+
+def _convertir_categoria_preview(categoria_id):
+    """Valida el identificador de categoría usado como huella del preview."""
+
+    try:
+        valor = int(categoria_id)
+    except (TypeError, ValueError):
+        raise ValidationError(
+            {"categoria_preview_id": "La categoría de la previsualización no es válida."}
+        )
+    if valor < 1:
+        raise ValidationError(
+            {"categoria_preview_id": "La categoría de la previsualización no es válida."}
+        )
+    return valor
+
+
+def _validar_huella_comision(cliente, categoria_preview_id, porcentaje_preview):
+    """Rechaza una confirmación si cambió la categoría o su comisión vigente."""
+
+    if cliente.categoria_id != categoria_preview_id:
+        raise ValidationError(
+            {
+                "comision": (
+                    "Las condiciones de comisión cambiaron. "
+                    "Realice una nueva previsualización."
+                )
+            }
+        )
+
+    try:
+        categoria = CategoriaCliente.objects.select_for_update().get(
+            pk=cliente.categoria_id
+        )
+    except CategoriaCliente.DoesNotExist:
+        raise ValidationError(
+            {"cliente": "El cliente no posee una categoría comercial válida."}
+        )
+
+    if categoria.porcentaje_comision != porcentaje_preview:
+        raise ValidationError(
+            {
+                "comision": (
+                    "Las condiciones de comisión cambiaron. "
+                    "Realice una nueva previsualización."
+                )
+            }
+        )
+    return categoria.porcentaje_comision
 
 
 def _obtener_tasa_comercial_vigente(moneda_origen, moneda_destino):
@@ -224,6 +283,98 @@ def _es_conflicto_de_idempotencia(causa):
     return nombre_restriccion.endswith("_clave_idempotencia_key")
 
 
+def _decimal_canonico(valor):
+    """Devuelve una representación decimal estable, sin notación exponencial."""
+
+    normalizado = valor.normalize()
+    if normalizado == 0:
+        normalizado = Decimal("0")
+    return format(normalizado, "f")
+
+
+def _construir_huella_idempotencia(
+    *,
+    usuario_id,
+    cliente_id,
+    tipo,
+    moneda_origen_id,
+    moneda_destino_id,
+    monto_origen,
+    metodo_pago_id,
+    version_preview,
+    categoria_preview_id,
+    porcentaje_comision_preview,
+):
+    """Calcula el SHA-256 de la identidad lógica canónica de la solicitud.
+
+    La huella se usa exclusivamente para reconocer reintentos. No sustituye
+    ninguna validación ni participa en los cálculos económicos.
+    """
+
+    try:
+        metodo_normalizado = int(metodo_pago_id)
+    except (TypeError, ValueError):
+        raise ValidationError(
+            {"metodo_pago": "El método de pago seleccionado no es válido."}
+        )
+
+    payload = {
+        "categoria_preview_id": int(categoria_preview_id),
+        "cliente_id": int(cliente_id),
+        "metodo_pago_id": metodo_normalizado,
+        "moneda_destino_id": int(moneda_destino_id),
+        "moneda_origen_id": int(moneda_origen_id),
+        "monto_origen": _decimal_canonico(monto_origen),
+        "porcentaje_comision_preview": _decimal_canonico(
+            porcentaje_comision_preview
+        ),
+        "tipo": tipo,
+        "usuario_id": usuario_id,
+        "version_tasa": int(version_preview),
+    }
+    serializado = json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(serializado.encode("utf-8")).hexdigest()
+
+
+def _validar_reintento_idempotente(
+    transaccion_obj,
+    *,
+    usuario_id,
+    cliente,
+    huella_solicitud,
+):
+    """Comprueba que una clave existente corresponda a la misma solicitud.
+
+    El mensaje es deliberadamente genérico para no revelar ningún dato de la
+    operación que ya posee la clave.
+    """
+
+    huella_persistida = transaccion_obj.huella_idempotencia
+    misma_huella = bool(huella_persistida) and hmac.compare_digest(
+        huella_persistida,
+        huella_solicitud,
+    )
+    misma_solicitud = (
+        transaccion_obj.creado_por_keycloak_id == usuario_id
+        and transaccion_obj.cliente_id == cliente.id
+        and misma_huella
+    )
+    if not misma_solicitud:
+        raise ValidationError(
+            {
+                "clave_idempotencia": (
+                    "La clave de idempotencia no corresponde a esta solicitud."
+                )
+            }
+        )
+    return transaccion_obj
+
+
 def _tasa_segun_tipo(tipo, tasa_comercial):
     """Devuelve el valor de compra o venta según el tipo de operación.
 
@@ -238,10 +389,10 @@ def _tasa_segun_tipo(tipo, tasa_comercial):
     """
 
     if tipo == "COMPRA":
-        return tasa_comercial.compra
+        return normalizar_tasa(tasa_comercial.compra)
 
     if tipo == "VENTA":
-        return tasa_comercial.venta
+        return normalizar_tasa(tasa_comercial.venta)
 
     raise ValidationError(
         {"tipo": "El tipo de operación debe ser COMPRA o VENTA."}
@@ -290,16 +441,7 @@ def _porcentaje_comision_para_cliente(cliente):
             {"cliente": "El cliente no posee una categoría comercial."}
         )
 
-    porcentaje = COMISION_POR_CATEGORIA.get(
-        categoria.nombre.strip().upper()
-    )
-
-    if porcentaje is None:
-        raise ValidationError(
-            {"cliente": "La categoría del cliente no posee una comisión configurada."}
-        )
-
-    return porcentaje
+    return categoria.porcentaje_comision
 
 
 def _calcular_operacion(monto_origen, tasa_aplicada, porcentaje_comision):
@@ -443,6 +585,8 @@ def crear_transaccion(
     clave_idempotencia,
     version_preview,
     tasa_preview=None,
+    categoria_preview_id=None,
+    porcentaje_comision_preview=None,
 ):
     """Crea y persiste una operación validando cotización y comisión.
 
@@ -453,12 +597,10 @@ def crear_transaccion(
     guarda los snapshots al crear una única Transaccion de forma atómica
     e idempotente.
 
-    La decisión de cambio de cotización se basa exclusivamente en la
-    versión de la tasa; el valor de tasa_preview se conserva solo como
-    dato informativo y de compatibilidad, no para decidir la cancelación.
-
-    Si la cotización cambió, la operación se registra como CANCELADA
-    guardando el motivo y conservando el historial.
+    La versión de tasa y la huella de categoría/comisión recibidas desde la
+    previsualización solo se usan para detectar cambios. Los valores aplicados
+    siempre se vuelven a obtener y calcular desde la configuración vigente.
+    Si alguna condición cambió, la confirmación se rechaza sin crear registros.
 
     Args:
         usuario_id (str): Identidad Keycloak del usuario que confirma.
@@ -473,6 +615,8 @@ def crear_transaccion(
         version_preview (int): Versión de la tasa mostrada en la previsualización.
         tasa_preview (str | int | Decimal | None): Valor de tasa mostrado en la
             previsualización; solo informativo y de compatibilidad.
+        categoria_preview_id (int): Categoría observada en la previsualización.
+        porcentaje_comision_preview (Decimal): Comisión observada en la preview.
 
     Returns:
         ResultadoCrearTransaccion: Transacción creada o ya existente.
@@ -504,15 +648,10 @@ def crear_transaccion(
             {"version_preview": "La versión de la tasa de la previsualización no es válida."}
         )
 
-    existente = Transaccion.objects.filter(
-        clave_idempotencia=clave_idempotencia
-    ).first()
-
-    if existente is not None:
-        return ResultadoCrearTransaccion(
-            transaccion=existente,
-            repetida=True,
-        )
+    categoria_esperada = _convertir_categoria_preview(categoria_preview_id)
+    porcentaje_esperado = _convertir_porcentaje_preview(
+        porcentaje_comision_preview
+    )
 
     cliente = _obtener_cliente_activo(cliente_id)
     _validar_acceso_usuario_cliente(cliente, usuario_id)
@@ -524,15 +663,44 @@ def crear_transaccion(
         moneda_destino_id,
         "moneda_destino",
     )
-
     if moneda_origen.pk == moneda_destino.pk:
         raise ValidationError(
             {"monedas": "La moneda de origen y destino deben ser diferentes."}
         )
-
     monto_origen = _convertir_monto(monto)
+    huella_idempotencia = _construir_huella_idempotencia(
+        usuario_id=usuario_id,
+        cliente_id=cliente.id,
+        tipo=tipo,
+        moneda_origen_id=moneda_origen.id,
+        moneda_destino_id=moneda_destino.id,
+        monto_origen=monto_origen,
+        metodo_pago_id=metodo_pago_id,
+        version_preview=version_esperada,
+        categoria_preview_id=categoria_esperada,
+        porcentaje_comision_preview=porcentaje_esperado,
+    )
+
+    existente = (
+        Transaccion.objects
+        .filter(clave_idempotencia=clave_idempotencia)
+        .select_related("tasa_comercial")
+        .first()
+    )
+
+    if existente is not None:
+        _validar_reintento_idempotente(
+            existente,
+            usuario_id=usuario_id,
+            cliente=cliente,
+            huella_solicitud=huella_idempotencia,
+        )
+        return ResultadoCrearTransaccion(
+            transaccion=existente,
+            repetida=True,
+        )
+
     metodo_pago = _obtener_metodo_pago_activo(metodo_pago_id)
-    porcentaje_comision = _porcentaje_comision_para_cliente(cliente)
 
     if _buscar_tasa_comercial_vigente(
         moneda_origen,
@@ -544,6 +712,21 @@ def crear_transaccion(
 
     try:
         with transaction.atomic():
+            cliente = (
+                Cliente.objects
+                .select_for_update()
+                .get(pk=cliente.id)
+            )
+            if cliente.estado != "ACTIVO":
+                raise ValidationError(
+                    {"cliente": "El cliente se encuentra inactivo."}
+                )
+            _validar_acceso_usuario_cliente(cliente, usuario_id)
+            porcentaje_comision = _validar_huella_comision(
+                cliente,
+                categoria_esperada,
+                porcentaje_esperado,
+            )
             tasa_comercial = _buscar_tasa_comercial_vigente(
                 moneda_origen,
                 moneda_destino,
@@ -562,7 +745,15 @@ def crear_transaccion(
                     {"tasa": "La tasa comercial debe ser mayor que cero."}
                 )
 
-            cambio_cotizacion = tasa_comercial.version != version_esperada
+            if tasa_comercial.version != version_esperada:
+                raise ValidationError(
+                    {
+                        "tasa": (
+                            "La cotización cambió antes de confirmar la operación. "
+                            "Realice una nueva previsualización."
+                        )
+                    }
+                )
 
             monto_convertido, importe_comision, monto_destino = _calcular_operacion(
                 monto_origen,
@@ -572,6 +763,7 @@ def crear_transaccion(
 
             transaccion = Transaccion(
                 clave_idempotencia=clave_idempotencia,
+                huella_idempotencia=huella_idempotencia,
                 cliente=cliente,
                 creado_por_keycloak_id=usuario_id,
                 creado_por_username=usuario_username,
@@ -586,14 +778,8 @@ def crear_transaccion(
                 importe_comision=importe_comision,
                 metodo_pago=metodo_pago,
                 metodo_pago_nombre=metodo_pago.nombre,
-                estado="CANCELADA" if cambio_cotizacion else "PENDIENTE",
+                estado="COMPLETADA",
             )
-
-            if cambio_cotizacion:
-                transaccion.cancelado_por_keycloak_id = usuario_id
-                transaccion.cancelado_por_username = usuario_username
-                transaccion.cancelado_en = timezone.now()
-                transaccion.motivo_cancelacion = MOTIVO_CAMBIO_COTIZACION
 
             transaccion.full_clean()
             transaccion.save()
@@ -602,8 +788,14 @@ def crear_transaccion(
         if not _es_conflicto_de_idempotencia(exc.__cause__):
             raise
 
-        transaccion = Transaccion.objects.get(
+        transaccion = Transaccion.objects.select_related("tasa_comercial").get(
             clave_idempotencia=clave_idempotencia,
+        )
+        _validar_reintento_idempotente(
+            transaccion,
+            usuario_id=usuario_id,
+            cliente=cliente,
+            huella_solicitud=huella_idempotencia,
         )
         return ResultadoCrearTransaccion(
             transaccion=transaccion,
@@ -612,7 +804,6 @@ def crear_transaccion(
 
     return ResultadoCrearTransaccion(
         transaccion=transaccion,
-        cambio_cotizacion=cambio_cotizacion,
     )
 
 
@@ -675,7 +866,7 @@ def cancelar_transaccion(
     return transaccion_obj
 
 
-def listar_metodos_pago_operacion(*, usuario_id, cliente_id, es_admin=False):
+def listar_metodos_pago_operacion(*, usuario_id, cliente_id):
     """Devuelve los métodos activos disponibles para un cliente autorizado.
 
     El método preferido solamente se informa cuando continúa activo. La
@@ -685,9 +876,6 @@ def listar_metodos_pago_operacion(*, usuario_id, cliente_id, es_admin=False):
     Args:
         usuario_id (str): Identidad Keycloak del usuario que consulta.
         cliente_id (int): Cliente seleccionado para la operación.
-        es_admin (bool): Permite al administrador operar sobre cualquier
-            cliente activo.
-
     Returns:
         tuple: Cliente validado, lista de métodos activos y método preferido
         activo (o ``None``).
@@ -697,8 +885,7 @@ def listar_metodos_pago_operacion(*, usuario_id, cliente_id, es_admin=False):
 
     usuario_id = _validar_identidad(usuario_id)
     cliente = _obtener_cliente_activo(cliente_id)
-    if not es_admin:
-        _validar_acceso_usuario_cliente(cliente, usuario_id)
+    _validar_acceso_usuario_cliente(cliente, usuario_id)
 
     metodos = list(MetodoPago.objects.activos())
     preferido = cliente.metodo_pago_preferido
@@ -728,6 +915,7 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
         Transaccion.objects
         .select_related(
             "cliente",
+            "cliente__categoria",
             "moneda_origen",
             "moneda_destino",
             "tasa_comercial",
@@ -756,7 +944,7 @@ def obtener_detalle_transaccion(
     *,
     transaccion_id,
     usuario_id,
-    cliente_id,
+    cliente_id=None,
     es_admin=False,
 ):
     """Obtiene una transacción del cliente seleccionado de forma segura.
@@ -768,8 +956,9 @@ def obtener_detalle_transaccion(
     Args:
         transaccion_id (int): Identificador de la transacción solicitada.
         usuario_id (str): Identidad Keycloak del usuario que consulta.
-        cliente_id (int): Cliente seleccionado y esperado para la transacción.
-        es_admin (bool): Permite consultar cualquier cliente activo.
+        cliente_id (int | None): Cliente seleccionado y esperado para la
+            transacción; el administrador global puede omitirlo.
+        es_admin (bool): Permite consultar globalmente sin asociación.
 
     Returns:
         Transaccion: Registro histórico solicitado con sus relaciones.
@@ -782,21 +971,31 @@ def obtener_detalle_transaccion(
     """
 
     usuario_id = _validar_identidad(usuario_id)
-    cliente = _obtener_cliente_activo(cliente_id)
-    if not es_admin:
-        _validar_acceso_usuario_cliente(cliente, usuario_id)
+    cliente = None
+    if cliente_id is not None:
+        cliente = _obtener_cliente_activo(cliente_id)
+        if not es_admin:
+            _validar_acceso_usuario_cliente(cliente, usuario_id)
+    elif not es_admin:
+        raise ValidationError(
+            {"cliente": "Debe seleccionar un cliente para consultar el detalle."}
+        )
 
     try:
         return (
             Transaccion.objects
             .select_related(
                 "cliente",
+                "cliente__categoria",
                 "moneda_origen",
                 "moneda_destino",
                 "tasa_comercial",
                 "metodo_pago",
             )
-            .get(pk=transaccion_id, cliente=cliente)
+            .get(
+                pk=transaccion_id,
+                **({"cliente": cliente} if cliente is not None else {}),
+            )
         )
     except (Transaccion.DoesNotExist, TypeError, ValueError):
         raise ValidationError(

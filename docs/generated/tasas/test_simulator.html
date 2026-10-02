@@ -45,6 +45,12 @@
                                 <a class="function" href="#SimuladorConversionTests.test_simulacion_con_tasa_directa">test_simulacion_con_tasa_directa</a>
                         </li>
                         <li>
+                                <a class="function" href="#SimuladorConversionTests.test_tasa_mayor_a_uno_se_redondea_antes_del_calculo">test_tasa_mayor_a_uno_se_redondea_antes_del_calculo</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SimuladorConversionTests.test_tasa_menor_a_uno_conserva_decimales_significativos">test_tasa_menor_a_uno_conserva_decimales_significativos</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#SimuladorConversionTests.test_simulacion_con_tasa_inversa">test_simulacion_con_tasa_inversa</a>
                         </li>
                         <li>
@@ -158,6 +164,36 @@ tasas<wbr>.test_simulator    </h1>
             <div class="docstring"><p>Comprueba la conversión simulada cuando existe una tasa directa entre las monedas.</p>
 
 <p>Se espera que el resultado use la tasa de referencia vigente del par.</p>
+</div>
+
+
+                            </div>
+                            <div id="SimuladorConversionTests.test_tasa_mayor_a_uno_se_redondea_antes_del_calculo" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_tasa_mayor_a_uno_se_redondea_antes_del_calculo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#SimuladorConversionTests.test_tasa_mayor_a_uno_se_redondea_antes_del_calculo"></a>
+
+            <div class="docstring"><p>La tasa mostrada y usada aplica el mismo redondeo entero.</p>
+</div>
+
+
+                            </div>
+                            <div id="SimuladorConversionTests.test_tasa_menor_a_uno_conserva_decimales_significativos" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_tasa_menor_a_uno_conserva_decimales_significativos</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#SimuladorConversionTests.test_tasa_menor_a_uno_conserva_decimales_significativos"></a>
+
+            <div class="docstring"><p>La conversión inversa no se redondea erróneamente a cero.</p>
 </div>
 
 

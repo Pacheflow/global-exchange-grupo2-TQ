@@ -1,4 +1,8 @@
+from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 
 class CategoriaCliente(models.Model):
@@ -6,6 +10,26 @@ class CategoriaCliente(models.Model):
 
     nombre = models.CharField(max_length=50, unique=True)
     descripcion = models.TextField(blank=True)
+    porcentaje_comision = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[
+            MinValueValidator(Decimal("0.00")),
+            MaxValueValidator(Decimal("100.00")),
+        ],
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    porcentaje_comision__gte=0,
+                    porcentaje_comision__lte=100,
+                ),
+                name="categoria_comision_entre_0_y_100",
+            )
+        ]
 
     def __str__(self):
         return self.nombre
