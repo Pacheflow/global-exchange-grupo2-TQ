@@ -66,6 +66,9 @@
                     <a class="function" href="#crear_cliente_api">crear_cliente_api</a>
             </li>
             <li>
+                    <a class="function" href="#comisiones_categorias_api">comisiones_categorias_api</a>
+            </li>
+            <li>
                     <a class="function" href="#editar_cliente_api">editar_cliente_api</a>
             </li>
             <li>
@@ -100,7 +103,7 @@ clientes<wbr>.views    </h1>
             </section>
                 <section id="inicio_clientes">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_GET">@require_GET</div>
 
         <span class="def">def</span>
@@ -110,7 +113,7 @@ clientes<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#inicio_clientes"></a>
 
-            <div class="docstring"><p>Muestra la pantalla principal del módulo de clientes.</p>
+            <div class="docstring"><p>Conserva la URL histórica y dirige a la consulta vigente.</p>
 </div>
 
 
@@ -134,7 +137,7 @@ clientes<wbr>.views    </h1>
                 </section>
                 <section id="consultar_clientes">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_GET">@require_GET</div>
 
         <span class="def">def</span>
@@ -202,7 +205,7 @@ clientes<wbr>.views    </h1>
                 </section>
                 <section id="seleccionar_cliente">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_POST">@require_POST</div>
 
         <span class="def">def</span>
@@ -219,7 +222,7 @@ clientes<wbr>.views    </h1>
                 </section>
                 <section id="deseleccionar_cliente">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_POST">@require_POST</div>
 
         <span class="def">def</span>
@@ -289,6 +292,23 @@ dejar una referencia huérfana.</p>
 
 
                 </section>
+                <section id="comisiones_categorias_api">
+                    <div class="attr function">
+                    <div class="decorator decorator-requiere_rol">@requiere_rol(&#39;ADMINISTRADOR&#39;)</div>
+        <div class="decorator decorator-require_http_methods">@require_http_methods([&#39;GET&#39;, &#39;POST&#39;])</div>
+
+        <span class="def">def</span>
+        <span class="name">comisiones_categorias_api</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#comisiones_categorias_api"></a>
+
+            <div class="docstring"><p>Consulta o actualiza las comisiones persistentes de las categorías.</p>
+</div>
+
+
+                </section>
                 <section id="editar_cliente_api">
                     <div class="attr function">
                     <div class="decorator decorator-requiere_rol">@requiere_rol(&#39;ADMINISTRADOR&#39;)</div>
@@ -325,7 +345,7 @@ dejar una referencia huérfana.</p>
                 </section>
                 <section id="seleccionar_cliente_api">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_POST">@require_POST</div>
 
         <span class="def">def</span>
@@ -342,7 +362,7 @@ dejar una referencia huérfana.</p>
                 </section>
                 <section id="actualizar_metodo_pago_preferido_api">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_http_methods">@require_http_methods([&#39;GET&#39;, &#39;POST&#39;])</div>
 
         <span class="def">def</span>

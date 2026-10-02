@@ -8,7 +8,9 @@
        data-preview-url="{% url 'operaciones:previsualizar_operacion' %}"
        data-create-url="{% url 'operaciones:crear_transaccion' %}"
        data-cancel-url="{% url 'operaciones:cancelar_transaccion' %}"
+       data-methods-url="{% url 'operaciones:metodos_pago_operacion' %}"
        data-history-url="{% url 'operaciones:historial_transacciones' %}"
+       data-detail-url="{% url 'operaciones:detalle_transaccion' 0 %}"
        data-can-cancel="{% if es_supervisor %}false{% else %}true{% endif %}">
     {% csrf_token %}
 

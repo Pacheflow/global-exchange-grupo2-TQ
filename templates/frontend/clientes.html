@@ -1,10 +1,10 @@
 {% extends 'frontend/base.html' %}
 {% load static %}
-{% block title %}{% if 'ADMINISTRADOR' in request.session.roles %}Clientes{% else %}Mi cliente{% endif %} · Global Exchange{% endblock %}
+{% block title %}{% if 'ADMINISTRADOR' in kc_roles %}Clientes{% else %}Mi cliente{% endif %} · Global Exchange{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
   <div class="ge-frontend-main-pad" data-clientes-page
-       {% if 'ADMINISTRADOR' in request.session.roles %}
+       {% if 'ADMINISTRADOR' in kc_roles %}
          data-crear-url="{% url 'clientes_api:crear_cliente' %}"
          data-editar-url="{% url 'clientes_api:editar_cliente' 0 %}"
          data-baja-url="{% url 'clientes_api:dar_de_baja_cliente' 0 %}"
@@ -15,7 +15,7 @@
     {% csrf_token %}
     <div class="ge-frontend-section-head">
       <div>
-        {% if 'ADMINISTRADOR' in request.session.roles %}
+        {% if 'ADMINISTRADOR' in kc_roles %}
           <span class="ge-frontend-eyebrow">Gestión comercial</span>
           <h2 class="ge-frontend-h2">Clientes</h2>
           <p class="ge-frontend-subtitle">Administrá y seleccioná las personas y empresas que operan en la plataforma.</p>
@@ -25,7 +25,7 @@
           <p class="ge-frontend-subtitle">Consultá y seleccioná uno de los clientes asociados a tu cuenta.</p>
         {% endif %}
       </div>
-      {% if 'ADMINISTRADOR' in request.session.roles %}
+      {% if 'ADMINISTRADOR' in kc_roles %}
         <div class="ge-btn-row">
           <button type="button" class="ge-btn-outline" data-comisiones-configurar style="font-size:13px;padding:8px 16px">Configurar comisiones</button>
           <button type="button" class="ge-btn-primary" data-cliente-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo cliente</button>
@@ -144,20 +144,20 @@
                   {% if cliente.estado == 'ACTIVO' and request.session.selected_client.id != cliente.id %}
                     <button type="button" class="ge-btn-ghost" data-cliente-seleccionar="{{ cliente.id }}" aria-label="Seleccionar cliente" title="Seleccionar cliente" style="font-size:11px;padding:3px 8px">✓ Seleccionar</button>
                   {% endif %}
-                  {% if 'ADMINISTRADOR' in request.session.roles %}
+                  {% if 'ADMINISTRADOR' in kc_roles %}
                     <button type="button" class="ge-btn-ghost" data-cliente-editar="{{ cliente.id }}"
                             data-nombre="{{ cliente.nombre_razon_social }}"
                             data-tipo="{{ cliente.tipo_persona }}"
                             data-documento="{{ cliente.documento }}"
                             aria-label="Editar cliente" title="Editar cliente" style="font-size:11px;padding:3px 8px">Editar</button>
                   {% endif %}
-                  {% if 'ADMINISTRADOR' in request.session.roles %}
+                  {% if 'ADMINISTRADOR' in kc_roles %}
                     <a class="ge-btn-ghost" href="{% url 'segmentar_cliente' cliente.id %}" aria-label="Segmentar cliente" title="Segmentar cliente" style="font-size:11px;padding:3px 8px">Segmentar</a>
                   {% endif %}
-                  {% if 'ADMINISTRADOR' in request.session.roles %}
+                  {% if 'ADMINISTRADOR' in kc_roles %}
                     <a class="ge-btn-ghost" href="{% url 'asignaciones_cliente' cliente.id %}" aria-label="Asignar usuarios" title="Asignar usuarios" style="font-size:11px;padding:3px 8px">Usuarios</a>
                   {% endif %}
-                  {% if cliente.estado == 'ACTIVO' and 'ADMINISTRADOR' in request.session.roles %}
+                  {% if cliente.estado == 'ACTIVO' and 'ADMINISTRADOR' in kc_roles %}
                     <button type="button" class="ge-btn-ghost ge-btn-ghost--danger" data-cliente-baja="{{ cliente.id }}"
                             data-nombre="{{ cliente.nombre_razon_social }}"
                             aria-label="Dar de baja" title="Dar de baja" style="font-size:11px;padding:3px 8px">Baja</button>
@@ -166,7 +166,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td class="no-data" colspan="5">{% if 'ADMINISTRADOR' in request.session.roles %}No se encontraron clientes.{% else %}No tenés clientes asociados disponibles.{% endif %}{% if busqueda %} Probá con otra búsqueda.{% endif %}</td></tr>
+            <tr><td class="no-data" colspan="5">{% if 'ADMINISTRADOR' in kc_roles %}No se encontraron clientes.{% else %}No tenés clientes asociados disponibles.{% endif %}{% if busqueda %} Probá con otra búsqueda.{% endif %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

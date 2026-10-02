@@ -115,6 +115,11 @@ class BaseOperacionesTests(TestCase):
         valores = self.parametros_preview(**datos)
         valores.setdefault("clave_idempotencia", self.clave_idempotencia())
         valores.setdefault("version_preview", self.tasa.version)
+        valores.setdefault("categoria_preview_id", self.cliente.categoria_id)
+        valores.setdefault(
+            "porcentaje_comision_preview",
+            self.categoria.porcentaje_comision,
+        )
         return valores
 
     def crear(self, **datos):
@@ -139,7 +144,6 @@ class PrevisualizarOperacionTests(BaseOperacionesTests):
 
     def test_compra_utiliza_tasa_de_compra(self):
         """Comprueba que una operación de compra utilice la tasa de compra.
-
         Se espera que el cálculo aplique el valor de compra vigente del par.
         """
         resultado = self.previsualizar()
@@ -150,7 +154,6 @@ class PrevisualizarOperacionTests(BaseOperacionesTests):
 
     def test_venta_utiliza_tasa_de_venta(self):
         """Comprueba que una operación de venta utilice la tasa de venta.
-
         Se espera que el cálculo aplique el valor de venta vigente del par.
         """
         resultado = self.previsualizar(tipo="VENTA")
@@ -161,7 +164,6 @@ class PrevisualizarOperacionTests(BaseOperacionesTests):
 
     def test_preview_expone_version_de_tasa(self):
         """Comprueba que la previsualización exponga la versión de la tasa.
-
         Se espera que la versión mostrada para confirmar sea la vigente.
         """
         resultado = self.previsualizar()
@@ -561,6 +563,63 @@ class CrearTransaccionTests(BaseOperacionesTests):
 
         self.assertEqual(Transaccion.objects.count(), 0)
 
+    def test_cambio_de_porcentaje_desde_preview_rechaza_confirmacion(self):
+        """Un cambio de comisión exige generar una nueva previsualización."""
+
+        preview = self.previsualizar()
+        self.categoria.porcentaje_comision = Decimal("3.00")
+        self.categoria.save(update_fields=["porcentaje_comision"])
+
+        with self.assertRaises(ValidationError):
+            self.crear(
+                categoria_preview_id=preview.cliente.categoria_id,
+                porcentaje_comision_preview=preview.porcentaje_comision,
+            )
+
+        self.assertEqual(Transaccion.objects.count(), 0)
+
+    def test_cambio_de_categoria_desde_preview_rechaza_confirmacion(self):
+        """Una recategorización exige generar una nueva previsualización."""
+
+        preview = self.previsualizar()
+        nueva_categoria = CategoriaCliente.objects.get_or_create(
+            nombre="VIP",
+            defaults={"porcentaje_comision": Decimal("5.00")},
+        )[0]
+        self.cliente.categoria = nueva_categoria
+        self.cliente.save(update_fields=["categoria"])
+
+        with self.assertRaises(ValidationError):
+            self.crear(
+                categoria_preview_id=preview.cliente.categoria_id,
+                porcentaje_comision_preview=preview.porcentaje_comision,
+            )
+
+        self.assertEqual(Transaccion.objects.count(), 0)
+
+    def test_preview_sin_cambios_confirma_con_configuracion_vigente(self):
+        """La huella intacta permite recalcular y completar la operación."""
+
+        preview = self.previsualizar()
+        resultado = self.crear(
+            categoria_preview_id=preview.cliente.categoria_id,
+            porcentaje_comision_preview=preview.porcentaje_comision,
+        )
+
+        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(
+            resultado.transaccion.porcentaje_comision,
+            self.categoria.porcentaje_comision,
+        )
+
+    def test_porcentaje_preview_manipulado_no_altera_el_calculo(self):
+        """El porcentaje enviado es una huella y nunca una entrada de cálculo."""
+
+        with self.assertRaises(ValidationError):
+            self.crear(porcentaje_comision_preview="0.00")
+
+        self.assertEqual(Transaccion.objects.count(), 0)
+
 
 class CancelarTransaccionTests(BaseOperacionesTests):
     """Pruebas de la cancelación de transacciones pendientes de HU-25."""
@@ -706,7 +765,7 @@ class IdempotenciaTests(BaseOperacionesTests):
         """
         clave = self.clave_idempotencia()
         primera = self.crear(clave_idempotencia=clave)
-        segunda = self.crear(clave_idempotencia=clave)
+        segunda = self.crear(clave_idempotencia=clave, monto="100.000000")
 
         self.assertFalse(primera.repetida)
         self.assertTrue(segunda.repetida)
@@ -723,13 +782,163 @@ class IdempotenciaTests(BaseOperacionesTests):
         original = self.crear(clave_idempotencia=clave)
         self.assertEqual(original.transaccion.estado, "COMPLETADA")
 
+        version_original = original.transaccion.tasa_comercial.version
+
         self.actualizar_cotizacion()
-        reintento = self.crear(clave_idempotencia=clave)
+        reintento = self.crear(
+            clave_idempotencia=clave,
+            version_preview=version_original,
+        )
 
         self.assertTrue(reintento.repetida)
         self.assertFalse(reintento.cambio_cotizacion)
         self.assertEqual(reintento.transaccion.id, original.transaccion.id)
         self.assertEqual(original.transaccion.estado, "COMPLETADA")
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_misma_clave_otro_usuario_es_rechazada_sin_revelar_operacion(self):
+        """La clave no autoriza a otra identidad aunque comparta cliente."""
+
+        clave = self.clave_idempotencia()
+        original = self.crear(clave_idempotencia=clave).transaccion
+        UsuarioCliente.objects.create(
+            cliente=self.cliente,
+            keycloak_user_id="otro-usuario",
+            username="otro.usuario",
+            activo=True,
+        )
+
+        with self.assertRaises(ValidationError) as error:
+            self.crear(
+                clave_idempotencia=clave,
+                usuario_id="otro-usuario",
+                usuario_username="otro.usuario",
+            )
+
+        self.assertIn("clave_idempotencia", error.exception.message_dict)
+        self.assertNotIn(str(original.id), str(error.exception))
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_misma_clave_otro_cliente_es_rechazada(self):
+        """La clave no puede reutilizarse en otro cliente autorizado."""
+
+        clave = self.clave_idempotencia()
+        self.crear(clave_idempotencia=clave)
+        otro_cliente = Cliente.objects.create(
+            nombre_razon_social="Otro cliente idempotente",
+            tipo_persona="JURIDICA",
+            documento="IDEMP-OTRO-CLIENTE",
+            categoria=self.categoria,
+        )
+        UsuarioCliente.objects.create(
+            cliente=otro_cliente,
+            keycloak_user_id=self.usuario_id,
+            username=self.usuario_username,
+            activo=True,
+        )
+
+        with self.assertRaises(ValidationError):
+            self.crear(
+                clave_idempotencia=clave,
+                cliente_id=otro_cliente.id,
+                categoria_preview_id=otro_cliente.categoria_id,
+            )
+
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_misma_clave_payload_distinto_es_rechazada(self):
+        """La clave no puede identificar una solicitud financiera diferente."""
+
+        clave = self.clave_idempotencia()
+        self.crear(clave_idempotencia=clave)
+
+        for cambio in (
+            {"monto": "101"},
+            {"tipo": "VENTA"},
+            {"moneda_destino_id": self.otra.id},
+            {"version_preview": self.tasa.version + 1},
+            {"porcentaje_comision_preview": "9.00"},
+            {"metodo_pago_id": self.metodo_inactivo.id},
+        ):
+            if cambio.get("metodo_pago_id") == self.metodo_inactivo.id:
+                otro_metodo = MetodoPago.objects.create(
+                    nombre="Transferencia idempotente",
+                    activo=True,
+                )
+                cambio = {"metodo_pago_id": otro_metodo.id}
+            with self.assertRaises(ValidationError):
+                self.crear(clave_idempotencia=clave, **cambio)
+
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_misma_clave_categoria_distinta_con_igual_porcentaje_es_rechazada(self):
+        """La categoría del preview integra el payload aunque la comisión coincida."""
+
+        categoria_alternativa = CategoriaCliente.objects.create(
+            nombre="Minorista alternativo",
+            porcentaje_comision=self.categoria.porcentaje_comision,
+        )
+        clave = self.clave_idempotencia()
+        original = self.crear(clave_idempotencia=clave).transaccion
+        self.cliente.categoria = categoria_alternativa
+        self.cliente.save(update_fields=["categoria"])
+
+        with self.assertRaises(ValidationError) as error:
+            self.crear(
+                clave_idempotencia=clave,
+                categoria_preview_id=categoria_alternativa.id,
+                porcentaje_comision_preview=(
+                    categoria_alternativa.porcentaje_comision
+                ),
+            )
+
+        self.assertIn("clave_idempotencia", error.exception.message_dict)
+        self.assertNotIn(str(original.id), str(error.exception))
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_transaccion_historica_sin_huella_rechaza_reintento(self):
+        """Una fila histórica sin huella nunca se presume equivalente."""
+
+        clave = self.clave_idempotencia()
+        original = self.crear(clave_idempotencia=clave).transaccion
+        Transaccion.objects.filter(pk=original.pk).update(
+            huella_idempotencia=None
+        )
+
+        with self.assertRaises(ValidationError) as error:
+            self.crear(clave_idempotencia=clave)
+
+        self.assertIn("clave_idempotencia", error.exception.message_dict)
+        self.assertNotIn(str(original.id), str(error.exception))
+        self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_carrera_rechaza_categoria_distinta_con_igual_porcentaje(self):
+        """La carrera de unicidad aplica la misma huella que el reintento normal."""
+
+        categoria_alternativa = CategoriaCliente.objects.create(
+            nombre="VIP alternativo",
+            porcentaje_comision=self.categoria.porcentaje_comision,
+        )
+        clave = self.clave_idempotencia()
+        original = self.crear(clave_idempotencia=clave).transaccion
+        self.cliente.categoria = categoria_alternativa
+        self.cliente.save(update_fields=["categoria"])
+
+        with mock.patch(
+            "operaciones.services.Transaccion.objects.filter",
+            side_effect=lambda *args, **kwargs: Transaccion.objects.none(),
+        ):
+            with self.assertRaises(ValidationError) as error:
+                self.crear(
+                    clave_idempotencia=clave,
+                    categoria_preview_id=categoria_alternativa.id,
+                    porcentaje_comision_preview=(
+                        categoria_alternativa.porcentaje_comision
+                    ),
+                )
+
+        self.assertIn("clave_idempotencia", error.exception.message_dict)
+        self.assertNotIn(str(original.id), str(error.exception))
         self.assertEqual(Transaccion.objects.count(), 1)
 
     def test_carrera_por_unicidad_se_resuelve_como_repetida(self):
@@ -947,6 +1156,15 @@ class HistorialTransaccionesTests(BaseOperacionesTests):
         ):
             self.assertIn(campo, detalle)
 
+        response_detalle = self.client.get(
+            reverse("operaciones:detalle_transaccion", args=[transaccion.id])
+        )
+        self.assertEqual(response_detalle.status_code, 200)
+        self.assertEqual(
+            response_detalle.json()["transaccion"]["id"],
+            transaccion.id,
+        )
+
     def test_historial_incluye_transacciones_canceladas(self):
         """Comprueba que el historial incluya transacciones canceladas.
 
@@ -1073,6 +1291,14 @@ class OperacionesFrontendTests(BaseOperacionesTests):
         self.assertIn(self.metodo_activo, response.context["metodos_activos"])
         self.assertNotIn(self.metodo_inactivo, response.context["metodos_activos"])
         self.assertContains(response, "Preferido")
+        self.assertContains(
+            response,
+            f'data-methods-url="{reverse("operaciones:metodos_pago_operacion")}"',
+        )
+        self.assertContains(
+            response,
+            f'data-detail-url="{reverse("operaciones:detalle_transaccion", args=[0])}"',
+        )
 
     def test_pantalla_no_expone_cliente_sin_asociacion_activa(self):
         """No habilita el formulario si el cliente dejó de estar asociado."""
@@ -1111,6 +1337,23 @@ class OperacionesFrontendTests(BaseOperacionesTests):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_administrador_cajero_conserva_modo_supervisor(self):
+        """La prioridad multirrol impide operar con un rol inferior."""
+
+        self.autenticar_con_roles(["ADMINISTRADOR", "CAJERO"])
+
+        pantalla = self.client.get(reverse("operaciones_web:inicio"))
+        preview = self.client.post(
+            reverse("operaciones:previsualizar_operacion"),
+            data="{}",
+            content_type="application/json",
+        )
+
+        self.assertEqual(pantalla.status_code, 200)
+        self.assertTrue(pantalla.context["es_supervisor"])
+        self.assertEqual(preview.status_code, 403)
+
     def test_analista_no_accede_al_modulo_operativo(self):
         """El analista permanece limitado a tasas y referencia."""
 

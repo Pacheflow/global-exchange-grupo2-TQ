@@ -1,8 +1,8 @@
 # Arquitectura — Global Exchange
 
 > Documentación técnica derivada del estado real verificado.
-> Rama `fix/keycloak-session-and-default-role`, HEAD `9085a47`.
-> Última actualización: 2026-09-11.
+> Rama `develop`, merge en curso todavía sin commit.
+> Última actualización: 2026-10-02.
 
 ## Stack de tecnología
 
@@ -25,6 +25,7 @@
 | `monedas` | Catálogo de monedas (escritura ADMINISTRADOR, lectura de activas todos los roles) | `Moneda` |
 | `metodos_pago` | Métodos de pago por cliente (dual HTML/JSON, ADMINISTRADOR) | `MetodoPago` |
 | `tasas` | Tasas de referencia (proveedor externo), tasas comerciales (versionado), simulador de conversiones | `ConsultaProveedorTasas`, `TasaReferencia`, `TasaComercial` |
+| `operaciones` | Previsualización, compra/venta, idempotencia, cancelación, historial y detalle | `Transaccion` |
 
 ## Grafo de dependencias entre apps
 
@@ -34,7 +35,8 @@ usuarios (base, sin imports locales de negocio)
    ├── clientes → usuarios (decorators, views)
    ├── monedas → usuarios
    ├── tasas → usuarios + monedas (FK Moneda en TasaReferencia y TasaComercial)
-   └── metodos_pago → usuarios + clientes (FK Cliente)
+   ├── metodos_pago → usuarios + clientes
+   └── operaciones → usuarios + clientes + monedas + tasas + metodos_pago
 ```
 
 ## Montaje de URLs (`config/urls.py`)
@@ -48,6 +50,8 @@ usuarios (base, sin imports locales de negocio)
 | `api/monedas/` | `monedas.urls` (API JSON) |
 | `api/metodos-pago/` | `metodos_pago.urls` (API JSON o HTML, dual) |
 | `api/tasas/` | `tasas.urls` (API JSON) |
+| `api/operaciones/` | `operaciones.urls` (API JSON) |
+| `operaciones/` | `operaciones.web_urls` (pantalla operativa) |
 | (raíz) | `usuarios.urls` (web: home, OIDC, panel, screens) |
 
 ## Estructura de directorios
@@ -66,24 +70,25 @@ global-exchange/
 │   ├── decorators.py      # requiere_autenticacion, requiere_rol, requiere_alguno_de_roles
 │   ├── context_processors.py # Exposición de sesión a templates
 │   ├── urls.py            # Rutas web
-│   └── tests.py           # 110 métodos de test
+│   ├── tests.py           # 49 métodos de test
+│   └── test_production_settings.py # 5 tests de configuración productiva
 ├── clientes/              # App clientes
 │   ├── models.py          # CategoriaCliente, Cliente, UsuarioCliente
 │   ├── views.py           # CRUD web + API JSON
 │   ├── forms.py           # ClienteForm, SegmentacionClienteForm, AsignacionUsuarioClienteForm
 │   ├── urls.py            # Rutas web
 │   ├── api_urls.py        # API JSON
-│   └── tests.py           # ~60 métodos de test
+│   └── tests.py           # 29 métodos de test
 ├── monedas/               # App monedas
 │   ├── models.py          # Moneda
 │   ├── views.py           # API JSON (listar, crear, editar, estado)
 │   ├── urls.py            # Todas API JSON
-│   └── tests.py           # 17 métodos de test
+│   └── tests.py           # 7 métodos de test
 ├── metodos_pago/          # App métodos de pago
 │   ├── models.py          # MetodoPago
 │   ├── views.py           # Dual: HTML render o JSON según Content-Type/Accept
 │   ├── urls.py            # Rutas compartidas (HTML o JSON)
-│   └── tests.py           # 20 métodos de test
+│   └── tests.py           # 6 métodos de test
 ├── tasas/                 # App tasas
 │   ├── models.py          # ConsultaProveedorTasas, TasaReferencia, TasaComercial
 │   ├── providers.py       # ProveedorTasasHTTP (adaptador configurable)
@@ -93,23 +98,21 @@ global-exchange/
 │   ├── urls.py            # Todas API JSON
 │   ├── tests.py           # Tasas comerciales
 │   ├── test_reference_rates.py
-│   └── test_simulator.py  # 54 métodos de test en total
+│   └── test_simulator.py  # 36 métodos de test en total
 ├── templates/
 │   ├── frontend/          # Templates del panel (post refactor figma→frontend)
 │   │   ├── base.html      # Shell del panel: CSS/JS, blocks (title, extra_head, sidebar, content, extra_js)
-│   │   ├── partials/      # sidebar.html, sidebar_for_role.html, currency_grid.html
+│   │   ├── partials/      # sidebar.html, sidebar_for_role.html
 │   │   ├── components/    # icon.html, market_board.html, navbar.html
 │   │   ├── dashboard_*.html  # Dashboards por rol (4)
-│   │   ├── usuarios.html, clientes.html, monedas.html, tasas_comerciales.html,
+│   │   ├── usuarios.html, clientes.html, monedas.html, operaciones.html,
 │   │   │   tasas.html, simulador.html, pagos.html, cajas.html, roles_permisos.html
 │   │   └── ...
 │   └── usuarios/          # Templates públicas (landing, login, home, forbidden, etc.)
 ├── static/
-│   ├── js/                # app.js, navbar.js, ge-data.js, ge-app.js, frontend.js,
-│   │                      # frontend-api.js, clientes.js, usuarios.js, landing.js
+│   ├── js/                # app.js, navbar.js, ge-app.js, frontend-api.js,
+│   │                      # clientes.js, usuarios.js, operaciones.js, landing.js
 │   ├── css/               # app.css, navbar.css, ge-app.css, frontend.css, landing.css
-│   └── react/             # Artefacto heredado no cargado por templates activos
-├── frontend/              # Fuente heredada no integrada al frontend activo
 ├── docker/                # entrypoint.sh, keycloak/
 ├── keycloak/              # Realm export JSON
 ├── docs/                  # Documentación, evidencias, docs IA
@@ -144,8 +147,9 @@ Entrypoint (`docker/entrypoint.sh`): espera PostgreSQL → migrate → runserver
 
 - **Sin modelos de usuario local**: identidad 100% en Keycloak; se referencia por `keycloak_user_id` (texto).
 - **API dual (metodos_pago)**: detecta `_solicita_json(request)` (Content-Type/Accept) para devolver JSON o HTML sobre las mismas URLs.
-- **Decoradores de autorización** centralizados en `usuarios/decorators.py`.
+- **Rol efectivo único**: la autorización se centraliza en `usuarios/decorators.py`
+  y aplica `ADMINISTRADOR > ANALISTA_CAMBIARIO > CAJERO > USUARIO`.
 - **Frontend API**: `static/js/frontend-api.js` consume las rutas API declarando `data-ge-api="namespace"` en las templates; las URLs se inyectan desde Django `{% url %}`. CSRF vía cookie.
 - **Frontend activo server-side**: las vistas renderizan Django Templates y el
-  comportamiento interactivo usa JavaScript convencional. Los artefactos React
-  heredados permanecen en el repositorio, pero ninguna template actual los carga.
+  comportamiento interactivo usa JavaScript convencional. Las fuentes y el bundle
+  React/Vite heredados fueron retirados tras comprobar que ninguna template los cargaba.

@@ -21,8 +21,18 @@ urlpatterns = [
         name="cancelar_transaccion",
     ),
     path(
+        "metodos-pago/",
+        views.metodos_pago_operacion_view,
+        name="metodos_pago_operacion",
+    ),
+    path(
         "historial/",
         views.historial_transacciones_view,
         name="historial_transacciones",
+    ),
+    path(
+        "<int:transaccion_id>/detalle/",
+        views.detalle_transaccion_view,
+        name="detalle_transaccion",
     ),
 ]

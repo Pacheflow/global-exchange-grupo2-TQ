@@ -21,6 +21,13 @@ class Transaccion(models.Model):
         unique=True,
     )
 
+    huella_idempotencia = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
     cliente = models.ForeignKey(
         "clientes.Cliente",
         on_delete=models.PROTECT,

@@ -338,8 +338,8 @@ usuarios<wbr>.views    </h1>
             <div class="docstring"><p>Renderiza el panel principal según el rol del usuario.</p>
 
 <p>Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
-de pago; para CAJERO/ANALISTA_CAMBIARIO contadores de clientes asociados,
-monedas activas y tasas vigentes (y las tasas USD/EUR a PYG para analistas).</p>
+de pago; para CAJERO agrega clientes asociados, monedas y tasas vigentes;
+para ANALISTA_CAMBIARIO agrega únicamente información cambiaria.</p>
 </div>
 
 
@@ -442,7 +442,7 @@ En GET precarga los valores actuales en el formulario.</p>
                 </section>
                 <section id="clientes">
                     <div class="attr function">
-                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</div>
+                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</div>
         <div class="decorator decorator-require_GET">@require_GET</div>
 
         <span class="def">def</span>

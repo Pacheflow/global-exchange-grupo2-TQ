@@ -76,6 +76,10 @@
     });
   }
 
+  function resourceUrl(template, id) {
+    return template.replace('/0/', '/' + encodeURIComponent(id) + '/');
+  }
+
   function showFeedback(message, type) {
     feedback.hidden = false;
     feedback.className = 'ge-operation-feedback is-' + type;
@@ -151,6 +155,23 @@
     };
   }
 
+  function loadPaymentMethods() {
+    if (!form || !page.dataset.methodsUrl) return;
+    var select = form.elements.metodo_pago_id;
+    apiRequest(page.dataset.methodsUrl, { credentials: 'same-origin' }).then(function (data) {
+      var preferred = data.metodo_pago_preferido && data.metodo_pago_preferido.id;
+      select.innerHTML = '<option value="">Seleccionar método</option>' +
+        (data.metodos_pago || []).map(function (method) {
+          var selected = method.id === preferred ? ' selected' : '';
+          var suffix = method.id === preferred ? ' · Preferido' : '';
+          return '<option value="' + escapeHtml(method.id) + '"' + selected + '>' +
+            escapeHtml(method.nombre + suffix) + '</option>';
+        }).join('');
+    }).catch(function (error) {
+      showFeedback(error.message, 'error');
+    });
+  }
+
   function renderPreview(preview) {
     // Los valores financieros se presentan tal como llegan del backend.
     setField('tipo', preview.tipo === 'COMPRA' ? 'Compra' : 'Venta');
@@ -191,7 +212,9 @@
     var payload = Object.assign({}, state.payload, {
       clave_idempotencia: state.idempotencyKey,
       version_preview: state.preview.tasa_comercial.version,
-      tasa_preview: state.preview.tasa
+      tasa_preview: state.preview.tasa,
+      categoria_preview_id: state.preview.categoria_preview_id,
+      porcentaje_comision_preview: state.preview.porcentaje_comision
     });
 
     setBusy(button, true, 'Confirmando…');
@@ -250,8 +273,7 @@
     return '<div><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value || '—') + '</dd></div>';
   }
 
-  function showDetail(transaction) {
-    // El historial ya entrega el snapshot completo; no se inventa un endpoint de detalle.
+  function renderDetail(transaction) {
     var cancellation = transaction.cancelacion || {};
     var html = '<dl class="ge-transaction-detail">' +
       detailItem('Identificador', '#' + transaction.id) +
@@ -276,7 +298,20 @@
     }
     html += '</dl>';
     document.querySelector('[data-transaction-detail]').innerHTML = html;
+  }
+
+  function showDetail(transaction) {
+    var container = document.querySelector('[data-transaction-detail]');
+    container.innerHTML = '<p class="ge-frontend-note">Cargando detalle…</p>';
     window.GEApp.openModal('detalle-operacion');
+    apiRequest(resourceUrl(page.dataset.detailUrl, transaction.id), {
+      credentials: 'same-origin'
+    }).then(function (data) {
+      renderDetail(data.transaccion);
+    }).catch(function (error) {
+      container.innerHTML = '<p class="ge-operation-feedback is-error">' +
+        escapeHtml(error.message) + '</p>';
+    });
   }
 
   function openCancellation(transaction) {
@@ -347,6 +382,7 @@
     });
 
     page.querySelector('[data-open-confirm]').addEventListener('click', openConfirmation);
+    loadPaymentMethods();
   }
 
   historyBody.addEventListener('click', function (event) {

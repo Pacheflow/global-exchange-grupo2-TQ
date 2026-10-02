@@ -33,7 +33,13 @@
             <h2>API Documentation</h2>
                 <ul class="memberlist">
             <li>
-                    <a class="variable" href="#ROLES_OPERACIONES">ROLES_OPERACIONES</a>
+                    <a class="variable" href="#ROLES_OPERADORES">ROLES_OPERADORES</a>
+            </li>
+            <li>
+                    <a class="variable" href="#ROLES_HISTORIAL">ROLES_HISTORIAL</a>
+            </li>
+            <li>
+                    <a class="function" href="#inicio_operaciones">inicio_operaciones</a>
             </li>
             <li>
                     <a class="function" href="#previsualizar_operacion_view">previsualizar_operacion_view</a>
@@ -45,7 +51,13 @@
                     <a class="function" href="#cancelar_transaccion_view">cancelar_transaccion_view</a>
             </li>
             <li>
+                    <a class="function" href="#metodos_pago_operacion_view">metodos_pago_operacion_view</a>
+            </li>
+            <li>
                     <a class="function" href="#historial_transacciones_view">historial_transacciones_view</a>
+            </li>
+            <li>
+                    <a class="function" href="#detalle_transaccion_view">detalle_transaccion_view</a>
             </li>
     </ul>
 
@@ -68,22 +80,55 @@ operaciones<wbr>.views    </h1>
 
 
             </section>
-                <section id="ROLES_OPERACIONES">
+                <section id="ROLES_OPERADORES">
                     <div class="attr variable">
-            <span class="name">ROLES_OPERACIONES</span>        =
-<span class="default_value">(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;ANALISTA_CAMBIARIO&#39;, &#39;USUARIO&#39;)</span>
+            <span class="name">ROLES_OPERADORES</span>        =
+<span class="default_value">(&#39;CAJERO&#39;, &#39;USUARIO&#39;)</span>
 
 
     </div>
-    <a class="headerlink" href="#ROLES_OPERACIONES"></a>
+    <a class="headerlink" href="#ROLES_OPERADORES"></a>
 
+
+
+                </section>
+                <section id="ROLES_HISTORIAL">
+                    <div class="attr variable">
+            <span class="name">ROLES_HISTORIAL</span>        =
+<span class="default_value">(&#39;ADMINISTRADOR&#39;, &#39;CAJERO&#39;, &#39;USUARIO&#39;)</span>
+
+
+    </div>
+    <a class="headerlink" href="#ROLES_HISTORIAL"></a>
+
+
+
+                </section>
+                <section id="inicio_operaciones">
+                    <div class="attr function">
+                    <div class="decorator decorator-requiere_roles_web">@requiere_roles_web(*ROLES_HISTORIAL)</div>
+        <div class="decorator decorator-require_GET">@require_GET</div>
+
+        <span class="def">def</span>
+        <span class="name">inicio_operaciones</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#inicio_operaciones"></a>
+
+            <div class="docstring"><p>Presenta la interfaz de operaciones con catálogos activos.</p>
+
+<p>La consulta del cliente seleccionado respeta el mismo alcance que los
+servicios de operaciones. Las API vuelven a validar todos los datos al
+previsualizar, confirmar o cancelar una transacción.</p>
+</div>
 
 
                 </section>
                 <section id="previsualizar_operacion_view">
                     <div class="attr function">
                     <div class="decorator decorator-require_POST">@require_POST</div>
-        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERACIONES)</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERADORES)</div>
 
         <span class="def">def</span>
         <span class="name">previsualizar_operacion_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
@@ -100,7 +145,7 @@ operaciones<wbr>.views    </h1>
                 <section id="crear_transaccion_view">
                     <div class="attr function">
                     <div class="decorator decorator-require_POST">@require_POST</div>
-        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERACIONES)</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERADORES)</div>
 
         <span class="def">def</span>
         <span class="name">crear_transaccion_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
@@ -112,8 +157,7 @@ operaciones<wbr>.views    </h1>
             <div class="docstring"><p>Confirma y persiste una operación de cambio (JSON).</p>
 
 <p>Revalida la versión de la tasa vigente contra la versión mostrada en
-la previsualización; si la cotización cambió, la operación se registra
-como cancelada conservando el motivo en el historial.</p>
+la previsualización. Si cambió, rechaza la solicitud sin crear registros.</p>
 </div>
 
 
@@ -121,7 +165,7 @@ como cancelada conservando el motivo en el historial.</p>
                 <section id="cancelar_transaccion_view">
                     <div class="attr function">
                     <div class="decorator decorator-require_POST">@require_POST</div>
-        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERACIONES)</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERADORES)</div>
 
         <span class="def">def</span>
         <span class="name">cancelar_transaccion_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
@@ -138,10 +182,27 @@ obtiene la identidad de sesión, lee los datos y devuelve la respuesta.</p>
 
 
                 </section>
+                <section id="metodos_pago_operacion_view">
+                    <div class="attr function">
+                    <div class="decorator decorator-require_GET">@require_GET</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERADORES)</div>
+
+        <span class="def">def</span>
+        <span class="name">metodos_pago_operacion_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#metodos_pago_operacion_view"></a>
+
+            <div class="docstring"><p>Lista métodos activos y el preferido válido del cliente seleccionado.</p>
+</div>
+
+
+                </section>
                 <section id="historial_transacciones_view">
                     <div class="attr function">
                     <div class="decorator decorator-require_GET">@require_GET</div>
-        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_OPERACIONES)</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_HISTORIAL)</div>
 
         <span class="def">def</span>
         <span class="name">historial_transacciones_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span></span><span class="return-annotation">):</span></span>
@@ -150,7 +211,24 @@ obtiene la identidad de sesión, lee los datos y devuelve la respuesta.</p>
     </div>
     <a class="headerlink" href="#historial_transacciones_view"></a>
 
-            <div class="docstring"><p>Consulta el historial autorizado de transacciones (JSON).</p>
+            <div class="docstring"><p>Consulta el historial del cliente o el historial global administrativo.</p>
+</div>
+
+
+                </section>
+                <section id="detalle_transaccion_view">
+                    <div class="attr function">
+                    <div class="decorator decorator-require_GET">@require_GET</div>
+        <div class="decorator decorator-requiere_alguno_de_roles">@requiere_alguno_de_roles(*ROLES_HISTORIAL)</div>
+
+        <span class="def">def</span>
+        <span class="name">detalle_transaccion_view</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">request</span>, </span><span class="param"><span class="n">transaccion_id</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#detalle_transaccion_view"></a>
+
+            <div class="docstring"><p>Devuelve el detalle histórico de una transacción autorizada (JSON).</p>
 </div>
 
 

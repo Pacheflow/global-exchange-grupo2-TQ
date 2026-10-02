@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from usuarios.keycloak import KeycloakError, admin_request
 from usuarios.decorators import requiere_alguno_de_roles, requiere_rol, requiere_roles_web
-from usuarios.services.keycloak import SESSION_ROLES
+from usuarios.services.keycloak import SESSION_ROLES, rol_efectivo
 
 from metodos_pago.models import MetodoPago
 
@@ -37,11 +37,11 @@ def _clientes_asignados_a(request, queryset=None):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_GET
 def inicio_clientes(request):
-    """Muestra la pantalla principal del módulo de clientes."""
-    return render(request, "clientes/inicio.html")
+    """Conserva la URL histórica y dirige a la consulta vigente."""
+    return redirect("consultar_clientes")
 
 
 @requiere_roles_web("ADMINISTRADOR")
@@ -67,7 +67,7 @@ def registrar_cliente(request):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_GET
 def consultar_clientes(request):
     """Muestra y permite buscar los clientes registrados."""
@@ -75,8 +75,7 @@ def consultar_clientes(request):
     busqueda = request.GET.get("buscar", "")
 
     clientes = Cliente.objects.select_related("categoria", "metodo_pago_preferido")
-    roles = set(request.session.get("roles", []))
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         clientes = _clientes_asignados_a(request, clientes)
 
     cliente_seleccionado = clientes.filter(
@@ -179,14 +178,13 @@ def segmentar_cliente(request, cliente_id):
     )
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_POST
 def seleccionar_cliente(request, cliente_id):
     """Define el cliente activo utilizado como contexto de trabajo."""
 
     cliente = get_object_or_404(Cliente, id=cliente_id, estado="ACTIVO")
-    roles = set(request.session.get("roles", []))
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         get_object_or_404(
             UsuarioCliente,
             cliente=cliente,
@@ -201,7 +199,7 @@ def seleccionar_cliente(request, cliente_id):
     return redirect("usuarios:dashboard")
 
 
-@requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_roles_web("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_POST
 def deseleccionar_cliente(request):
     """Elimina el contexto de cliente sin modificar el registro del cliente."""
@@ -505,7 +503,7 @@ def dar_de_baja_cliente_api(request, cliente_id):
     )
 
 
-@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_POST
 def seleccionar_cliente_api(request, cliente_id):
     """Define el cliente activo sin salir de la interfaz Frontend (JSON)."""
@@ -518,9 +516,7 @@ def seleccionar_cliente_api(request, cliente_id):
             status=404,
         )
 
-    roles = set(request.session.get(SESSION_ROLES, []))
-
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         user_id = request.session.get("kc_user", {}).get("sub")
         if not user_id:
             return JsonResponse(
@@ -548,7 +544,7 @@ def seleccionar_cliente_api(request, cliente_id):
     )
 
 
-@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
+@requiere_alguno_de_roles("ADMINISTRADOR", "CAJERO", "USUARIO")
 @require_http_methods(["GET", "POST"])
 def actualizar_metodo_pago_preferido_api(request, cliente_id):
     """Consulta o actualiza la preferencia usando el catálogo global activo."""
@@ -560,8 +556,7 @@ def actualizar_metodo_pago_preferido_api(request, cliente_id):
     except Cliente.DoesNotExist:
         return JsonResponse({"error": "El cliente no existe."}, status=404)
 
-    roles = set(request.session.get(SESSION_ROLES, []))
-    if "ADMINISTRADOR" not in roles:
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != "ADMINISTRADOR":
         user_id = request.session.get("kc_user", {}).get("sub")
         if not user_id:
             return JsonResponse(

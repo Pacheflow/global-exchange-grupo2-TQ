@@ -307,6 +307,31 @@ class ConsultaYSegmentacionClientesTests(TestCase):
         self.assertContains(response, self.cliente.nombre_razon_social)
         self.assertNotContains(response, cliente_ajeno.nombre_razon_social)
 
+    def test_analista_no_puede_consultar_ni_seleccionar_clientes(self):
+        """El modo analista queda limitado a funciones relacionadas con tasas."""
+
+        UsuarioCliente.objects.create(
+            cliente=self.cliente,
+            keycloak_user_id="kc-analista-clientes",
+            username="analista.clientes",
+        )
+        autenticar_con_roles(
+            self,
+            ["ANALISTA_CAMBIARIO"],
+            sub="kc-analista-clientes",
+        )
+
+        consulta = self.client.get(reverse("consultar_clientes"))
+        seleccion = self.client.post(
+            reverse("clientes_api:seleccionar_cliente", args=[self.cliente.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(consulta.status_code, 403)
+        self.assertEqual(seleccion.status_code, 403)
+        self.assertNotIn("selected_client", self.client.session)
+
     def test_administrador_segmenta_cliente(self):
         """Comprueba que un administrador pueda asignar una categoría comercial a un cliente.
 

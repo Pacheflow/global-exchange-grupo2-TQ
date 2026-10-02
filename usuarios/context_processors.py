@@ -9,6 +9,8 @@ Este módulo solo LEE la sesión; no modifica la autenticación Keycloak, los
 roles, los modelos ni la arquitectura del backend.
 """
 
+from .services.keycloak import rol_efectivo
+
 
 def kc_user_context(request):
     """Prepara las variables seguras de sesión para las plantillas.
@@ -18,9 +20,11 @@ def kc_user_context(request):
     expone datos sensibles del usuario autenticado.
     """
     profile = request.session.get("kc_user") or {}
-    roles = request.session.get("roles") or []
-    if not isinstance(roles, list):
-        roles = list(roles)
+    roles_sesion = request.session.get("roles") or []
+    if not isinstance(roles_sesion, list):
+        roles_sesion = list(roles_sesion)
+    rol_sesion = rol_efectivo(roles_sesion)
+    roles = [rol_sesion] if rol_sesion else []
 
     selected_client = request.session.get("selected_client")
 
@@ -36,6 +40,7 @@ def kc_user_context(request):
     return {
         "kc_user": profile,
         "kc_roles": roles,
+        "kc_rol_efectivo": rol_sesion,
         "selected_client": selected_client,
         "kc_display_name": display_name,
         "kc_initial": initial,

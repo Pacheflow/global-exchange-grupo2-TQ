@@ -11,8 +11,10 @@ import jwt
 import requests
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.conf import settings
+from django.db import connection
 from django.http import HttpResponseRedirect
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from jwt.exceptions import (
     ExpiredSignatureError,
@@ -71,6 +73,17 @@ class InicioYCallbackOIDCTests(FlujoOIDCMixin, TestCase):
 
     Requisito relacionado: RF-01 / RF-03 (RNF-01).
     """
+
+    def test_landing_expone_tasas_comerciales_sin_proveedor_tecnico(self):
+        """La portada pública comunica compra/venta sin detalles de integración."""
+
+        response = self.client.get(reverse("usuarios:home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Compra")
+        self.assertContains(response, "Venta")
+        self.assertNotContains(response, "ExchangeRate-API")
+        self.assertNotContains(response, "Fuente de referencia")
 
     def test_registro_inicia_oidc_con_callback_state_y_pkce(self):
         """Comprueba que el flujo de registro redirija a Keycloak con state y PKCE S256.
@@ -323,11 +336,13 @@ class SesionYAutorizacionTests(TestCase):
     def autenticar_con_roles(self, roles, expira_en=None):
         session = self.client.session
         session[SESSION_AUTENTICADO] = True
-        session[SESSION_USUARIO] = {
+        profile = {
             "sub": "usuario-keycloak-1",
             "username": "usuario.prueba",
             "email": "usuario@example.com",
         }
+        session[SESSION_USUARIO] = profile
+        session["kc_user"] = profile
         session[SESSION_ROLES] = roles
         session[SESSION_EXPIRA_EN] = expira_en or int(time.time()) + 300
         session.save()
@@ -391,6 +406,61 @@ class SesionYAutorizacionTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["error"], "Acceso denegado")
+
+    def test_multirrol_administrador_cajero_opera_como_administrador(self):
+        """El rol administrador prevalece también en páginas y endpoints."""
+
+        self.autenticar_con_roles(["CAJERO", "ADMINISTRADOR"])
+
+        dashboard = self.client.get(reverse("usuarios:dashboard"))
+        operaciones = self.client.get(reverse("operaciones_web:inicio"))
+        confirmar = self.client.post(
+            reverse("operaciones:crear_transaccion"),
+            data="{}",
+            content_type="application/json",
+        )
+
+        self.assertTemplateUsed(dashboard, "frontend/dashboard_administrador.html")
+        self.assertTrue(operaciones.context["es_supervisor"])
+        self.assertEqual(confirmar.status_code, 403)
+
+    def test_multirrol_analista_usuario_opera_como_analista(self):
+        """El analista prevalece y no hereda clientes ni operaciones de usuario."""
+
+        self.autenticar_con_roles(["USUARIO", "ANALISTA_CAMBIARIO"])
+
+        dashboard = self.client.get(reverse("usuarios:dashboard"))
+        clientes = self.client.get(reverse("consultar_clientes"))
+        operaciones = self.client.get(reverse("operaciones_web:inicio"))
+
+        self.assertTemplateUsed(dashboard, "frontend/dashboard_analista.html")
+        self.assertEqual(clientes.status_code, 403)
+        self.assertEqual(operaciones.status_code, 403)
+
+    def test_dashboard_analista_no_consulta_asociaciones_de_clientes(self):
+        """El dashboard analista se construye sin consultar UsuarioCliente."""
+
+        self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
+
+        with CaptureQueriesContext(connection) as consultas:
+            response = self.client.get(reverse("usuarios:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "frontend/dashboard_analista.html")
+        sql_ejecutado = "\n".join(consulta["sql"] for consulta in consultas)
+        self.assertNotIn("clientes_usuariocliente", sql_ejecutado.lower())
+
+    def test_multirrol_cajero_usuario_opera_como_cajero(self):
+        """El cajero prevalece sobre usuario y conserva el modo operativo."""
+
+        self.autenticar_con_roles(["USUARIO", "CAJERO"])
+
+        dashboard = self.client.get(reverse("usuarios:dashboard"))
+        operaciones = self.client.get(reverse("operaciones_web:inicio"))
+
+        self.assertTemplateUsed(dashboard, "frontend/dashboard_cajero.html")
+        self.assertEqual(operaciones.status_code, 200)
+        self.assertFalse(operaciones.context["es_supervisor"])
 
     def test_logout_limpia_sesion_y_redirige_a_keycloak(self):
         """Comprueba que el logout limpie la sesión y redirija al cierre de sesión de Keycloak.

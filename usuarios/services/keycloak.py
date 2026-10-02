@@ -22,6 +22,13 @@ ROLES_SISTEMA = frozenset(
     }
 )
 
+PRIORIDAD_ROLES = (
+    "ADMINISTRADOR",
+    "ANALISTA_CAMBIARIO",
+    "CAJERO",
+    "USUARIO",
+)
+
 SESSION_AUTENTICADO = "oidc_authenticated"
 SESSION_USUARIO = "oidc_user"
 SESSION_ROLES = "roles"
@@ -66,6 +73,18 @@ def extraer_roles_sistema(claims):
         return []
 
     return sorted(set(roles_token).intersection(ROLES_SISTEMA))
+
+
+def rol_efectivo(roles):
+    """Devuelve el rol funcional de mayor prioridad presente en la sesión.
+
+    Keycloak conserva todos los roles asignados, pero la aplicación ejecuta
+    un único modo funcional siguiendo la prioridad Administrador, Analista,
+    Cajero y Usuario.
+    """
+
+    roles_sesion = set(roles or ())
+    return next((rol for rol in PRIORIDAD_ROLES if rol in roles_sesion), None)
 
 
 def validar_access_token(access_token):

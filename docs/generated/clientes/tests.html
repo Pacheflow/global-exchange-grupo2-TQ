@@ -39,6 +39,24 @@
                     <a class="function" href="#autenticar_admin">autenticar_admin</a>
             </li>
             <li>
+                    <a class="class" href="#ComisionesCategoriasApiTests">ComisionesCategoriasApiTests</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ComisionesCategoriasApiTests.setUp">setUp</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ComisionesCategoriasApiTests.test_administrador_actualiza_comisiones">test_administrador_actualiza_comisiones</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ComisionesCategoriasApiTests.test_comision_fuera_de_rango_rechaza_todo_el_lote">test_comision_fuera_de_rango_rechaza_todo_el_lote</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ComisionesCategoriasApiTests.test_usuario_no_administrador_no_puede_configurar_comisiones">test_usuario_no_administrador_no_puede_configurar_comisiones</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#ClientesApiEsencialesTests">ClientesApiEsencialesTests</a>
                             <ul class="memberlist">
                         <li>
@@ -76,6 +94,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#ConsultaYSegmentacionClientesTests.test_usuario_no_administrador_solo_consulta_clientes_asignados">test_usuario_no_administrador_solo_consulta_clientes_asignados</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ConsultaYSegmentacionClientesTests.test_analista_no_puede_consultar_ni_seleccionar_clientes">test_analista_no_puede_consultar_ni_seleccionar_clientes</a>
                         </li>
                         <li>
                                 <a class="function" href="#ConsultaYSegmentacionClientesTests.test_administrador_segmenta_cliente">test_administrador_segmenta_cliente</a>
@@ -204,6 +225,75 @@ clientes<wbr>.tests    </h1>
 
 
 
+                </section>
+                <section id="ComisionesCategoriasApiTests">
+                    <div class="attr class">
+
+    <span class="def">class</span>
+    <span class="name">ComisionesCategoriasApiTests</span><wbr>(<span class="base">django.test.testcases.TestCase</span>):
+
+
+    </div>
+    <a class="headerlink" href="#ComisionesCategoriasApiTests"></a>
+
+            <div class="docstring"><p>Pruebas de la configuración persistente de comisiones.</p>
+</div>
+
+
+                            <div id="ComisionesCategoriasApiTests.setUp" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">setUp</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#ComisionesCategoriasApiTests.setUp"></a>
+
+            <div class="docstring"><p>Hook method for setting up the test fixture before exercising it.</p>
+</div>
+
+
+                            </div>
+                            <div id="ComisionesCategoriasApiTests.test_administrador_actualiza_comisiones" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_administrador_actualiza_comisiones</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#ComisionesCategoriasApiTests.test_administrador_actualiza_comisiones"></a>
+
+
+
+                            </div>
+                            <div id="ComisionesCategoriasApiTests.test_comision_fuera_de_rango_rechaza_todo_el_lote" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_comision_fuera_de_rango_rechaza_todo_el_lote</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#ComisionesCategoriasApiTests.test_comision_fuera_de_rango_rechaza_todo_el_lote"></a>
+
+
+
+                            </div>
+                            <div id="ComisionesCategoriasApiTests.test_usuario_no_administrador_no_puede_configurar_comisiones" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_usuario_no_administrador_no_puede_configurar_comisiones</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#ComisionesCategoriasApiTests.test_usuario_no_administrador_no_puede_configurar_comisiones"></a>
+
+
+
+                            </div>
                 </section>
                 <section id="ClientesApiEsencialesTests">
                     <div class="attr class">
@@ -401,6 +491,21 @@ el contexto de trabajo de la sesión.</p>
 <p>Se espera que los clientes ajenos no aparezcan en el listado.</p>
 
 <p>Requisito relacionado: RF-05.</p>
+</div>
+
+
+                            </div>
+                            <div id="ConsultaYSegmentacionClientesTests.test_analista_no_puede_consultar_ni_seleccionar_clientes" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_analista_no_puede_consultar_ni_seleccionar_clientes</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#ConsultaYSegmentacionClientesTests.test_analista_no_puede_consultar_ni_seleccionar_clientes"></a>
+
+            <div class="docstring"><p>El modo analista queda limitado a funciones relacionadas con tasas.</p>
 </div>
 
 

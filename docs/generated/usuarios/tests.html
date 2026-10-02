@@ -51,6 +51,9 @@
                     <a class="class" href="#InicioYCallbackOIDCTests">InicioYCallbackOIDCTests</a>
                             <ul class="memberlist">
                         <li>
+                                <a class="function" href="#InicioYCallbackOIDCTests.test_landing_expone_tasas_comerciales_sin_proveedor_tecnico">test_landing_expone_tasas_comerciales_sin_proveedor_tecnico</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#InicioYCallbackOIDCTests.test_registro_inicia_oidc_con_callback_state_y_pkce">test_registro_inicia_oidc_con_callback_state_y_pkce</a>
                         </li>
                         <li>
@@ -109,6 +112,18 @@
                         </li>
                         <li>
                                 <a class="function" href="#SesionYAutorizacionTests.test_usuario_sin_rol_administrador_recibe_403">test_usuario_sin_rol_administrador_recibe_403</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SesionYAutorizacionTests.test_multirrol_administrador_cajero_opera_como_administrador">test_multirrol_administrador_cajero_opera_como_administrador</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SesionYAutorizacionTests.test_multirrol_analista_usuario_opera_como_analista">test_multirrol_analista_usuario_opera_como_analista</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SesionYAutorizacionTests.test_dashboard_analista_no_consulta_asociaciones_de_clientes">test_dashboard_analista_no_consulta_asociaciones_de_clientes</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SesionYAutorizacionTests.test_multirrol_cajero_usuario_opera_como_cajero">test_multirrol_cajero_usuario_opera_como_cajero</a>
                         </li>
                         <li>
                                 <a class="function" href="#SesionYAutorizacionTests.test_logout_limpia_sesion_y_redirige_a_keycloak">test_logout_limpia_sesion_y_redirige_a_keycloak</a>
@@ -335,6 +350,21 @@ usuarios<wbr>.tests    </h1>
 </div>
 
 
+                            <div id="InicioYCallbackOIDCTests.test_landing_expone_tasas_comerciales_sin_proveedor_tecnico" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_landing_expone_tasas_comerciales_sin_proveedor_tecnico</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#InicioYCallbackOIDCTests.test_landing_expone_tasas_comerciales_sin_proveedor_tecnico"></a>
+
+            <div class="docstring"><p>La portada pública comunica compra/venta sin detalles de integración.</p>
+</div>
+
+
+                            </div>
                             <div id="InicioYCallbackOIDCTests.test_registro_inicia_oidc_con_callback_state_y_pkce" class="classattr">
                                 <div class="attr function">
 
@@ -681,6 +711,66 @@ autenticación de la sesión.</p>
             <div class="docstring"><p>Comprueba que una vista de administrador rechace a un usuario sin ese rol.</p>
 
 <p>Se espera un estado 403 con mensaje de acceso denegado.</p>
+</div>
+
+
+                            </div>
+                            <div id="SesionYAutorizacionTests.test_multirrol_administrador_cajero_opera_como_administrador" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_multirrol_administrador_cajero_opera_como_administrador</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#SesionYAutorizacionTests.test_multirrol_administrador_cajero_opera_como_administrador"></a>
+
+            <div class="docstring"><p>El rol administrador prevalece también en páginas y endpoints.</p>
+</div>
+
+
+                            </div>
+                            <div id="SesionYAutorizacionTests.test_multirrol_analista_usuario_opera_como_analista" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_multirrol_analista_usuario_opera_como_analista</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#SesionYAutorizacionTests.test_multirrol_analista_usuario_opera_como_analista"></a>
+
+            <div class="docstring"><p>El analista prevalece y no hereda clientes ni operaciones de usuario.</p>
+</div>
+
+
+                            </div>
+                            <div id="SesionYAutorizacionTests.test_dashboard_analista_no_consulta_asociaciones_de_clientes" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_dashboard_analista_no_consulta_asociaciones_de_clientes</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#SesionYAutorizacionTests.test_dashboard_analista_no_consulta_asociaciones_de_clientes"></a>
+
+            <div class="docstring"><p>El dashboard analista se construye sin consultar UsuarioCliente.</p>
+</div>
+
+
+                            </div>
+                            <div id="SesionYAutorizacionTests.test_multirrol_cajero_usuario_opera_como_cajero" class="classattr">
+                                <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">test_multirrol_cajero_usuario_opera_como_cajero</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#SesionYAutorizacionTests.test_multirrol_cajero_usuario_opera_como_cajero"></a>
+
+            <div class="docstring"><p>El cajero prevalece sobre usuario y conserva el modo operativo.</p>
 </div>
 
 
