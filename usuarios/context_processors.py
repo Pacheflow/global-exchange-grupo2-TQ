@@ -11,6 +11,12 @@ roles, los modelos ni la arquitectura del backend.
 
 
 def kc_user_context(request):
+    """Prepara las variables seguras de sesión para las plantillas.
+
+    Lee el perfil, los roles y el cliente seleccionado de la sesión y devuelve
+    valores listos para el render (nombre mostrado, inicial y correo). Nunca
+    expone datos sensibles del usuario autenticado.
+    """
     profile = request.session.get("kc_user") or {}
     roles = request.session.get("roles") or []
     if not isinstance(roles, list):

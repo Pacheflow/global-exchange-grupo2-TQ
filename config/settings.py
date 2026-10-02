@@ -273,6 +273,7 @@ INSTALLED_APPS = [
     "monedas",
     "tasas",
     "metodos_pago",
+    "operaciones",
 ]
 
 

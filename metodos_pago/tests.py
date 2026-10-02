@@ -18,6 +18,11 @@ from .models import MetodoPago
 
 
 class MetodoPagoCatalogoEsencialTests(TestCase):
+    """Pruebas del catálogo global de métodos de pago administrado por el rol ADMINISTRADOR.
+
+    Requisito relacionado: HU-37 / RF-26.
+    """
+
     def autenticar(self, roles=None):
         session = self.client.session
         session[SESSION_AUTENTICADO] = True
@@ -30,6 +35,11 @@ class MetodoPagoCatalogoEsencialTests(TestCase):
         session.save()
 
     def test_nombre_es_unico_globalmente_sin_distinguir_mayusculas(self):
+        """Comprueba que el nombre de un método de pago sea único en el catálogo global.
+
+        Se espera que el formulario rechace el duplicado sin distinguir mayúsculas y
+        que la base de datos lo rechace con IntegrityError.
+        """
         MetodoPago.objects.create(nombre="Efectivo")
         form = MetodoPagoForm(data={"nombre": " efectivo ", "activo": True})
         self.assertFalse(form.is_valid())
@@ -38,6 +48,10 @@ class MetodoPagoCatalogoEsencialTests(TestCase):
             MetodoPago.objects.create(nombre="EFECTIVO")
 
     def test_administrador_crea_metodo_global_sin_cliente_ni_tipo_cerrado(self):
+        """Comprueba que un administrador pueda registrar un método de pago del catálogo global.
+
+        Se espera que el método se cree sin estar vinculado a un cliente ni a un tipo cerrado.
+        """
         self.assertEqual(Cliente.objects.count(), 0)
         self.autenticar()
         response = self.client.post(
@@ -61,6 +75,10 @@ class MetodoPagoCatalogoEsencialTests(TestCase):
             MetodoPago._meta.get_field("tipo")
 
     def test_administrador_edita_metodo(self):
+        """Comprueba que un administrador pueda editar un método de pago.
+
+        Se espera que los cambios se persistan correctamente.
+        """
         self.autenticar()
         metodo = MetodoPago.objects.create(nombre="QR")
         response = self.client.post(
@@ -82,6 +100,11 @@ class MetodoPagoCatalogoEsencialTests(TestCase):
         self.assertFalse(metodo.activo)
 
     def test_administrador_activa_y_desactiva_sin_eliminar(self):
+        """Comprueba que un administrador pueda activar y desactivar un método de pago.
+
+        Se espera que el método deje de aparecer entre los activos al desactivarse y
+        vuelva a aparecer al reactivarse, conservando siempre su registro.
+        """
         self.autenticar()
         metodo = MetodoPago.objects.create(nombre="Efectivo")
         url = f"/api/metodos-pago/estado/{metodo.id}/"
@@ -99,6 +122,12 @@ class MetodoPagoCatalogoEsencialTests(TestCase):
         self.assertTrue(MetodoPago.objects.activos().filter(pk=metodo.pk).exists())
 
     def test_usuario_no_administrador_no_puede_modificar_catalogo(self):
+        """Comprueba que únicamente los administradores puedan modificar el catálogo.
+
+        Se espera que un usuario sin ese rol reciba acceso denegado (403).
+
+        Requisito relacionado: RNF-02.
+        """
         self.autenticar(["USUARIO"])
         response = self.client.post(
             "/api/metodos-pago/registrar/",
@@ -110,6 +139,10 @@ class MetodoPagoCatalogoEsencialTests(TestCase):
         self.assertFalse(MetodoPago.objects.exists())
 
     def test_api_devuelve_catalogo_global_sin_propietario_cliente(self):
+        """Comprueba que la API devuelva métodos de pago globales, sin depender de un cliente.
+
+        Se espera que ninguna opción del catálogo incluya información de cliente o tipo.
+        """
         self.autenticar()
         MetodoPago.objects.create(
             nombre="Transferencia bancaria",

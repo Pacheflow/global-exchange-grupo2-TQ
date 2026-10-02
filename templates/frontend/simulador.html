@@ -21,7 +21,7 @@
         <div style="margin-bottom:8px">
           <label class="ge-frontend-field-label" for="sim-origen" style="letter-spacing:0.12em">TÚ ENTREGAS</label>
           <div style="display:flex;gap:10px">
-            <input id="sim-origen" type="text" inputmode="decimal" class="ge-input"
+            <input id="sim-origen" type="number" inputmode="decimal" min="0.000001" step="0.000001" class="ge-input"
                    data-sim-amount placeholder="0"
                    style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;padding:14px 18px;flex:1">
             <select data-sim-from class="ge-input" aria-label="Moneda de origen"

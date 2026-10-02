@@ -58,6 +58,47 @@ La consulta web `/clientes/consultar/` muestra todos los clientes al administrad
 
 Cada escritura crea una nueva versión y conserva el histórico. La desactivación es lógica (`vigente=false`), no elimina el registro y permite crear después una nueva versión vigente del mismo par. El administrador consulta, pero no modifica ni desactiva.
 
+## Operaciones de cambio
+
+| Endpoint | M?todo | Rol |
+|---|---|---|
+| `/api/operaciones/previsualizar/` | POST | ADMINISTRADOR, ANALISTA_CAMBIARIO, CAJERO o USUARIO |
+| `/api/operaciones/crear/` | POST | ADMINISTRADOR, ANALISTA_CAMBIARIO, CAJERO o USUARIO |
+| `/api/operaciones/cancelar/` | POST | ADMINISTRADOR, ANALISTA_CAMBIARIO, CAJERO o USUARIO |
+| `/api/operaciones/metodos-pago/` | GET | ADMINISTRADOR, ANALISTA_CAMBIARIO, CAJERO o USUARIO |
+| `/api/operaciones/historial/` | GET | ADMINISTRADOR, ANALISTA_CAMBIARIO, CAJERO o USUARIO |
+| `/api/operaciones/<id>/detalle/` | GET | ADMINISTRADOR, ANALISTA_CAMBIARIO, CAJERO o USUARIO |
+
+La previsualizaci?n valida al usuario, el cliente asociado, las monedas, el monto, la tasa comercial vigente y el m?todo de pago. El c?lculo se realiza en Backend y no crea todav?a una transacci?n.
+
+Para una operaci?n de `COMPRA`, Global Exchange utiliza la tasa comercial de compra (`TasaComercial.compra`). Al confirmar correctamente, la transacci?n queda registrada en estado `PENDIENTE` junto con sus valores hist?ricos.
+
+Para una operaci?n de `VENTA`, el cliente compra la divisa y Global Exchange
+la vende, por lo que se utiliza `TasaComercial.venta`. El catálogo operativo
+devuelve solamente métodos de pago activos y marca el preferido únicamente si
+continúa activo. El método seleccionado y su nombre quedan guardados como
+referencia y snapshot; no se procesa un pago real.
+
+El historial exige un cliente seleccionado en sesión y vuelve a validar en
+backend su estado y la asociación `UsuarioCliente`. Devuelve únicamente las
+transacciones de ese cliente. El detalle aplica el mismo aislamiento y utiliza
+los snapshots persistidos, sin recalcular importes con la tasa actual. Ambos
+contratos son de solo lectura y no exponen PUT, PATCH ni DELETE.
+
+### Cancelaci?n HU-25
+
+La cancelaci?n recibe el identificador de una transacci?n existente. El Backend verifica que el usuario tenga acceso al cliente asociado y que la transacci?n contin?e en estado `PENDIENTE`.
+
+Una transacci?n `PENDIENTE` puede pasar a `CANCELADA` por solicitud del usuario. Al cancelar se registran el usuario, la fecha y el motivo de cancelaci?n. La transacci?n no se elimina y sus montos, tasa aplicada y comisi?n permanecen sin modificaciones.
+
+Si la transacci?n no existe, pertenece a un cliente no autorizado o ya no se encuentra `PENDIENTE`, la cancelaci?n es rechazada y se informa el motivo.
+
+La confirmaci?n visual previa a la cancelaci?n corresponde a la integraci?n de la interfaz. El n?cleo Backend expone la operaci?n necesaria para realizarla.
+
+> Nota de alcance: Jira HU-25 permite cancelar una transacci?n pendiente por solicitud del usuario. La gu?a de trabajo del Sprint tambi?n describe el caso `CAMBIO_COTIZACION`; para esta implementaci?n se siguieron los criterios de aceptaci?n vigentes de Jira proporcionados para HU-25.
+
+El servicio registra el m?todo de pago seleccionado como parte de la operaci?n. El procesamiento real del pago no se implementa en este m?dulo.
+
 ## Métodos de pago — ADMINISTRADOR
 
 | Endpoint | Método | Función |

@@ -276,6 +276,8 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#home"></a>
 
+            <div class="docstring"><p>Muestra la página de inicio de Global Exchange.</p>
+</div>
 
 
                 </section>
@@ -290,6 +292,8 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#logout"></a>
 
+            <div class="docstring"><p>Cierra la sesión OIDC y redirige al endpoint de logout de Keycloak.</p>
+</div>
 
 
                 </section>
@@ -331,6 +335,12 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#dashboard"></a>
 
+            <div class="docstring"><p>Renderiza el panel principal según el rol del usuario.</p>
+
+<p>Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
+de pago; para CAJERO/ANALISTA_CAMBIARIO contadores de clientes asociados,
+monedas activas y tasas vigentes (y las tasas USD/EUR a PYG para analistas).</p>
+</div>
 
 
                 </section>
@@ -363,6 +373,11 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#usuarios"></a>
 
+            <div class="docstring"><p>Lista los usuarios registrados en Keycloak.</p>
+
+<p>Consulta hasta 100 usuarios de la API de administración; si la API falla,
+muestra la página con el error en lugar de romper el flujo.</p>
+</div>
 
 
                 </section>
@@ -378,6 +393,11 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#crear_usuario"></a>
 
+            <div class="docstring"><p>Crea un usuario en Keycloak con sus roles de negocio.</p>
+
+<p>En POST valida usuario, email y una contraseña de al menos 8 caracteres;
+crea el usuario en Keycloak y asigna los roles de negocio seleccionados.</p>
+</div>
 
 
                 </section>
@@ -393,6 +413,11 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#editar_usuario"></a>
 
+            <div class="docstring"><p>Edita los datos de un usuario y sus roles de negocio en Keycloak.</p>
+
+<p>En POST actualiza email, nombre, apellido, estado de habilitación y roles.
+En GET precarga los valores actuales en el formulario.</p>
+</div>
 
 
                 </section>
@@ -408,6 +433,10 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#baja_usuario"></a>
 
+            <div class="docstring"><p>Da de baja (deshabilita) un usuario en Keycloak conservando sus datos.</p>
+
+<p>En POST deshabilita el usuario (<code>enabled=False</code>); los datos no se eliminan.</p>
+</div>
 
 
                 </section>
@@ -497,6 +526,8 @@ usuarios<wbr>.views    </h1>
     </div>
     <a class="headerlink" href="#tasas_comerciales"></a>
 
+            <div class="docstring"><p>Compatibilidad temporal: redirige a la pantalla única de Tasas.</p>
+</div>
 
 
                 </section>

@@ -33,6 +33,11 @@ class RespuestaHTTPFalsa:
     TASAS_PROVIDER_TIMEOUT=3,
 )
 class ProveedorTasasTests(TestCase):
+    """Pruebas del adaptador HTTP del proveedor externo de tasas de referencia.
+
+    Requisito relacionado: RF-07 (RN2).
+    """
+
     def payload_valido(self):
         return {
             "result": "success",
@@ -42,6 +47,11 @@ class ProveedorTasasTests(TestCase):
         }
 
     def test_proveedor_normaliza_respuesta_valida(self):
+        """Comprueba que el proveedor normalice una respuesta válida del servicio externo.
+
+        Se espera que la moneda base se normalice a mayúsculas y que las tasas se
+        devuelvan como valores Decimal con la fuente configurada.
+        """
         session = Mock()
         session.get.return_value = RespuestaHTTPFalsa(self.payload_valido())
         resultado = ProveedorTasasHTTP(session=session).obtener(
@@ -52,12 +62,20 @@ class ProveedorTasasTests(TestCase):
         self.assertEqual(resultado.fuente, "Proveedor de prueba")
 
     def test_proveedor_controla_timeout(self):
+        """Comprueba que el proveedor convierta un timeout en un error controlado.
+
+        Se espera que se lance ProveedorTasasError con mensaje de tiempo de espera.
+        """
         session = Mock()
         session.get.side_effect = requests.Timeout()
         with self.assertRaisesRegex(ProveedorTasasError, "tiempo de espera"):
             ProveedorTasasHTTP(session=session).obtener("USD", ["EUR"])
 
     def test_proveedor_rechaza_valor_no_positivo(self):
+        """Comprueba que el proveedor rechace tasas no positivas.
+
+        Se espera que la respuesta se considere inválida y se lance un error controlado.
+        """
         payload = self.payload_valido()
         payload["rates"]["EUR"] = 0
         session = Mock()
@@ -66,6 +84,10 @@ class ProveedorTasasTests(TestCase):
             ProveedorTasasHTTP(session=session).obtener("USD", ["EUR"])
 
     def test_proveedor_rechaza_valor_no_numerico(self):
+        """Comprueba que el proveedor rechace tasas no numéricas.
+
+        Se espera que la respuesta se considere inválida y se lance un error controlado.
+        """
         payload = self.payload_valido()
         payload["rates"]["EUR"] = "no-numero"
         session = Mock()
@@ -76,6 +98,11 @@ class ProveedorTasasTests(TestCase):
 
 @override_settings(TASAS_BASE_CURRENCY="USD", TASAS_VALIDITY_SECONDS=86400)
 class ServicioTasasTests(TestCase):
+    """Pruebas de la consulta y persistencia de tasas de referencia.
+
+    Requisito relacionado: RF-07 (RN2).
+    """
+
     def setUp(self):
         Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(codigo="USD", nombre="Dólar", simbolo="$")
@@ -91,6 +118,11 @@ class ServicioTasasTests(TestCase):
         )
 
     def test_servicio_persiste_primera_tasa_y_consulta(self):
+        """Comprueba que el servicio persista la primera consulta exitosa y sus tasas.
+
+        Se espera que las tasas se guarden como referencias y se registre la consulta
+        al proveedor.
+        """
         proveedor = Mock()
         proveedor.obtener.return_value = self.respuesta()
         resultado = consultar_tasas_referencia(proveedor=proveedor)
@@ -102,6 +134,11 @@ class ServicioTasasTests(TestCase):
         self.assertEqual(tasa.moneda_cotizada, self.eur)
 
     def test_servicio_reemplaza_tasa_vigente_y_conserva_consultas(self):
+        """Comprueba que una nueva consulta reemplace los valores de tasa anteriores.
+
+        Se espera que se conserve una única tasa vigente por par y que queden
+        registradas todas las consultas.
+        """
         proveedor = Mock()
         proveedor.obtener.side_effect = [self.respuesta("0.86"), self.respuesta("0.88")]
         consultar_tasas_referencia(proveedor=proveedor)
@@ -111,6 +148,11 @@ class ServicioTasasTests(TestCase):
         self.assertEqual(ConsultaProveedorTasas.objects.count(), 2)
 
     def test_servicio_usa_ultimo_dato_como_desactualizado_si_falla(self):
+        """Comprueba el fallback del servicio cuando el proveedor falla con datos previos.
+
+        Se espera que la consulta informe el último dato como desactualizado en lugar
+        de fallar.
+        """
         proveedor = Mock()
         proveedor.obtener.return_value = self.respuesta()
         consultar_tasas_referencia(proveedor=proveedor)
@@ -121,6 +163,10 @@ class ServicioTasasTests(TestCase):
         self.assertEqual(resultado.mensaje, "Proveedor sin conexión.")
 
     def test_servicio_sin_cache_informa_indisponibilidad(self):
+        """Comprueba el estado del servicio cuando el proveedor falla sin datos previos.
+
+        Se espera que la consulta informe indisponibilidad sin tasas.
+        """
         proveedor = Mock()
         proveedor.obtener.side_effect = ProveedorTasasError("Proveedor sin conexión.")
         resultado = consultar_tasas_referencia(proveedor=proveedor)
@@ -129,12 +175,24 @@ class ServicioTasasTests(TestCase):
 
 
 class EndpointTasasTests(TestCase):
+    """Pruebas del endpoint público de consulta de tasas.
+
+    Requisito relacionado: RF-07.
+    """
+
     def setUp(self):
         Moneda.objects.all().delete()
         self.url = reverse("tasas:consultar")
 
     @patch("tasas.views.consultar_tasas_referencia")
     def test_endpoint_publico_diferencia_referencia_y_comercial(self, mock_consultar):
+        """Comprueba que el endpoint público distinga tasas de referencia y comerciales.
+
+        Se espera que cada grupo se identifique con su tipo y que las comerciales
+        incluyan el par de monedas.
+
+        Requisito relacionado: RF-07 (RN2) / RF-23.
+        """
         usd = Moneda.objects.create(codigo="USD", nombre="Dólar", simbolo="$")
         eur = Moneda.objects.create(codigo="EUR", nombre="Euro", simbolo="€")
         consulta = ConsultaProveedorTasas.objects.create(
@@ -173,6 +231,10 @@ class EndpointTasasTests(TestCase):
 
     @patch("tasas.views.consultar_tasas_referencia")
     def test_endpoint_sin_datos_devuelve_503(self, mock_consultar):
+        """Comprueba que el endpoint responda servicio no disponible cuando no hay datos.
+
+        Se espera que la respuesta tenga estado 503 e informe indisponibilidad.
+        """
         mock_consultar.return_value.estado = "indisponible"
         mock_consultar.return_value.tasas = []
         mock_consultar.return_value.mensaje = "Sin datos disponibles."

@@ -45,22 +45,13 @@
                     <a class="class" href="#MetodoPago">MetodoPago</a>
                             <ul class="memberlist">
                         <li>
-                                <a class="variable" href="#MetodoPago.TIPOS_METODO">TIPOS_METODO</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#MetodoPago.ESTADOS_METODO">ESTADOS_METODO</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#MetodoPago.cliente">cliente</a>
-                        </li>
-                        <li>
                                 <a class="function" href="#MetodoPago.nombre">nombre</a>
                         </li>
                         <li>
-                                <a class="function" href="#MetodoPago.tipo">tipo</a>
+                                <a class="function" href="#MetodoPago.descripcion">descripcion</a>
                         </li>
                         <li>
-                                <a class="function" href="#MetodoPago.estado">estado</a>
+                                <a class="function" href="#MetodoPago.activo">activo</a>
                         </li>
                         <li>
                                 <a class="function" href="#MetodoPago.fecha_registro">fecha_registro</a>
@@ -99,15 +90,6 @@
 
                         </li>
                         <li>
-                                <a class="variable" href="#MetodoPago.cliente_id">cliente_id</a>
-                        </li>
-                        <li>
-                                <a class="function" href="#MetodoPago.get_tipo_display">get_tipo_display</a>
-                        </li>
-                        <li>
-                                <a class="function" href="#MetodoPago.get_estado_display">get_estado_display</a>
-                        </li>
-                        <li>
                                 <a class="function" href="#MetodoPago.get_next_by_fecha_registro">get_next_by_fecha_registro</a>
                         </li>
                         <li>
@@ -121,6 +103,12 @@
                         </li>
                         <li>
                                 <a class="function" href="#MetodoPago.id">id</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#MetodoPago.clientes_preferentes">clientes_preferentes</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#MetodoPago.transacciones">transacciones</a>
                         </li>
                 </ul>
 
@@ -156,7 +144,7 @@ metodos_pago<wbr>.models    </h1>
     </div>
     <a class="headerlink" href="#MetodoPagoQuerySet"></a>
 
-            <div class="docstring"><p>Consultas reutilizables para los métodos de pago.</p>
+            <div class="docstring"><p>Consultas reutilizables para el catálogo global de métodos de pago.</p>
 </div>
 
 
@@ -186,61 +174,13 @@ metodos_pago<wbr>.models    </h1>
     </div>
     <a class="headerlink" href="#MetodoPago"></a>
 
-            <div class="docstring"><p>Representa un método de pago configurado para un cliente.</p>
+            <div class="docstring"><p>Representa una opción del catálogo global de métodos de pago.</p>
 
-<p>La entidad permite registrar y administrar los métodos de pago
-disponibles para el cliente sin realizar procesamiento real
-de pagos.</p>
+<p>El catálogo no pertenece a clientes ni procesa pagos. Una operación futura
+podrá seleccionar uno de sus registros activos en el momento de operar.</p>
 </div>
 
 
-                            <div id="MetodoPago.TIPOS_METODO" class="classattr">
-                                <div class="attr variable">
-            <span class="name">TIPOS_METODO</span>        =
-<input id="MetodoPago.TIPOS_METODO-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="MetodoPago.TIPOS_METODO-view-value"></label><span class="default_value">[(&#39;EFECTIVO&#39;, &#39;Efectivo&#39;), (&#39;TARJETA&#39;, &#39;Tarjeta&#39;), (&#39;TRANSFERENCIA&#39;, &#39;Transferencia&#39;), (&#39;OTRO&#39;, &#39;Otro&#39;)]</span>
-
-
-    </div>
-    <a class="headerlink" href="#MetodoPago.TIPOS_METODO"></a>
-
-
-
-                            </div>
-                            <div id="MetodoPago.ESTADOS_METODO" class="classattr">
-                                <div class="attr variable">
-            <span class="name">ESTADOS_METODO</span>        =
-<span class="default_value">[(&#39;ACTIVO&#39;, &#39;Activo&#39;), (&#39;INACTIVO&#39;, &#39;Inactivo&#39;)]</span>
-
-
-    </div>
-    <a class="headerlink" href="#MetodoPago.ESTADOS_METODO"></a>
-
-
-
-                            </div>
-                            <div id="MetodoPago.cliente" class="classattr">
-                                <div class="attr variable">
-            <span class="name">cliente</span>
-
-
-    </div>
-    <a class="headerlink" href="#MetodoPago.cliente"></a>
-
-            <div class="docstring"><p>Accessor to the related object on the forward side of a many-to-one or
-one-to-one (via ForwardOneToOneDescriptor subclass) relation.</p>
-
-<p>In the example::</p>
-
-<pre><code>class Child(Model):
-    parent = ForeignKey(Parent, related_name='children')
-</code></pre>
-
-<p><code>Child.parent</code> is a <code>ForwardManyToOneDescriptor</code> instance.</p>
-</div>
-
-
-                            </div>
                             <div id="MetodoPago.nombre" class="classattr">
                                 <div class="attr function">
 
@@ -257,15 +197,15 @@ object the first time, the query is executed.</p>
 
 
                             </div>
-                            <div id="MetodoPago.tipo" class="classattr">
+                            <div id="MetodoPago.descripcion" class="classattr">
                                 <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">tipo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+        <span class="name">descripcion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
-    <a class="headerlink" href="#MetodoPago.tipo"></a>
+    <a class="headerlink" href="#MetodoPago.descripcion"></a>
 
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
@@ -273,15 +213,15 @@ object the first time, the query is executed.</p>
 
 
                             </div>
-                            <div id="MetodoPago.estado" class="classattr">
+                            <div id="MetodoPago.activo" class="classattr">
                                 <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">estado</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+        <span class="name">activo</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
-    <a class="headerlink" href="#MetodoPago.estado"></a>
+    <a class="headerlink" href="#MetodoPago.activo"></a>
 
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
@@ -381,57 +321,7 @@ evitar duplicados causados únicamente por diferencias de formato.</p>
 
             <div class="docstring"><p>Deshabilita el método de pago sin eliminar sus datos.</p>
 
-<p>La información se conserva para mantener el historial
-de configuración del cliente.</p>
-</div>
-
-
-                            </div>
-                            <div id="MetodoPago.cliente_id" class="classattr">
-                                <div class="attr variable">
-            <span class="name">cliente_id</span>
-
-
-    </div>
-    <a class="headerlink" href="#MetodoPago.cliente_id"></a>
-
-
-
-                            </div>
-                            <div id="MetodoPago.get_tipo_display" class="classattr">
-                                <div class="attr function">
-
-        <span class="def">def</span>
-        <span class="name">get_tipo_display</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
-
-
-    </div>
-    <a class="headerlink" href="#MetodoPago.get_tipo_display"></a>
-
-            <div class="docstring"><p>Method descriptor with partial application of the given arguments
-and keywords.</p>
-
-<p>Supports wrapping existing descriptors and handles non-descriptor
-callables as instance methods.</p>
-</div>
-
-
-                            </div>
-                            <div id="MetodoPago.get_estado_display" class="classattr">
-                                <div class="attr function">
-
-        <span class="def">def</span>
-        <span class="name">get_estado_display</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
-
-
-    </div>
-    <a class="headerlink" href="#MetodoPago.get_estado_display"></a>
-
-            <div class="docstring"><p>Method descriptor with partial application of the given arguments
-and keywords.</p>
-
-<p>Supports wrapping existing descriptors and handles non-descriptor
-callables as instance methods.</p>
+<p>La información se conserva para la trazabilidad de futuras operaciones.</p>
 </div>
 
 
@@ -524,6 +414,56 @@ callables as instance methods.</p>
 
             <div class="docstring"><p>A wrapper for a deferred-loading field. When the value is read from this
 object the first time, the query is executed.</p>
+</div>
+
+
+                            </div>
+                            <div id="MetodoPago.clientes_preferentes" class="classattr">
+                                <div class="attr variable">
+            <span class="name">clientes_preferentes</span>
+
+
+    </div>
+    <a class="headerlink" href="#MetodoPago.clientes_preferentes"></a>
+
+            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
+many-to-one relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
+
+<p>Most of the implementation is delegated to a dynamically defined manager
+class built by <code>create_reverse_many_to_one_manager()</code> defined below.</p>
+</div>
+
+
+                            </div>
+                            <div id="MetodoPago.transacciones" class="classattr">
+                                <div class="attr variable">
+            <span class="name">transacciones</span>
+
+
+    </div>
+    <a class="headerlink" href="#MetodoPago.transacciones"></a>
+
+            <div class="docstring"><p>Accessor to the related objects manager on the reverse side of a
+many-to-one relation.</p>
+
+<p>In the example::</p>
+
+<pre><code>class Child(Model):
+    parent = ForeignKey(Parent, related_name='children')
+</code></pre>
+
+<p><code>Parent.children</code> is a <code>ReverseManyToOneDescriptor</code> instance.</p>
+
+<p>Most of the implementation is delegated to a dynamically defined manager
+class built by <code>create_reverse_many_to_one_manager()</code> defined below.</p>
 </div>
 
 

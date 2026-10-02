@@ -280,6 +280,7 @@ def acceso_administrador(request):
 @ensure_csrf_cookie
 @require_GET
 def home(request):
+    """Muestra la página de inicio de Global Exchange."""
     if request.session.get("kc_user"):
         return redirect("usuarios:dashboard")
     return render(request, "usuarios/home.html")
@@ -287,6 +288,8 @@ def home(request):
 
 @require_GET
 def logout(request):
+    """Cierra la sesión OIDC y redirige al endpoint de logout de Keycloak."""
+
     id_token = request.session.get("kc_id_token")
     request.session.flush()
     params = {
@@ -348,6 +351,12 @@ ROLES_PANEL_INFO = (
 @requiere_roles_web("ADMINISTRADOR", "CAJERO", "ANALISTA_CAMBIARIO", "USUARIO")
 @require_GET
 def dashboard(request):
+    """Renderiza el panel principal según el rol del usuario.
+
+    Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
+    de pago; para CAJERO/ANALISTA_CAMBIARIO contadores de clientes asociados,
+    monedas activas y tasas vigentes (y las tasas USD/EUR a PYG para analistas).
+    """
     profile = request.session["kc_user"]
     display_name = (
         profile.get("given_name")
@@ -444,6 +453,11 @@ def roles_permisos(request):
 @requiere_roles_web("ADMINISTRADOR")
 @require_GET
 def usuarios(request):
+    """Lista los usuarios registrados en Keycloak.
+
+    Consulta hasta 100 usuarios de la API de administración; si la API falla,
+    muestra la página con el error en lugar de romper el flujo.
+    """
     try:
         rows, error = admin_request("/users?max=100"), None
     except KeycloakError as exc:
@@ -462,6 +476,11 @@ def usuarios(request):
 @requiere_roles_web("ADMINISTRADOR")
 @require_http_methods(["GET", "POST"])
 def crear_usuario(request):
+    """Crea un usuario en Keycloak con sus roles de negocio.
+
+    En POST valida usuario, email y una contraseña de al menos 8 caracteres;
+    crea el usuario en Keycloak y asigna los roles de negocio seleccionados.
+    """
     if request.method == "POST":
         password = request.POST.get("password", "")
         payload = {
@@ -503,6 +522,11 @@ def crear_usuario(request):
 @requiere_roles_web("ADMINISTRADOR")
 @require_http_methods(["GET", "POST"])
 def editar_usuario(request, user_id):
+    """Edita los datos de un usuario y sus roles de negocio en Keycloak.
+
+    En POST actualiza email, nombre, apellido, estado de habilitación y roles.
+    En GET precarga los valores actuales en el formulario.
+    """
     try:
         user = cast(dict[str, object], admin_request(f"/users/{user_id}"))
         if request.method == "POST":
@@ -537,6 +561,10 @@ def editar_usuario(request, user_id):
 @requiere_roles_web("ADMINISTRADOR")
 @require_POST
 def baja_usuario(request, user_id):
+    """Da de baja (deshabilita) un usuario en Keycloak conservando sus datos.
+
+    En POST deshabilita el usuario (``enabled=False``); los datos no se eliminan.
+    """
     if request.method == "POST":
         try:
             user = cast(dict[str, object], admin_request(f"/users/{user_id}"))

@@ -16,6 +16,11 @@ from .models import TasaComercial
 
 
 class TasaComercialTests(TestCase):
+    """Pruebas de administración de tasas comerciales de compra y venta.
+
+    Requisito relacionado: HU-21 / RF-23 (RN3).
+    """
+
     def setUp(self):
         Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(
@@ -62,6 +67,12 @@ class TasaComercialTests(TestCase):
         return TasaComercial.objects.get()
 
     def test_administrador_no_puede_modificar_tasa(self):
+        """Comprueba que el administrador no pueda registrar tasas comerciales.
+
+        Se espera que la solicitud sea rechazada (403) y no se cree ninguna tasa.
+
+        Requisito relacionado: RF-23 (RN3).
+        """
         self.autenticar_con_roles(["ADMINISTRADOR"])
 
         response = self.enviar_tasa(
@@ -77,6 +88,13 @@ class TasaComercialTests(TestCase):
         self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_analista_registra_tasa_con_auditoria(self):
+        """Comprueba que el analista cambiario pueda registrar una tasa comercial.
+
+        Se espera que la tasa se cree conservando el usuario responsable y la fecha
+        de registro.
+
+        Requisito relacionado: RF-23 (RN3) / RNF-08.
+        """
         self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
 
         response = self.enviar_tasa(
@@ -95,6 +113,10 @@ class TasaComercialTests(TestCase):
         self.assertIsNotNone(tasa.fecha_registro)
 
     def test_rechaza_tasa_no_positiva(self):
+        """Comprueba que no se permita registrar una tasa de compra no positiva.
+
+        Se espera que la solicitud sea rechazada (400) y no se registre ninguna tasa.
+        """
         self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
 
         response = self.enviar_tasa(
@@ -110,6 +132,10 @@ class TasaComercialTests(TestCase):
         self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_rechaza_moneda_inactiva(self):
+        """Comprueba que no se permita usar una moneda inactiva en una tasa comercial.
+
+        Se espera que la solicitud sea rechazada (400) y no se registre ninguna tasa.
+        """
         self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
 
         response = self.enviar_tasa(
@@ -125,6 +151,10 @@ class TasaComercialTests(TestCase):
         self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_rechaza_par_con_la_misma_moneda(self):
+        """Comprueba que no se permita registrar una tasa entre la misma moneda.
+
+        Se espera que la solicitud sea rechazada (400) y no se registre ninguna tasa.
+        """
         self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
 
         response = self.enviar_tasa(
@@ -140,6 +170,10 @@ class TasaComercialTests(TestCase):
         self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_primera_tasa_requiere_compra_y_venta(self):
+        """Comprueba que la primera tasa de un par exija valores de compra y venta.
+
+        Se espera que la tasa incompleta sea rechazada (400) y no se registre ninguna.
+        """
         self.autenticar_con_roles(["ANALISTA_CAMBIARIO"])
 
         response = self.enviar_tasa(
@@ -154,6 +188,12 @@ class TasaComercialTests(TestCase):
         self.assertEqual(TasaComercial.objects.count(), 0)
 
     def test_modificacion_crea_version_y_conserva_historico(self):
+        """Comprueba que modificar una tasa comercial genere una nueva versión.
+
+        Se espera que la versión nueva quede vigente y la anterior permanezca en el historial.
+
+        Requisito relacionado: RF-08.
+        """
         self.crear_tasa_vigente()
 
         response = self.enviar_tasa(
@@ -170,6 +210,10 @@ class TasaComercialTests(TestCase):
         self.assertTrue(TasaComercial.objects.get(version=2).vigente)
 
     def test_modificacion_invalida_conserva_tasa_vigente(self):
+        """Comprueba que una modificación inválida no rompa la tasa vigente.
+
+        Se espera que la solicitud sea rechazada (400) y la tasa anterior continúe vigente.
+        """
         tasa_original = self.crear_tasa_vigente()
 
         response = self.enviar_tasa(
@@ -186,6 +230,12 @@ class TasaComercialTests(TestCase):
         self.assertTrue(tasa_original.vigente)
 
     def test_historial_devuelve_versiones_en_orden(self):
+        """Comprueba que el historial presente las versiones de una tasa en orden descendente.
+
+        Se espera que la versión más reciente aparezca primero.
+
+        Requisito relacionado: RF-08.
+        """
         self.crear_tasa_vigente()
         self.enviar_tasa(
             {
@@ -203,6 +253,12 @@ class TasaComercialTests(TestCase):
         self.assertEqual(versiones[1]["version"], 1)
 
     def test_administrador_no_puede_desactivar_tasa(self):
+        """Comprueba que el administrador no pueda desactivar tasas comerciales.
+
+        Se espera que la solicitud sea rechazada (403) y la tasa continúe vigente.
+
+        Requisito relacionado: RNF-02.
+        """
         tasa = self.crear_tasa_vigente()
         self.autenticar_con_roles(["ADMINISTRADOR"])
 
@@ -217,6 +273,10 @@ class TasaComercialTests(TestCase):
         self.assertTrue(tasa.vigente)
 
     def test_analista_desactiva_tasa_sin_eliminarla_y_permanece_en_historial(self):
+        """Comprueba que el analista pueda desactivar una tasa sin eliminar su historial.
+
+        Se espera que la tasa deje de estar vigente pero siga visible en el historial.
+        """
         tasa = self.crear_tasa_vigente()
 
         response = self.client.post(
@@ -232,6 +292,11 @@ class TasaComercialTests(TestCase):
         self.assertFalse(historial.json()["tasas"][0]["vigente"])
 
     def test_nueva_tasa_tras_baja_continua_versionado(self):
+        """Comprueba que el versionado continúe después de desactivar una tasa.
+
+        Se espera que la nueva tasa use la versión siguiente y que solo una tasa del
+        par quede vigente.
+        """
         tasa = self.crear_tasa_vigente()
         self.client.post(
             reverse("tasas:desactivar_tasa_comercial", args=[tasa.id]),
