@@ -117,7 +117,13 @@
                     <a class="function" href="#cancelar_transaccion">cancelar_transaccion</a>
             </li>
             <li>
+                    <a class="function" href="#listar_metodos_pago_operacion">listar_metodos_pago_operacion</a>
+            </li>
+            <li>
                     <a class="function" href="#listar_transacciones">listar_transacciones</a>
+            </li>
+            <li>
+                    <a class="function" href="#obtener_detalle_transaccion">obtener_detalle_transaccion</a>
             </li>
     </ul>
 
@@ -536,11 +542,42 @@ su estado a CANCELADA, registrando los datos de la cancelación.</p>
 
 
                 </section>
+                <section id="listar_metodos_pago_operacion">
+                    <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">listar_metodos_pago_operacion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">cliente_id</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#listar_metodos_pago_operacion"></a>
+
+            <div class="docstring"><p>Devuelve los métodos activos disponibles para un cliente autorizado.</p>
+
+<p>El método preferido solamente se informa cuando continúa activo. La
+selección no procesa pagos: únicamente prepara el catálogo permitido para
+previsualizar y confirmar una operación.</p>
+
+<p>Args:
+    usuario_id (str): Identidad Keycloak del usuario que consulta.
+    cliente_id (int): Cliente seleccionado para la operación.
+    es_admin (bool): Permite al administrador operar sobre cualquier
+        cliente activo.</p>
+
+<p>Returns:
+    tuple: Cliente validado, lista de métodos activos y método preferido
+    activo (o <code>None</code>).</p>
+
+<p>Requisitos relacionados: HU-23 y RF-13.</p>
+</div>
+
+
+                </section>
                 <section id="listar_transacciones">
                     <div class="attr function">
 
         <span class="def">def</span>
-        <span class="name">listar_transacciones</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
+        <span class="name">listar_transacciones</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span>, </span><span class="param"><span class="n">cliente_id</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
 
     </div>
@@ -554,10 +591,45 @@ que utiliza los snapshots guardados sin recalcular valores.</p>
 
 <p>Args:
     usuario_id (str): Identidad Keycloak del usuario que consulta.
-    es_admin (bool): Indica si el usuario posee el rol de administrador.</p>
+    es_admin (bool): Indica si el usuario posee el rol de administrador.
+    cliente_id (int | None): Limita el historial al cliente seleccionado.</p>
 
 <p>Returns:
     list: Transacciones visibles para el usuario.</p>
+</div>
+
+
+                </section>
+                <section id="obtener_detalle_transaccion">
+                    <div class="attr function">
+
+        <span class="def">def</span>
+        <span class="name">obtener_detalle_transaccion</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">transaccion_id</span>, </span><span class="param"><span class="n">usuario_id</span>, </span><span class="param"><span class="n">cliente_id</span>, </span><span class="param"><span class="n">es_admin</span><span class="o">=</span><span class="kc">False</span></span><span class="return-annotation">):</span></span>
+
+
+    </div>
+    <a class="headerlink" href="#obtener_detalle_transaccion"></a>
+
+            <div class="docstring"><p>Obtiene una transacción del cliente seleccionado de forma segura.</p>
+
+<p>La consulta conserva los snapshots históricos y exige que la transacción
+pertenezca al cliente indicado. Para usuarios no administradores también
+revalida la asociación activa con ese cliente.</p>
+
+<p>Args:
+    transaccion_id (int): Identificador de la transacción solicitada.
+    usuario_id (str): Identidad Keycloak del usuario que consulta.
+    cliente_id (int): Cliente seleccionado y esperado para la transacción.
+    es_admin (bool): Permite consultar cualquier cliente activo.</p>
+
+<p>Returns:
+    Transaccion: Registro histórico solicitado con sus relaciones.</p>
+
+<p>Raises:
+    ValidationError: Si el cliente no está autorizado o la transacción no
+    pertenece al contexto seleccionado.</p>
+
+<p>Requisitos relacionados: HU-24 y HU-32.</p>
 </div>
 
 

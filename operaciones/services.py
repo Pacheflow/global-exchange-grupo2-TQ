@@ -675,7 +675,40 @@ def cancelar_transaccion(
     return transaccion_obj
 
 
-def listar_transacciones(*, usuario_id, es_admin=False):
+def listar_metodos_pago_operacion(*, usuario_id, cliente_id, es_admin=False):
+    """Devuelve los métodos activos disponibles para un cliente autorizado.
+
+    El método preferido solamente se informa cuando continúa activo. La
+    selección no procesa pagos: únicamente prepara el catálogo permitido para
+    previsualizar y confirmar una operación.
+
+    Args:
+        usuario_id (str): Identidad Keycloak del usuario que consulta.
+        cliente_id (int): Cliente seleccionado para la operación.
+        es_admin (bool): Permite al administrador operar sobre cualquier
+            cliente activo.
+
+    Returns:
+        tuple: Cliente validado, lista de métodos activos y método preferido
+        activo (o ``None``).
+
+    Requisitos relacionados: HU-23 y RF-13.
+    """
+
+    usuario_id = _validar_identidad(usuario_id)
+    cliente = _obtener_cliente_activo(cliente_id)
+    if not es_admin:
+        _validar_acceso_usuario_cliente(cliente, usuario_id)
+
+    metodos = list(MetodoPago.objects.activos())
+    preferido = cliente.metodo_pago_preferido
+    if preferido is None or not preferido.activo:
+        preferido = None
+
+    return cliente, metodos, preferido
+
+
+def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
     """Consulta el historial autorizado de transacciones.
 
     Un usuario no administrador solo ve transacciones de los clientes
@@ -685,6 +718,7 @@ def listar_transacciones(*, usuario_id, es_admin=False):
     Args:
         usuario_id (str): Identidad Keycloak del usuario que consulta.
         es_admin (bool): Indica si el usuario posee el rol de administrador.
+        cliente_id (int | None): Limita el historial al cliente seleccionado.
 
     Returns:
         list: Transacciones visibles para el usuario.
@@ -702,11 +736,69 @@ def listar_transacciones(*, usuario_id, es_admin=False):
         .distinct()
     )
 
-    if not es_admin:
-        usuario_id = _validar_identidad(usuario_id)
+    usuario_id = _validar_identidad(usuario_id)
+
+    if cliente_id is not None:
+        cliente = _obtener_cliente_activo(cliente_id)
+        if not es_admin:
+            _validar_acceso_usuario_cliente(cliente, usuario_id)
+        transacciones = transacciones.filter(cliente=cliente)
+    elif not es_admin:
         transacciones = transacciones.filter(
             cliente__usuarios_asignados__keycloak_user_id=usuario_id,
             cliente__usuarios_asignados__activo=True,
         )
 
     return list(transacciones)
+
+
+def obtener_detalle_transaccion(
+    *,
+    transaccion_id,
+    usuario_id,
+    cliente_id,
+    es_admin=False,
+):
+    """Obtiene una transacción del cliente seleccionado de forma segura.
+
+    La consulta conserva los snapshots históricos y exige que la transacción
+    pertenezca al cliente indicado. Para usuarios no administradores también
+    revalida la asociación activa con ese cliente.
+
+    Args:
+        transaccion_id (int): Identificador de la transacción solicitada.
+        usuario_id (str): Identidad Keycloak del usuario que consulta.
+        cliente_id (int): Cliente seleccionado y esperado para la transacción.
+        es_admin (bool): Permite consultar cualquier cliente activo.
+
+    Returns:
+        Transaccion: Registro histórico solicitado con sus relaciones.
+
+    Raises:
+        ValidationError: Si el cliente no está autorizado o la transacción no
+        pertenece al contexto seleccionado.
+
+    Requisitos relacionados: HU-24 y HU-32.
+    """
+
+    usuario_id = _validar_identidad(usuario_id)
+    cliente = _obtener_cliente_activo(cliente_id)
+    if not es_admin:
+        _validar_acceso_usuario_cliente(cliente, usuario_id)
+
+    try:
+        return (
+            Transaccion.objects
+            .select_related(
+                "cliente",
+                "moneda_origen",
+                "moneda_destino",
+                "tasa_comercial",
+                "metodo_pago",
+            )
+            .get(pk=transaccion_id, cliente=cliente)
+        )
+    except (Transaccion.DoesNotExist, TypeError, ValueError):
+        raise ValidationError(
+            {"transaccion": "La transacción no existe para el cliente seleccionado."}
+        )

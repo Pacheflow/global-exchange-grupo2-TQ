@@ -80,6 +80,7 @@ MODULOS = [
     "tasas.tests",
     "tasas.test_reference_rates",
     "tasas.test_simulator",
+    "operaciones.test_guillermo",
     "usuarios.tests",
     "config.settings",
     "config.urls",

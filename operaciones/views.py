@@ -13,6 +13,8 @@ from .services import (
     cancelar_transaccion,
     crear_transaccion,
     listar_transacciones,
+    listar_metodos_pago_operacion,
+    obtener_detalle_transaccion,
     previsualizar_operacion,
 )
 
@@ -61,6 +63,18 @@ def _leer_cuerpo_json(request):
         return None
 
     return datos
+
+
+def _cliente_seleccionado_id(request):
+    """Obtiene el identificador del cliente seleccionado en la sesión.
+
+    La selección facilita el contexto de navegación, pero los servicios de
+    dominio vuelven a comprobar que el cliente exista, esté activo y resulte
+    accesible para la identidad Keycloak.
+    """
+
+    seleccionado = request.session.get("selected_client", {})
+    return seleccionado.get("id") if isinstance(seleccionado, dict) else None
 
 
 def _detalles_error(error):
@@ -331,8 +345,62 @@ def cancelar_transaccion_view(request):
 
 @require_GET
 @requiere_alguno_de_roles(*ROLES_OPERACIONES)
+def metodos_pago_operacion_view(request):
+    """Lista métodos activos y el preferido válido del cliente seleccionado."""
+
+    usuario_id, _ = _usuario_sesion(request)
+    if not usuario_id:
+        return JsonResponse(
+            {"error": "No se encontró una identidad Keycloak válida."},
+            status=401,
+        )
+
+    cliente_id = _cliente_seleccionado_id(request)
+    if cliente_id is None:
+        return JsonResponse(
+            {"error": "Debe seleccionar un cliente para operar."},
+            status=400,
+        )
+
+    roles = set(request.session.get(SESSION_ROLES, []))
+    try:
+        cliente, metodos, preferido = listar_metodos_pago_operacion(
+            usuario_id=usuario_id,
+            cliente_id=cliente_id,
+            es_admin="ADMINISTRADOR" in roles,
+        )
+    except ValidationError as exc:
+        return JsonResponse(
+            {
+                "error": "No se pudieron consultar los métodos de pago.",
+                "detalles": _detalles_error(exc),
+            },
+            status=400,
+        )
+
+    return JsonResponse(
+        {
+            "cliente": {
+                "id": cliente.id,
+                "nombre_razon_social": cliente.nombre_razon_social,
+            },
+            "metodos_pago": [
+                {"id": metodo.id, "nombre": metodo.nombre}
+                for metodo in metodos
+            ],
+            "metodo_pago_preferido": (
+                {"id": preferido.id, "nombre": preferido.nombre}
+                if preferido
+                else None
+            ),
+        }
+    )
+
+
+@require_GET
+@requiere_alguno_de_roles(*ROLES_OPERACIONES)
 def historial_transacciones_view(request):
-    """Consulta el historial autorizado de transacciones (JSON)."""
+    """Consulta el historial del cliente seleccionado y autorizado (JSON)."""
 
     usuario_id, _ = _usuario_sesion(request)
     if not usuario_id:
@@ -343,11 +411,18 @@ def historial_transacciones_view(request):
 
     roles = set(request.session.get(SESSION_ROLES, []))
     es_admin = "ADMINISTRADOR" in roles
+    cliente_id = _cliente_seleccionado_id(request)
+    if cliente_id is None:
+        return JsonResponse(
+            {"error": "Debe seleccionar un cliente para consultar su historial."},
+            status=400,
+        )
 
     try:
         transacciones = listar_transacciones(
             usuario_id=usuario_id,
             es_admin=es_admin,
+            cliente_id=cliente_id,
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -366,3 +441,42 @@ def historial_transacciones_view(request):
             ]
         }
     )
+
+
+@require_GET
+@requiere_alguno_de_roles(*ROLES_OPERACIONES)
+def detalle_transaccion_view(request, transaccion_id):
+    """Devuelve el detalle histórico de una transacción autorizada (JSON)."""
+
+    usuario_id, _ = _usuario_sesion(request)
+    if not usuario_id:
+        return JsonResponse(
+            {"error": "No se encontró una identidad Keycloak válida."},
+            status=401,
+        )
+
+    cliente_id = _cliente_seleccionado_id(request)
+    if cliente_id is None:
+        return JsonResponse(
+            {"error": "Debe seleccionar un cliente para consultar el detalle."},
+            status=400,
+        )
+
+    roles = set(request.session.get(SESSION_ROLES, []))
+    try:
+        transaccion = obtener_detalle_transaccion(
+            transaccion_id=transaccion_id,
+            usuario_id=usuario_id,
+            cliente_id=cliente_id,
+            es_admin="ADMINISTRADOR" in roles,
+        )
+    except ValidationError as exc:
+        return JsonResponse(
+            {
+                "error": "La transacción solicitada no está disponible.",
+                "detalles": _detalles_error(exc),
+            },
+            status=404,
+        )
+
+    return JsonResponse({"transaccion": _serializar_transaccion(transaccion)})

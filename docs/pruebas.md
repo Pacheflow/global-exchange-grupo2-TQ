@@ -1,20 +1,20 @@
 # Pruebas — Global Exchange
 
-> Estado verificado el 30/09/2026.
+> Estado verificado el 01/10/2026.
 > Suite ejecutada con `python manage.py test`.
 
 ## Resumen
 
 | Métrica | Valor |
 |---|---|
-| Total de tests detectados | **159** |
-| Tests pasando | **159** |
+| Total de tests detectados | **167** |
+| Tests pasando | **167** |
 | Tests fallando | **0** |
 | Errores | **0** |
-| Duración última ejecución | 4.013 s |
+| Duración última ejecución | 4.487 s |
 
 La suite completa fue ejecutada después de incorporar los cambios de
-operaciones correspondientes a HU-22 y HU-25 y de revisar el simulador.
+operaciones correspondientes a HU-22, HU-23, HU-25 y HU-32/HU-24.
 
 ## Detalle por app
 
@@ -25,8 +25,23 @@ operaciones correspondientes a HU-22 y HU-25 y de revisar el simulador.
 | `tasas` | `tasas/tests.py`, `test_reference_rates.py`, `test_simulator.py` | 34 | Proveedor y fallback, simulación, permisos, validación, versionado, histórico y baja lógica |
 | `monedas` | `monedas/tests.py` | 7 | Configuración de monedas, estados y validaciones |
 | `metodos_pago` | `metodos_pago/tests.py` | 6 | Configuración y administración de métodos de pago |
-| `operaciones` | `operaciones/tests.py` | 43 | Previsualización, compra, venta, confirmación, historial, idempotencia y cancelación |
-| **Total** | | **159** | |
+| `operaciones` | `operaciones/tests.py`, `operaciones/test_guillermo.py` | 51 | Previsualización, compra, venta, confirmación, métodos, historial, detalle, idempotencia y cancelación |
+| **Total** | | **167** | |
+
+## HU-23 y HU-32/HU-24 — Venta, historial y detalle
+
+Las ocho pruebas incorporadas para Guillermo verifican que Venta utilice la
+tasa comercial de venta y cree una transacción pendiente, que solo se ofrezcan
+métodos de pago activos, que el preferido inactivo no se preseleccione, que el
+historial quede limitado al cliente seleccionado, que un detalle ajeno no sea
+accesible, que los snapshots no se recalculen y que historial/detalle rechacen
+escrituras.
+
+```bash
+python manage.py test operaciones.test_guillermo
+```
+
+Resultado verificado: 8 tests ejecutados correctamente.
 
 ## HU-22 — Compra de divisas
 
