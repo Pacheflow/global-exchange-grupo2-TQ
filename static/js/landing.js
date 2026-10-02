@@ -168,8 +168,38 @@
       }).catch(function (requestError) { showError(requestError.message); });
     }
     function schedule() { window.clearTimeout(timer); timer = window.setTimeout(simulate, 300); }
-    amount.addEventListener('input', schedule); from.addEventListener('change', simulate); to.addEventListener('change', simulate);
-    root.querySelector('[data-converter-swap]').addEventListener('click', function (event) { var previous = from.value; from.value = to.value; to.value = previous; event.currentTarget.classList.add('is-swapping'); window.setTimeout(function () { event.currentTarget.classList.remove('is-swapping'); }, 320); simulate(); });
+    // Evita que se escriban letras en el campo del monto.
+    amount.addEventListener('keydown', function (event) {
+      if (/^[a-zA-Z]$/.test(event.key)) {
+        event.preventDefault();
+      }
+    });
+
+    // Limpia caracteres inválidos si se pegan o ingresan.
+    amount.addEventListener('input', function () {
+      var limpio = amount.value.replace(/[^0-9.,]/g, '');
+
+      if (amount.value !== limpio) {
+        amount.value = limpio;
+      }
+
+      schedule();
+    });
+
+    from.addEventListener('change', simulate);
+    to.addEventListener('change', simulate);
+    root.querySelector('[data-converter-swap]').addEventListener('click', function (event) {
+      var previous = from.value;
+      from.value = to.value;
+      to.value = previous;
+      event.currentTarget.classList.add('is-swapping');
+
+      window.setTimeout(function () {
+        event.currentTarget.classList.remove('is-swapping');
+      }, 320);
+
+      simulate();
+    });
   }
 
   function initLanding() {
