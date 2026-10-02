@@ -7,6 +7,11 @@ app_name = "clientes_api"
 
 urlpatterns = [
     path(
+        "categorias/comisiones/",
+        views.comisiones_categorias_api,
+        name="comisiones_categorias",
+    ),
+    path(
         "crear/",
         views.crear_cliente_api,
         name="crear_cliente",

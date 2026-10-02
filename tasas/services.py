@@ -155,7 +155,7 @@ def consultar_tasas_referencia(*, proveedor=None):
 # HU-21 - Administrar tasas comerciales
 
 
-PRECISION_TASA = Decimal("0.000001")
+PRECISION_TASA = Decimal("0.0000000001")
 
 
 def _convertir_tasa(valor, campo):

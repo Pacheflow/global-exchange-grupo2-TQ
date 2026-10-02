@@ -8,6 +8,7 @@ from django.utils import timezone
 from monedas.models import Moneda
 
 from .models import TasaReferencia
+from .precision import normalizar_tasa
 
 
 PRECISION_RESULTADO = Decimal("0.0000000001")
@@ -175,6 +176,7 @@ def simular_conversion(moneda_origen_id, moneda_destino_id, monto):
         moneda_origen,
         moneda_destino,
     )
+    tasa = normalizar_tasa(tasa)
 
     # Calculamos el importe final y aplicamos la precisión definida.
     resultado = (monto_decimal * tasa).quantize(

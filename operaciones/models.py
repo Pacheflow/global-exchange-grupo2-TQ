@@ -12,6 +12,7 @@ class Transaccion(models.Model):
 
     ESTADOS_TRANSACCION = [
         ("PENDIENTE", "Pendiente"),
+        ("COMPLETADA", "Completada"),
         ("CANCELADA", "Cancelada"),
     ]
 
@@ -70,8 +71,8 @@ class Transaccion(models.Model):
     )
 
     tasa_aplicada = models.DecimalField(
-        max_digits=18,
-        decimal_places=6,
+        max_digits=24,
+        decimal_places=10,
     )
 
     porcentaje_comision = models.DecimalField(
@@ -174,7 +175,7 @@ class Transaccion(models.Model):
             ),
             models.CheckConstraint(
                 condition=(
-                    ~Q(estado="PENDIENTE")
+                    Q(estado="CANCELADA")
                     | (
                         Q(cancelado_por_keycloak_id__isnull=True)
                         & Q(cancelado_por_username__isnull=True)
@@ -182,7 +183,7 @@ class Transaccion(models.Model):
                         & Q(motivo_cancelacion__isnull=True)
                     )
                 ),
-                name="transaccion_pendiente_sin_cancelacion",
+                name="transaccion_no_cancelada_sin_cancelacion",
             ),
         ]
 

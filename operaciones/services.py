@@ -9,23 +9,12 @@ from clientes.models import Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
 from tasas.models import TasaComercial
+from tasas.precision import normalizar_tasa
 
 from .models import Transaccion
 
 
 PRECISION_MONTO = Decimal("0.000001")
-
-COMISION_POR_CATEGORIA = {
-    "MINORISTA": Decimal("10.00"),
-    "CORPORATIVO": Decimal("7.00"),
-    "VIP": Decimal("5.00"),
-}
-
-MOTIVO_CAMBIO_COTIZACION = "La cotización cambió antes de confirmar la operación."
-MOTIVO_CANCELACION_CAMBIO_COTIZACION = (
-    "La cotización cambió o dejó de estar disponible."
-)
-
 
 @dataclass(frozen=True)
 class ResultadoPreviewOperacion:
@@ -92,7 +81,7 @@ def _obtener_cliente_activo(cliente_id):
     """Obtiene un cliente activo o rechaza la operación."""
 
     try:
-        cliente = Cliente.objects.get(pk=cliente_id)
+        cliente = Cliente.objects.select_related("categoria").get(pk=cliente_id)
     except (Cliente.DoesNotExist, ValueError, TypeError):
         raise ValidationError(
             {"cliente": "El cliente seleccionado no existe."}
@@ -238,10 +227,10 @@ def _tasa_segun_tipo(tipo, tasa_comercial):
     """
 
     if tipo == "COMPRA":
-        return tasa_comercial.compra
+        return normalizar_tasa(tasa_comercial.compra)
 
     if tipo == "VENTA":
-        return tasa_comercial.venta
+        return normalizar_tasa(tasa_comercial.venta)
 
     raise ValidationError(
         {"tipo": "El tipo de operación debe ser COMPRA o VENTA."}
@@ -290,16 +279,7 @@ def _porcentaje_comision_para_cliente(cliente):
             {"cliente": "El cliente no posee una categoría comercial."}
         )
 
-    porcentaje = COMISION_POR_CATEGORIA.get(
-        categoria.nombre.strip().upper()
-    )
-
-    if porcentaje is None:
-        raise ValidationError(
-            {"cliente": "La categoría del cliente no posee una comisión configurada."}
-        )
-
-    return porcentaje
+    return categoria.porcentaje_comision
 
 
 def _calcular_operacion(monto_origen, tasa_aplicada, porcentaje_comision):
@@ -562,7 +542,15 @@ def crear_transaccion(
                     {"tasa": "La tasa comercial debe ser mayor que cero."}
                 )
 
-            cambio_cotizacion = tasa_comercial.version != version_esperada
+            if tasa_comercial.version != version_esperada:
+                raise ValidationError(
+                    {
+                        "tasa": (
+                            "La cotización cambió antes de confirmar la operación. "
+                            "Realice una nueva previsualización."
+                        )
+                    }
+                )
 
             monto_convertido, importe_comision, monto_destino = _calcular_operacion(
                 monto_origen,
@@ -586,14 +574,8 @@ def crear_transaccion(
                 importe_comision=importe_comision,
                 metodo_pago=metodo_pago,
                 metodo_pago_nombre=metodo_pago.nombre,
-                estado="CANCELADA" if cambio_cotizacion else "PENDIENTE",
+                estado="COMPLETADA",
             )
-
-            if cambio_cotizacion:
-                transaccion.cancelado_por_keycloak_id = usuario_id
-                transaccion.cancelado_por_username = usuario_username
-                transaccion.cancelado_en = timezone.now()
-                transaccion.motivo_cancelacion = MOTIVO_CAMBIO_COTIZACION
 
             transaccion.full_clean()
             transaccion.save()
@@ -612,7 +594,6 @@ def crear_transaccion(
 
     return ResultadoCrearTransaccion(
         transaccion=transaccion,
-        cambio_cotizacion=cambio_cotizacion,
     )
 
 
@@ -694,6 +675,7 @@ def listar_transacciones(*, usuario_id, es_admin=False):
         Transaccion.objects
         .select_related(
             "cliente",
+            "cliente__categoria",
             "moneda_origen",
             "moneda_destino",
             "tasa_comercial",

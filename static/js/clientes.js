@@ -155,8 +155,40 @@
     });
   }
 
+  function configurarComisiones() {
+    consultar(page.dataset.comisionesUrl).then(function (data) {
+      var content = '<form data-comisiones-form><p class="ge-frontend-subtitle" style="margin-bottom:16px">Definí el porcentaje aplicado a las nuevas operaciones de cada categoría.</p>' +
+        data.categorias.map(function (categoria) {
+          return field(esc(categoria.nombre), '<input class="ge-input" type="number" name="categoria_' + categoria.id + '" data-categoria-id="' + categoria.id + '" min="0" max="100" step="0.01" required value="' + esc(categoria.porcentaje_comision) + '">');
+        }).join('') + '</form>';
+      dialog('ge-comisiones-configurar', 'Configurar comisiones', content, 'Guardar comisiones', function (box, close) {
+        var form = box.querySelector('[data-comisiones-form]');
+        if (!form.reportValidity()) return false;
+        var comisiones = Array.prototype.map.call(form.querySelectorAll('[data-categoria-id]'), function (input) {
+          return {
+            id: Number(input.dataset.categoriaId),
+            porcentaje_comision: input.value
+          };
+        });
+        request(page.dataset.comisionesUrl, { comisiones: comisiones }).then(function (resultado) {
+          close();
+          notify(resultado.message);
+          recargar();
+        }).catch(function (error) {
+          notify(error.message, 'error');
+        });
+        return false;
+      });
+    }).catch(function (error) {
+      notify(error.message, 'error');
+    });
+  }
+
   var nuevoBtn = page.querySelector('[data-cliente-nuevo]');
   if (nuevoBtn) nuevoBtn.addEventListener('click', function () { clienteForm(null); });
+
+  var comisionesBtn = page.querySelector('[data-comisiones-configurar]');
+  if (comisionesBtn) comisionesBtn.addEventListener('click', configurarComisiones);
 
   page.querySelectorAll('[data-cliente-editar]').forEach(function (button) {
     button.addEventListener('click', function () {

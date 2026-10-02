@@ -9,6 +9,7 @@ from usuarios.services.keycloak import SESSION_USUARIO
 
 from monedas.models import Moneda
 from .models import TasaComercial
+from .precision import normalizar_tasa
 from .services import (
     actualizar_tasa_comercial,
     consultar_tasas_referencia,
@@ -26,7 +27,7 @@ def _serializar_tasa_referencia(tasa, *, desactualizada):
         "par": f"{tasa.moneda_base.codigo}/{tasa.moneda_cotizada.codigo}",
         "moneda_base": tasa.moneda_base.codigo,
         "moneda_cotizada": tasa.moneda_cotizada.codigo,
-        "valor": str(tasa.valor),
+        "valor": str(normalizar_tasa(tasa.valor)),
         "fuente": tasa.fuente,
         "fecha_hora": tasa.fecha_hora_fuente.isoformat(),
         "vigente_hasta": tasa.vigente_hasta.isoformat(),
@@ -43,8 +44,8 @@ def _serializar_tasa_comercial_vigente(tasa):
         "par": f"{tasa.moneda_origen.codigo}/{tasa.moneda_destino.codigo}",
         "moneda_origen": tasa.moneda_origen.codigo,
         "moneda_destino": tasa.moneda_destino.codigo,
-        "compra": str(tasa.compra),
-        "venta": str(tasa.venta),
+        "compra": str(normalizar_tasa(tasa.compra)),
+        "venta": str(normalizar_tasa(tasa.venta)),
         "vigente": tasa.vigente,
         "version": tasa.version,
         "fecha_hora": tasa.fecha_registro.isoformat(),
@@ -80,7 +81,11 @@ def consultar_tasas(request):
 
     return JsonResponse(
         payload,
-        status=503 if resultado.estado == "indisponible" else 200,
+        status=(
+            503
+            if resultado.estado == "indisponible" and not payload["tasas_comerciales"]
+            else 200
+        ),
     )
 
 def _serializar_tasa(tasa):

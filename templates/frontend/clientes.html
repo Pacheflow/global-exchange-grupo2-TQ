@@ -8,6 +8,7 @@
          data-crear-url="{% url 'clientes_api:crear_cliente' %}"
          data-editar-url="{% url 'clientes_api:editar_cliente' 0 %}"
          data-baja-url="{% url 'clientes_api:dar_de_baja_cliente' 0 %}"
+         data-comisiones-url="{% url 'clientes_api:comisiones_categorias' %}"
        {% endif %}
        data-seleccionar-url="{% url 'clientes_api:seleccionar_cliente' 0 %}"
        data-preferencia-url="{% url 'clientes_api:actualizar_metodo_pago_preferido' 0 %}">
@@ -25,7 +26,10 @@
         {% endif %}
       </div>
       {% if 'ADMINISTRADOR' in request.session.roles %}
-        <button type="button" class="ge-btn-primary" data-cliente-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo cliente</button>
+        <div class="ge-btn-row">
+          <button type="button" class="ge-btn-outline" data-comisiones-configurar style="font-size:13px;padding:8px 16px">Configurar comisiones</button>
+          <button type="button" class="ge-btn-primary" data-cliente-nuevo style="font-size:13px;padding:8px 16px">+ Nuevo cliente</button>
+        </div>
       {% endif %}
     </div>
 
@@ -47,6 +51,10 @@
       <div class="ge-card ge-card--pad24" style="margin-bottom:20px">
         <div style="display:flex;align-items:flex-start;gap:16px">
           <div style="flex:1">
+            <div class="ge-note-label ge-note-label--10">Categoría comercial</div>
+            <strong style="display:block;color:var(--text);font-size:15px;margin:4px 0 18px">
+              {{ cliente_seleccionado.categoria.nombre|default:'Sin categoría' }}
+            </strong>
             <div class="ge-note-label ge-note-label--10">Método de pago preferido</div>
             {% if cliente_seleccionado.metodo_pago_preferido %}
               <strong style="display:block;color:var(--text);font-size:15px;margin-top:4px">

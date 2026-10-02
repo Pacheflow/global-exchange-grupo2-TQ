@@ -1,8 +1,10 @@
 import json
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -13,7 +15,7 @@ from usuarios.services.keycloak import SESSION_ROLES
 from metodos_pago.models import MetodoPago
 
 from .forms import AsignacionUsuarioClienteForm, ClienteForm, SegmentacionClienteForm
-from .models import Cliente, UsuarioCliente
+from .models import CategoriaCliente, Cliente, UsuarioCliente
 
 
 def _keycloak_user_id(request):
@@ -72,7 +74,7 @@ def consultar_clientes(request):
 
     busqueda = request.GET.get("buscar", "")
 
-    clientes = Cliente.objects.select_related("metodo_pago_preferido")
+    clientes = Cliente.objects.select_related("categoria", "metodo_pago_preferido")
     roles = set(request.session.get("roles", []))
     if "ADMINISTRADOR" not in roles:
         clientes = _clientes_asignados_a(request, clientes)
@@ -368,6 +370,78 @@ def crear_cliente_api(request):
         },
         status=201,
     )
+
+
+@requiere_rol("ADMINISTRADOR")
+@require_http_methods(["GET", "POST"])
+def comisiones_categorias_api(request):
+    """Consulta o actualiza las comisiones persistentes de las categorías."""
+
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "categorias": [
+                    {
+                        "id": categoria.id,
+                        "nombre": categoria.nombre,
+                        "porcentaje_comision": str(categoria.porcentaje_comision),
+                    }
+                    for categoria in CategoriaCliente.objects.order_by("nombre")
+                ]
+            }
+        )
+
+    datos = _json_body(request)
+    if not isinstance(datos, dict) or not isinstance(datos.get("comisiones"), list):
+        return JsonResponse(
+            {"error": "Debe enviar la lista de comisiones por categoría."},
+            status=400,
+        )
+
+    entradas = datos["comisiones"]
+    try:
+        ids = [int(entrada.get("id")) for entrada in entradas if isinstance(entrada, dict)]
+    except (TypeError, ValueError):
+        ids = []
+    if len(ids) != len(entradas) or len(set(ids)) != len(ids):
+        return JsonResponse({"error": "La lista de categorías no es válida."}, status=400)
+
+    with transaction.atomic():
+        categorias = {
+            categoria.id: categoria
+            for categoria in CategoriaCliente.objects.select_for_update().filter(id__in=ids)
+        }
+        if len(categorias) != len(ids):
+            return JsonResponse({"error": "Una categoría no existe."}, status=404)
+
+        actualizadas = []
+        for entrada in entradas:
+            try:
+                porcentaje = Decimal(str(entrada.get("porcentaje_comision")))
+            except (InvalidOperation, TypeError, ValueError):
+                return JsonResponse(
+                    {"error": "Cada comisión debe ser un número entre 0 y 100."},
+                    status=400,
+                )
+            if not porcentaje.is_finite():
+                return JsonResponse(
+                    {"error": "Cada comisión debe ser un número entre 0 y 100."},
+                    status=400,
+                )
+            categoria = categorias[int(entrada["id"])]
+            categoria.porcentaje_comision = porcentaje
+            try:
+                categoria.full_clean()
+            except ValidationError:
+                return JsonResponse(
+                    {"error": "Cada comisión debe ser un número entre 0 y 100."},
+                    status=400,
+                )
+            actualizadas.append(categoria)
+
+        CategoriaCliente.objects.bulk_update(actualizadas, ["porcentaje_comision"])
+
+    return JsonResponse({"message": "Comisiones actualizadas correctamente."})
 
 
 @requiere_rol("ADMINISTRADOR")

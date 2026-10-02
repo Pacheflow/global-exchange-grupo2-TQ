@@ -185,6 +185,12 @@
     return parsed.toLocaleString('es-PY', { minimumFractionDigits: 0, maximumFractionDigits: 6 });
   }
 
+  function rateNumber(value) {
+    return window.GEApp && window.GEApp.formatRate
+      ? window.GEApp.formatRate(value)
+      : number(value);
+  }
+
   function relativeDate(value) {
     var seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
     if (seconds < 60) return 'hace menos de 1 min';
@@ -225,7 +231,7 @@
         ? '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>'
         : '<span class="ge-state-dot"><i></i>Inactiva</span>';
       return '<tr data-id="' + rate.id + '"><td><div class="ge-mono-cell"><span style="font-size:18px">' + flag(rate.moneda_origen.codigo) + '</span><strong class="ge-mono">' + esc(pair) + '</strong></div></td>' +
-        '<td class="ge-mono">' + number(rate.compra) + '</td><td class="ge-mono">' + number(rate.venta) + '</td>' +
+        '<td class="ge-mono">' + rateNumber(rate.compra) + '</td><td class="ge-mono">' + rateNumber(rate.venta) + '</td>' +
         '<td><span class="' + trendClass + '">' + trend + (previous ? Math.abs(change).toFixed(2) + '%' : '') + '</span></td>' +
         '<td>' + status + '</td>' +
         '<td class="ge-frontend-note">' + esc(relativeDate(rate.fecha_registro)) + '</td><td><div class="ge-btn-row">' + edit +
@@ -243,7 +249,7 @@
       var pair = entry.moneda_origen.codigo + '/' + entry.moneda_destino.codigo;
       var status = entry.vigente ? '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>' : '<span class="ge-state-dot"><i></i>Histórica</span>';
       var user = entry.usuario_username || entry.usuario_id || '—';
-      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + esc(pair) + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td>' + status + '</td><td>' + esc(user) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
+      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + esc(pair) + '</td><td class="ge-mono">' + rateNumber(entry.compra) + '</td><td class="ge-mono">' + rateNumber(entry.venta) + '</td><td>' + status + '</td><td>' + esc(user) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
     }).join('');
   }
 
@@ -274,8 +280,8 @@
     var content = '<form data-api-form><div class="ge-form-grid">' +
       field('MONEDA DE ORIGEN', '<select class="ge-input" name="origen" required>' + currencyOptions(origin) + '</select>') +
       field('MONEDA DE DESTINO', '<select class="ge-input" name="destino" required>' + currencyOptions(destination) + '</select>') + '</div><div class="ge-form-grid">' +
-      field('PRECIO COMPRA', '<input class="ge-input ge-mono" type="number" min="0.000001" step="0.000001" name="compra" required value="' + esc(rate ? rate.compra : '') + '">') +
-      field('PRECIO VENTA', '<input class="ge-input ge-mono" type="number" min="0.000001" step="0.000001" name="venta" required value="' + esc(rate ? rate.venta : '') + '">') + '</div></form>';
+      field('PRECIO COMPRA', '<input class="ge-input ge-mono" type="number" min="0.0000000001" step="0.0000000001" name="compra" required value="' + esc(rate ? rate.compra : '') + '">') +
+      field('PRECIO VENTA', '<input class="ge-input ge-mono" type="number" min="0.0000000001" step="0.0000000001" name="venta" required value="' + esc(rate ? rate.venta : '') + '">') + '</div></form>';
     dialog('ge-rate-form', rate ? 'Editar tasa comercial' : 'Nueva tasa comercial', content, rate ? 'Guardar nueva versión' : 'Crear tasa comercial', function (box, close) {
       var form = box.querySelector('form');
       if (!form.reportValidity()) return false;
@@ -296,18 +302,20 @@
       var pair = entry.moneda_origen.codigo + '/' + entry.moneda_destino.codigo;
       var status = entry.vigente ? '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span>' : '<span class="ge-state-dot"><i></i>Histórica</span>';
       var user = entry.usuario_username || entry.usuario_id || '—';
-      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + esc(pair) + '</td><td class="ge-mono">' + number(entry.compra) + '</td><td class="ge-mono">' + number(entry.venta) + '</td><td>' + status + '</td><td>' + esc(user) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
+      return '<tr><td class="ge-mono">v' + entry.version + '</td><td class="ge-mono">' + esc(pair) + '</td><td class="ge-mono">' + rateNumber(entry.compra) + '</td><td class="ge-mono">' + rateNumber(entry.venta) + '</td><td>' + status + '</td><td>' + esc(user) + '</td><td class="ge-frontend-note">' + esc(new Date(entry.fecha_registro).toLocaleString('es-PY')) + '</td></tr>';
     }).join('');
     dialog('ge-rate-history', 'Historial de tasa comercial', '<div class="ge-card" style="overflow:auto"><table class="ge-table"><thead><tr><th>Versión</th><th>Par</th><th>Compra</th><th>Venta</th><th>Estado</th><th>Usuario</th><th>Fecha</th></tr></thead><tbody>' + rows + '</tbody></table></div>', 'Cerrar');
   }
 
   function initRates() {
     request(page.dataset.listUrl).then(renderReferenceRates).catch(function (error) {
-      body.setAttribute('aria-busy', 'false');
+      if (body) body.setAttribute('aria-busy', 'false');
       var commercialBody = page.querySelector('[data-commercial-rates]');
       if (commercialBody) commercialBody.setAttribute('aria-busy', 'false');
-      body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
-        esc(error.message) + '</p></article>';
+      if (body) {
+        body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
+          esc(error.message) + '</p></article>';
+      }
       notify(error.message, 'error');
     });
 
@@ -437,13 +445,14 @@
             esc(item.par) + '</strong><span class="ge-frontend-note">Tasa comercial</span></div></div>' +
             '<span class="ge-state-dot ge-state-dot--on"><i></i>Vigente</span></div>' +
             '<div class="ge-quote-rates"><div><small>COMPRA</small><strong class="ge-mono">' +
-            number(item.compra) + '</strong></div><div class="ge-quote-divider"></div>' +
-            '<div><small>VENTA</small><strong class="ge-mono">' + number(item.venta) + '</strong></div></div>' +
+            rateNumber(item.compra) + '</strong></div><div class="ge-quote-divider"></div>' +
+            '<div><small>VENTA</small><strong class="ge-mono">' + rateNumber(item.venta) + '</strong></div></div>' +
             '<div class="ge-frontend-note" style="text-align:center">Actualizada ' +
             esc(relativeDate(item.fecha_hora)) + '</div></article>';
         }).join('');
       }
     }
+    if (!body) return;
     body.setAttribute('aria-busy', 'false');
     if (!items.length) {
       body.innerHTML = '<article class="ge-card ge-empty"><strong>Sin tasas disponibles</strong><p>' +
@@ -461,7 +470,7 @@
         esc(item.par) + '</strong><span class="ge-frontend-note">Base ' +
         esc(item.moneda_base) + '</span></div></div><div>' + stale + '</div></div>' +
         '<div class="ge-quote-rates"><div><small>TASA DE REFERENCIA</small><strong class="ge-mono">' +
-        number(item.valor) + '</strong></div><div class="ge-quote-divider"></div>' +
+        rateNumber(item.valor) + '</strong></div><div class="ge-quote-divider"></div>' +
         '<div><small>FUENTE</small><strong>' + esc(item.fuente) + '</strong></div></div>' +
         '<div class="ge-frontend-note" style="text-align:center">Actualizada ' +
         esc(relativeDate(item.fecha_hora)) + ' · Vigente hasta ' +
@@ -533,7 +542,7 @@
         result.textContent = number(data.resultado) + ' ' + data.moneda_destino;
         delivered.textContent = number(data.monto) + ' ' + data.moneda_origen;
         rate.textContent = '1 ' + data.moneda_origen + ' = ' +
-          number(data.tasa) + ' ' + data.moneda_destino;
+          rateNumber(data.tasa) + ' ' + data.moneda_destino;
         rateType.textContent = data.tipo_tasa || '—';
         updated.textContent = new Date(data.fecha_hora).toLocaleString('es-PY');
         root.setAttribute('aria-busy', 'false');

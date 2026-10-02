@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/operaciones/", include("operaciones.urls")),
 
     path("metodos-pago/", metodos_pago_views.inicio_metodos_pago, name="metodos_pago_pagina"),
+    path("operaciones/", include("operaciones.web_urls")),
 
     path("", include("usuarios.urls")),
 ]

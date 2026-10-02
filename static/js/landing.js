@@ -12,6 +12,10 @@
     return Number.isFinite(parsed) ? parsed.toLocaleString('es-PY', { maximumFractionDigits: 10 }) : '—';
   }
 
+  function rateNumber(value) {
+    return window.GEApp && window.GEApp.formatRate ? window.GEApp.formatRate(value) : number(value);
+  }
+
   function localDate(value) {
     var parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString('es-PY');
@@ -61,8 +65,8 @@
       }
       board.querySelector('[data-market-pair]').textContent = rate.par;
       board.querySelector('[data-market-subtitle]').textContent = rate.moneda_base + ' / ' + rate.moneda_cotizada;
-      board.querySelector('[data-market-primary]').textContent = number(rate.valor);
-      board.querySelector('[data-market-buy]').textContent = number(rate.valor);
+      board.querySelector('[data-market-primary]').textContent = rateNumber(rate.valor);
+      board.querySelector('[data-market-buy]').textContent = rateNumber(rate.valor);
       board.querySelector('[data-market-sell]').textContent = rate.fuente;
       board.querySelector('[data-market-change]').textContent = statusLabel(data, rate);
       board.querySelector('[data-market-chart-pair]').textContent = rate.par;
@@ -72,7 +76,7 @@
     board.querySelectorAll('[data-market-code]').forEach(function (button) {
       var rate = byCode(button.dataset.marketCode);
       button.querySelector('small').textContent = rate ? rate.par : button.dataset.marketCode;
-      button.querySelector('[data-market-quote]').textContent = rate ? number(rate.valor) : '—';
+      button.querySelector('[data-market-quote]').textContent = rate ? rateNumber(rate.valor) : '—';
       button.querySelector('[data-market-option-state]').textContent = rate ? statusLabel(data, rate) : 'Sin datos';
       button.addEventListener('click', function () { render(rate); });
     });
@@ -87,7 +91,7 @@
     var body = landing.querySelector('[data-public-rates-body]');
     body.innerHTML = rates.length ? rates.map(function (rate) {
       return '<tr><td><strong>' + esc(rate.par) + '</strong><small>Base ' + esc(rate.moneda_base) + '</small></td>' +
-        '<td><span><span class="ge-animated-price">' + number(rate.valor) + '</span></span></td>' +
+        '<td><span><span class="ge-animated-price">' + rateNumber(rate.valor) + '</span></span></td>' +
         '<td><small>' + esc(rate.fuente) + '</small></td>' +
         '<td><div class="frontend-table-chart">Próximamente</div></td>' +
         '<td><span>' + esc(statusLabel(data, rate)) + '</span></td>' +
@@ -155,7 +159,7 @@
       request(landing.dataset.simulateUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token ? token.value : '' }, body: JSON.stringify({ moneda_origen_id: Number(from.value), moneda_destino_id: Number(to.value), monto: raw }) }).then(function (result) {
         if (!validResult(result)) throw new Error('El servicio devolvió una respuesta de simulación inválida.');
         output.textContent = number(result.resultado);
-        rateOutput.textContent = '1 ' + result.moneda_origen + ' = ' + number(result.tasa) + ' ' + result.moneda_destino;
+        rateOutput.textContent = '1 ' + result.moneda_origen + ' = ' + rateNumber(result.tasa) + ' ' + result.moneda_destino;
         rateType.textContent = result.tipo_tasa || '—';
         updated.textContent = localDate(result.fecha_hora);
       }).catch(function (requestError) { showError(requestError.message); });

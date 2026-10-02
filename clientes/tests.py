@@ -1,5 +1,6 @@
 import json
 import time
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.db import IntegrityError, transaction
@@ -29,6 +30,66 @@ def autenticar_con_roles(test_case, roles, *, sub="admin-id"):
 
 def autenticar_admin(test_case):
     autenticar_con_roles(test_case, ["ADMINISTRADOR"])
+
+
+class ComisionesCategoriasApiTests(TestCase):
+    """Pruebas de la configuración persistente de comisiones."""
+
+    def setUp(self):
+        autenticar_admin(self)
+        self.url = reverse("clientes_api:comisiones_categorias")
+        self.minorista = CategoriaCliente.objects.get(nombre="Minorista")
+        self.corporativo = CategoriaCliente.objects.get(nombre="Corporativo")
+        self.vip = CategoriaCliente.objects.get(nombre="VIP")
+
+    def test_administrador_actualiza_comisiones(self):
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "comisiones": [
+                        {"id": self.minorista.id, "porcentaje_comision": "8.25"},
+                        {"id": self.corporativo.id, "porcentaje_comision": "6.25"},
+                        {"id": self.vip.id, "porcentaje_comision": "4.50"},
+                    ]
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.minorista.refresh_from_db()
+        self.corporativo.refresh_from_db()
+        self.vip.refresh_from_db()
+        self.assertEqual(self.minorista.porcentaje_comision, Decimal("8.25"))
+        self.assertEqual(self.corporativo.porcentaje_comision, Decimal("6.25"))
+        self.assertEqual(self.vip.porcentaje_comision, Decimal("4.50"))
+
+    def test_comision_fuera_de_rango_rechaza_todo_el_lote(self):
+        original = self.minorista.porcentaje_comision
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps(
+                {
+                    "comisiones": [
+                        {"id": self.minorista.id, "porcentaje_comision": "101"},
+                    ]
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.minorista.refresh_from_db()
+        self.assertEqual(self.minorista.porcentaje_comision, original)
+
+    def test_usuario_no_administrador_no_puede_configurar_comisiones(self):
+        autenticar_con_roles(self, ["USUARIO"], sub="usuario-basico")
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
 
 
 class ClientesApiEsencialesTests(TestCase):
