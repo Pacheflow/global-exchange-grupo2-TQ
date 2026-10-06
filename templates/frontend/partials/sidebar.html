@@ -11,7 +11,7 @@
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
       <a href="{% url 'usuarios:pagos' %}" {% if request.resolver_match.url_name == 'pagos' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='payments' size=18 %}</span><span class="ge-frontend-nav-label">Métodos de pago</span></a>
-      {% include 'frontend/partials/sidebar_pending.html' with icon='cash' label='Cajas' %}
+      <a href="{% url 'cajas:inicio' %}" {% if request.resolver_match.namespace == 'cajas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='cash' size=18 %}</span><span class="ge-frontend-nav-label">Cajas</span></a>
 
     {% elif rol == 'analista' %}
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>

@@ -2,37 +2,25 @@
 {% block title %}Gestión de cajas · Global Exchange{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-  <div class="ge-frontend-main-pad">
-    <div class="ge-frontend-section-head">
-      <div>
-        <span class="ge-frontend-eyebrow">Operación de efectivo</span>
-        <h2 class="ge-frontend-h2">Gestión de cajas</h2>
-        <p class="ge-frontend-subtitle">Administración del ciclo operativo de cajas.</p>
-      </div>
-      <span class="ge-status-badge ge-status-badge--warning ge-status-badge--md"><span class="ge-status-dot"></span>Pendiente de implementación</span>
-    </div>
-
-    <section class="ge-card ge-cajas-placeholder" aria-labelledby="cajas-pending-title">
-      <span class="ge-cajas-placeholder-icon" aria-hidden="true">{% include 'components/icon.html' with name='cash' size=24 %}</span>
-      <div>
-        <h3 id="cajas-pending-title">Módulo en preparación</h3>
-        <p>Esta pantalla reserva el espacio visual del futuro módulo. Todavía no existen operaciones de caja conectadas al backend.</p>
-      </div>
-    </section>
-
-    <section aria-labelledby="cajas-features-title">
-      <div class="ge-frontend-section-head ge-cajas-section-head">
-        <div>
-          <h3 id="cajas-features-title" class="ge-frontend-panel-title">Funcionalidades futuras</h3>
-          <p class="ge-frontend-subtitle">Capacidades previstas para la implementación del módulo.</p>
-        </div>
-      </div>
-      <div class="ge-cajas-features">
-        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='cash' size=20 %}</span><div><h4>Apertura</h4><p>Inicio de jornada y registro del fondo inicial.</p></div></article>
-        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='history' size=20 %}</span><div><h4>Cierre</h4><p>Consolidación y cierre operativo de la jornada.</p></div></article>
-        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='reconciliation' size=20 %}</span><div><h4>Arqueo</h4><p>Comparación de saldos registrados y efectivo disponible.</p></div></article>
-        <article class="ge-card ge-cajas-feature"><span>{% include 'components/icon.html' with name='transfer' size=20 %}</span><div><h4>Transferencias</h4><p>Movimientos controlados de fondos entre cajas.</p></div></article>
-      </div>
-    </section>
+<div class="ge-frontend-main-pad">
+  <div class="ge-frontend-section-head">
+    <div><h2 class="ge-frontend-h2">Gestión de cajas</h2><p class="ge-frontend-subtitle">Configuración de cajas operativas.</p></div>
+    <a class="ge-btn-primary" href="{% url 'cajas:crear' %}">Nueva caja</a>
   </div>
+  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+  <div class="ge-card"><table class="ge-table">
+    <thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody>{% for caja in cajas %}
+      <tr><td>{{ caja.codigo }}</td><td>{{ caja.nombre }}</td><td>{{ caja.get_estado_display }}</td>
+        <td><form method="post" action="{% url 'cajas:cambiar_estado' caja.id %}">{% csrf_token %}
+          {% if caja.estado == 'HABILITADA' %}
+            <input type="hidden" name="estado" value="DESHABILITADA"><button class="ge-btn-ghost" type="submit">Deshabilitar</button>
+          {% else %}
+            <input type="hidden" name="estado" value="HABILITADA"><button class="ge-btn-ghost" type="submit">Habilitar</button>
+          {% endif %}
+        </form></td>
+      </tr>
+    {% empty %}<tr><td colspan="4">Todavía no hay cajas registradas.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
 {% endblock %}

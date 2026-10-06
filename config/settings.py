@@ -278,6 +278,7 @@ INSTALLED_APPS = [
     "tasas",
     "metodos_pago",
     "operaciones",
+    "cajas",
 ]
 
 
