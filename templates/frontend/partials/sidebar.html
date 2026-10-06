@@ -19,7 +19,7 @@
 
     {% elif rol == 'cajero' %}
       <a href="{% url 'operaciones_web:inicio' %}" {% if request.resolver_match.namespace == 'operaciones_web' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='operations' size=18 %}</span><span class="ge-frontend-nav-label">Operaciones</span></a>
-      {% include 'frontend/partials/sidebar_pending.html' with icon='cash' label='Mi caja' %}
+      <a href="{% url 'cajas:operar' %}" {% if request.resolver_match.namespace == 'cajas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='cash' size=18 %}</span><span class="ge-frontend-nav-label">Abrir caja</span></a>
       {% include 'frontend/partials/sidebar_pending.html' with icon='balance' label='Saldos' %}
       {% include 'frontend/partials/sidebar_pending.html' with icon='transactions' label='Movimientos' %}
       {% include 'frontend/partials/sidebar_pending.html' with icon='transfer' label='Transferencias' %}

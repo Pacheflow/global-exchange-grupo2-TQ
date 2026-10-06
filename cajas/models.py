@@ -43,3 +43,53 @@ class Caja(models.Model):
     def __str__(self):
         """Identifica la caja mediante su código y nombre."""
         return f"{self.codigo} - {self.nombre}"
+
+
+class PeriodoCaja(models.Model):
+    """Período operativo con responsable externo y apertura registrada por el servidor.
+
+    CERRADO reserva el contrato para una HU posterior; aquí no se implementa cierre.
+    """
+
+    ESTADOS = [("ABIERTO", "Abierto"), ("CERRADO", "Cerrado")]
+    caja = models.ForeignKey(Caja, on_delete=models.PROTECT, related_name="periodos")
+    estado = models.CharField(max_length=7, choices=ESTADOS, default="ABIERTO")
+    responsable_keycloak_id = models.CharField(max_length=255, editable=False)
+    responsable_username = models.CharField(max_length=150, blank=True, editable=False)
+    fecha_apertura = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-fecha_apertura",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["caja"], condition=Q(estado="ABIERTO"),
+                name="caja_unico_periodo_abierto",
+            ),
+            models.CheckConstraint(
+                condition=Q(estado__in=["ABIERTO", "CERRADO"]),
+                name="periodo_caja_estado_valido",
+            ),
+        ]
+
+    def __str__(self):
+        """Identifica el período sin confundirlo con la habilitación de la caja."""
+        return f"{self.caja.codigo} - período {self.pk} ({self.estado})"
+
+
+class SaldoInicialCaja(models.Model):
+    """Importe histórico por moneda de una apertura; no representa saldo actual."""
+
+    periodo = models.ForeignKey(PeriodoCaja, on_delete=models.PROTECT, related_name="saldos_iniciales")
+    moneda = models.ForeignKey("monedas.Moneda", on_delete=models.PROTECT, related_name="saldos_iniciales_caja")
+    monto = models.DecimalField(max_digits=18, decimal_places=6)
+
+    class Meta:
+        ordering = ("moneda__codigo",)
+        constraints = [
+            models.UniqueConstraint(fields=["periodo", "moneda"], name="saldo_inicial_periodo_moneda_unico"),
+            models.CheckConstraint(condition=Q(monto__gte=0), name="saldo_inicial_no_negativo"),
+        ]
+
+    def __str__(self):
+        """Devuelve el importe inicial completo y su moneda."""
+        return f"{self.monto} {self.moneda.codigo} - período {self.periodo_id}"

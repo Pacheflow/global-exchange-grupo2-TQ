@@ -7,12 +7,12 @@
     <div><h2 class="ge-frontend-h2">Gestión de cajas</h2><p class="ge-frontend-subtitle">Configuración de cajas operativas.</p></div>
     <a class="ge-btn-primary" href="{% url 'cajas:crear' %}">Nueva caja</a>
   </div>
-  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
   <div class="ge-card"><table class="ge-table">
     <thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
     <tbody>{% for caja in cajas %}
       <tr><td>{{ caja.codigo }}</td><td>{{ caja.nombre }}</td><td>{{ caja.get_estado_display }}</td>
-        <td><form method="post" action="{% url 'cajas:cambiar_estado' caja.id %}">{% csrf_token %}
+        <td><form method="post" action="{% url 'cajas:cambiar_estado' caja.id %}" up-submit="false">{% csrf_token %}
           {% if caja.estado == 'HABILITADA' %}
             <input type="hidden" name="estado" value="DESHABILITADA"><button class="ge-btn-ghost" type="submit">Deshabilitar</button>
           {% else %}

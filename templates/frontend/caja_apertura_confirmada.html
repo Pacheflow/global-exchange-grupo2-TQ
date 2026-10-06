@@ -1,0 +1,17 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+{% block title %}Caja abierta · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h2 class="ge-frontend-h2">Caja abierta correctamente</h2>
+  <p>Caja {{ periodo.caja.codigo }} — período {{ periodo.id }} — {{ periodo.get_estado_display }}</p>
+  <p>Responsable: {{ periodo.responsable_username }} ({{ periodo.responsable_keycloak_id }}).</p>
+  <p>Apertura: {{ periodo.fecha_apertura|date:'d/m/Y H:i:s' }}.</p>
+  <table class="ge-table"><thead><tr><th>Moneda</th><th>Saldo inicial registrado</th></tr></thead><tbody>
+    {% for saldo in periodo.saldos_iniciales.all %}<tr><td>{{ saldo.moneda.codigo }}</td><td>{{ saldo.monto|importe_inicial }}</td></tr>{% endfor %}
+  </tbody></table>
+  <p>El período queda disponible como base para las futuras funciones de movimientos.</p>
+  <a href="{% url 'cajas:operar' %}">Volver a cajas</a>
+</div>
+{% endblock %}

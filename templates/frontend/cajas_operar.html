@@ -1,0 +1,17 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Abrir caja · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h2 class="ge-frontend-h2">Abrir caja</h2>
+  <p>Seleccioná una caja habilitada para iniciar su período operativo.</p>
+  <div class="ge-card"><table class="ge-table">
+    <thead><tr><th>Código</th><th>Nombre</th><th>Disponibilidad</th><th>Acción</th></tr></thead>
+    <tbody>{% for fila in filas %}<tr>
+      <td>{{ fila.caja.codigo }}</td><td>{{ fila.caja.nombre }}</td>
+      <td>{% if fila.abierta %}Con período abierto{% else %}Disponible para apertura{% endif %}</td>
+      <td>{% if not fila.abierta %}<a class="ge-btn-primary" href="{% url 'cajas:apertura' fila.caja.id %}">Registrar apertura</a>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="4">No hay cajas habilitadas.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}
