@@ -1,0 +1,30 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+{% block title %}Apertura {{ caja.codigo }} · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h2 class="ge-frontend-h2">{% if confirmar %}Confirmar apertura{% else %}Saldos iniciales{% endif %} — {{ caja.codigo }}</h2>
+  <p>{{ caja.nombre }}. Registrá un importe explícito por cada moneda. Se permite cero.</p>
+  {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
+  {% if sin_monedas %}<p role="alert">No hay monedas activas configuradas. Un administrador debe habilitar al menos una.</p>{% endif %}
+  <form method="post" class="ge-card" up-submit="false">{% csrf_token %}
+    {{ form.non_field_errors }}{{ form.catalogo }}
+    {% if confirmar %}
+      <p>Revisá los importes completos antes de confirmar.</p>
+      <table class="ge-table"><thead><tr><th>Moneda</th><th>Saldo inicial</th></tr></thead><tbody>
+      {% for campo in form.visible_fields %}
+        <tr><td>{{ campo.label }}</td><td>{{ campo.value|importe_inicial }}</td></tr>
+      {% endfor %}</tbody></table>
+      {% for campo in form.visible_fields %}<input type="hidden" name="{{ campo.name }}" value="{{ campo.value }}">{% endfor %}
+      <button class="ge-btn-primary" name="accion" value="confirmar" type="submit">Confirmar apertura</button>
+      <button class="ge-btn-ghost" name="accion" value="editar" type="submit" formnovalidate>Volver a editar</button>
+    {% else %}
+      <p>Usá punto para decimales, hasta seis posiciones, sin separadores de miles.</p>
+      {% for campo in form.visible_fields %}<p>{{ campo.label_tag }} {{ campo }} {{ campo.errors }}</p>{% endfor %}
+      {% if not sin_monedas %}<button class="ge-btn-primary" name="accion" value="revisar" type="submit">Revisar importes</button>{% endif %}
+    {% endif %}
+    <a class="ge-btn-ghost" href="{% url 'cajas:operar' %}">Volver a cajas</a>
+  </form>
+</div>
+{% endblock %}
