@@ -40,15 +40,17 @@ from config import settings
 print(json.dumps({
     "debug": settings.DEBUG,
     "allowed_hosts": settings.ALLOWED_HOSTS,
-    "csrf_origins": settings.CSRF_TRUSTED_ORIGINS,
+    "csrf_origins": getattr(settings, "CSRF_TRUSTED_ORIGINS", []),
     "proxy_header": getattr(settings, "SECURE_PROXY_SSL_HEADER", None),
-    "forwarded_host": settings.USE_X_FORWARDED_HOST,
-    "ssl_redirect": settings.SECURE_SSL_REDIRECT,
-    "hsts": settings.SECURE_HSTS_SECONDS,
+    "forwarded_host": getattr(settings, "USE_X_FORWARDED_HOST", False),
+    "ssl_redirect": getattr(settings, "SECURE_SSL_REDIRECT", False),
+    "hsts": getattr(settings, "SECURE_HSTS_SECONDS", 0),
     "session_secure": settings.SESSION_COOKIE_SECURE,
     "csrf_secure": settings.CSRF_COOKIE_SECURE,
     "keycloak_public": settings.KEYCLOAK_PUBLIC_URL,
     "keycloak_internal": settings.KEYCLOAK_INTERNAL_URL,
+    "mailer": settings.MAILERS,
+    "from_email": settings.DEFAULT_FROM_EMAIL,
 }))
 """
         result = subprocess.run(
@@ -95,6 +97,24 @@ print(json.dumps({
         self.assertEqual(values["hsts"], 0)
         self.assertFalse(values["session_secure"])
         self.assertFalse(values["csrf_secure"])
+
+    def test_correo_desarrollo_mailpit_y_produccion_conserva_variables(self):
+        """Django desarrollo usa Mailpit sin TLS/auth; producción conserva SMTP y remitente configurados."""
+        resultado = self._load_settings(DJANGO_ENVIRONMENT="development")
+        self.assertEqual(resultado.returncode, 0, resultado.stderr)
+        valores = json.loads(resultado.stdout)
+        self.assertEqual(valores["mailer"]["default"], {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": {"host": "mailpit", "port": 1025, "username": "", "password": "",
+                        "use_tls": False, "use_ssl": False, "timeout": 8},
+        })
+        resultado = self._load_settings(EMAIL_HOST="smtp.example.test", EMAIL_PORT="587", EMAIL_USE_TLS="true",
+                                        DEFAULT_FROM_EMAIL="tasas@example.test")
+        self.assertEqual(resultado.returncode, 0, resultado.stderr)
+        valores = json.loads(resultado.stdout)
+        self.assertEqual(valores["mailer"]["default"]["OPTIONS"],
+                         {"host": "smtp.example.test", "port": 587, "use_tls": True, "timeout": 8})
+        self.assertEqual(valores["from_email"], "tasas@example.test")
 
     def test_production_rejects_default_secret(self):
         result = self._load_settings(DJANGO_SECRET_KEY="django-dev-only-change-me")

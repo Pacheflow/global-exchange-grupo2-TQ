@@ -398,6 +398,9 @@ def actualizar_tasa_comercial(
     nueva_tasa.full_clean()
     nueva_tasa.save()
 
+    from .notificaciones import registrar_evento
+    registrar_evento(nueva_tasa, tasa_actual)
+
     return nueva_tasa
 
 

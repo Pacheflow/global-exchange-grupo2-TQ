@@ -1,14 +1,18 @@
 import json
 
+from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.shortcuts import redirect, render
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from usuarios.decorators import requiere_alguno_de_roles, requiere_rol
-from usuarios.services.keycloak import SESSION_USUARIO
+from usuarios.decorators import requiere_alguno_de_roles, requiere_rol, requiere_roles_web
+from usuarios.services.keycloak import SESSION_USUARIO, SESSION_ROLES
 
 from monedas.models import Moneda
-from .models import TasaComercial
+from .models import TasaComercial, ConfiguracionNotificacionTasa, EventoNotificacionTasa
+from .forms import UmbralNotificacionForm
+from .notificaciones import configurar_umbral
 from .precision import normalizar_tasa
 from .services import (
     actualizar_tasa_comercial,
@@ -16,6 +20,29 @@ from .services import (
     desactivar_tasa_comercial,
 )
 from .simulador import simular_conversion
+
+
+@requiere_roles_web("ADMINISTRADOR")
+@require_http_methods(["GET", "POST"])
+def configurar_notificaciones(request):
+    """Configura el umbral con POST/CSRF; no evalúa tasas ni envía correos retroactivos."""
+    configuracion = ConfiguracionNotificacionTasa.objects.get(pk=1)
+    formulario = UmbralNotificacionForm(
+        request.POST if request.method == "POST" else None,
+        initial={"umbral_porcentaje": format(configuracion.umbral_porcentaje, "f")},
+    )
+    if request.method == "POST":
+        if formulario.is_valid():
+            try:
+                configurar_umbral(valor=formulario.cleaned_data["umbral_porcentaje"],
+                                  roles=request.session.get(SESSION_ROLES, []))
+            except ValidationError as error:
+                formulario.add_error("umbral_porcentaje", " ".join(error.messages))
+            else:
+                messages.success(request, "Umbral actualizado. Se aplicará a futuras actualizaciones de tasas.")
+                return redirect("tasas_web:configurar_notificaciones")
+        return render(request, "frontend/notificaciones_configurar.html", {"form": formulario}, status=400)
+    return render(request, "frontend/notificaciones_configurar.html", {"form": formulario})
 
 
 def _serializar_tasa_referencia(tasa, *, desactualizada):
@@ -164,9 +191,15 @@ def administrar_tasa_comercial(request):
             status=400,
         )
 
+    evento = EventoNotificacionTasa.objects.get(tasa=tasa)
+    fallos = bool(evento.error_destinatarios) or evento.resultados.filter(
+        estado__in=["FALLIDO", "EN_PROCESO"],
+    ).exists()
     return JsonResponse(
         {
-            "mensaje": "Tasa comercial actualizada correctamente.",
+            "mensaje": ("La tasa se guardó, pero no se pudieron enviar todas las notificaciones."
+                        if fallos else "Tasa comercial actualizada correctamente."),
+            "advertencia_notificaciones": fallos,
             "tasa": _serializar_tasa(tasa),
         },
         status=201,
