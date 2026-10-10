@@ -526,6 +526,7 @@ MAILERS = {
                     "true",
                     "yes",
                 },
+                "timeout": 8,
             }
             if DJANGO_ENVIRONMENT == "production"
             else {}
@@ -539,3 +540,11 @@ if DJANGO_ENVIRONMENT == "production":
         "DEFAULT_FROM_EMAIL",
         "noreply@globalexchange.local",
     )
+else:
+    # HU-20: Django envía a Mailpit dentro de Compose, independientemente de Keycloak.
+    MAILERS["default"] = {
+        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "OPTIONS": {"host": "mailpit", "port": 1025, "username": "", "password": "",
+                    "use_tls": False, "use_ssl": False, "timeout": 8},
+    }
+    DEFAULT_FROM_EMAIL = "noreply@globalexchange.com"
