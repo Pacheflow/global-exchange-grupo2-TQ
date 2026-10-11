@@ -10,13 +10,15 @@
 
 **Proveedor:** Stripe, exclusivamente modo TEST
 
-**Estado:** pagos implementados y QA técnico real aprobado; integración con Caja y QA visual autenticado pendientes.
+**Estado:** cierre técnico del alcance aprobado de HU-28: Pago, Stripe TEST, liquidación con Caja y UX de Cajero implementados. Regresión completa aprobada; QA visual manual aprobado por Axel Pacheco. No implica cierre de Jira ni integración a develop.
+
+**Corte de validación:** 11/10/2026, commit funcional `07ef6fd`.
 
 ## 1. Objetivo
 
 Registrar y procesar el pago de una operación COMPRA mediante Stripe TEST, evitando autorizaciones duplicadas y separando el resultado financiero del procesamiento operativo de la transacción.
 
-La aprobación del pago no completa automáticamente la operación. La finalización posterior debe coordinarse con Caja/HU-41.
+La aprobación del pago no completa automáticamente la operación. La finalización se realiza explícitamente mediante `liquidar_transaccion(...)`, coordinado con Caja/HU-41.
 
 ## 2. Alcance implementado
 
@@ -28,6 +30,8 @@ La aprobación del pago no completa automáticamente la operación. La finalizac
 - Protección de cancelación según el estado del pago.
 - Pruebas de modelo, adaptador offline, servicios, API y concurrencia PostgreSQL.
 - Validación E2E mediante HTTP real y Stripe TEST.
+- Coordinador interno de liquidación COMPRA/VENTA, endpoint HTTP y catálogo de períodos.
+- Bandeja pendiente e historial separados para Cajero, Saldos/Movimientos y contexto reutilizable de Caja/Período.
 
 La integración no incluye Stripe.js, campos de tarjeta, suscripciones, Billing, Connect, refunds, clientes Stripe persistentes ni facturación Stripe.
 
@@ -56,14 +60,14 @@ El servicio reserva el pago dentro de una transacción local, libera los locks a
 - `monto_pago = transaccion.monto_origen`.
 - `moneda_pago = transaccion.moneda_origen`.
 - `base_importe = ORIGEN`.
-- `Pago.APROBADO` mantiene `Transaccion.PENDIENTE`.
+- `Pago.APROBADO` mantiene `Transaccion.PENDIENTE` hasta liquidación explícita. Stripe no representa ingreso de efectivo; COMPRA registra solo EGRESO de monto/moneda destino.
 
 ### VENTA
 
 - Se crea como `Transaccion.PENDIENTE`.
 - No utiliza Stripe ni crea `Pago`.
 - Inicio y reintento de pago la rechazan antes de invocar al proveedor.
-- Su liquidación futura depende del flujo operativo de Caja/HU-41.
+- Su liquidación registra INGRESO origen y EGRESO destino en Caja y completa la operación en el mismo commit.
 
 Importe, moneda, proveedor, instrumento TEST e idempotencia se determinan en backend. El frontend no envía esos valores.
 
@@ -156,7 +160,7 @@ La respuesta expone el resultado local mediante identificadores internos, `estad
 - GET consulta exclusivamente persistencia local.
 - Reintento se permite desde `ERROR`.
 - Recuperación consulta o concilia; no crea ni confirma otro cobro.
-- La autorización valida sesión, rol, cliente seleccionado y asociación activa.
+- La autorización valida sesión, rol efectivo y asociación activa. USUARIO requiere cliente seleccionado; CAJERO puede consultar Pago y liquidar sin selección de cliente. Recuperación conserva su contexto previo (ver roles finales).
 - No se exponen claves ni payloads externos sensibles.
 
 ## 10. Stripe TEST: payload final
@@ -207,7 +211,7 @@ El bloque Pago aparece en el detalle de una COMPRA elegible. Consulta GET al abr
 |---|---|
 | Sin Pago | “Pago no iniciado” / **Iniciar pago** |
 | `EN_PROCESO` | “Pago en proceso” / **Recuperar estado** |
-| `APROBADO` | “Pago aprobado. La operación continúa pendiente de procesamiento.” / sin acción |
+| `APROBADO` | “Pago aprobado. La operación está pendiente de liquidación.” cuando la Transacción sigue pendiente / sin acción |
 | `RECHAZADO` | “Pago rechazado” / sin acción |
 | `ERROR` | “No se pudo completar el pago.” / **Reintentar pago** |
 | `INDETERMINADO` | “Pago pendiente de verificación.” / **Recuperar estado** |
@@ -217,7 +221,7 @@ Los botones se bloquean durante la solicitud. No existen reintentos POST automá
 
 Las respuestas se vinculan al identificador y versión del detalle visible. Una respuesta tardía no actualiza otra operación. Los errores quedan confinados al bloque Pago y conservan el detalle económico.
 
-VENTA y el contexto supervisor quedan fuera de este flujo.
+VENTA y el contexto supervisor quedan fuera del flujo de Pago. Una Transacción completada no muestra acciones de Pago/Liquidación ni mensajes que la describan como pendiente.
 
 ## 12. Pruebas y evidencia
 
@@ -254,21 +258,24 @@ No se aplicaron migraciones sobre la base funcional durante el QA.
 | PaymentIntents asociados | 1 |
 | Cobros TEST adicionales | 0 |
 
-La evidencia valida el recorrido HTTP, servicio, adaptador, Stripe TEST y persistencia. No acredita todavía el recorrido visual autenticado completo.
+Esta es evidencia histórica del E2E de Pago, previa a liquidación. En lectura QA del 11/10/2026, Transacción 7 ya figura COMPLETADA, con Pago APROBADO y un movimiento de egreso. El QA visual manual final fue aprobado por Axel Pacheco; no se presenta como una automatización de navegador.
 
 ## 13. Dependencias, riesgos y deuda
 
-- Integración pendiente con Caja/HU-41.
-- Finalización operativa de COMPRA pendiente.
-- Liquidación de VENTA mediante movimientos de Caja pendiente.
-- `SaldoInicialCaja` representa el importe de apertura; no representa saldo actual.
-- Debe mantenerse la separación entre Pago y efecto operativo de Caja.
-- La limitación previa de `rol_en_cliente` en cancelación permanece como deuda fuera del alcance realizado.
-- QA visual autenticado completo pendiente: el cliente QA no dispone de una identidad Keycloak válida asociada para recorrer la UI.
-- Las pruebas offline no sustituyen la compatibilidad real con Stripe.
-- Después de modificar el adaptador, debe reiniciarse el proceso Python para evitar ejecutar código anterior.
+Caja/HU-41 fue integrada desde `e0944c8` mediante merge `a6989e8`. La liquidación y finalización COMPRA/VENTA están implementadas.
 
-Los datos QA históricos se conservan como evidencia. No debe reintentarse un pago indeterminado para comprobar un cambio de payload.
+Fuera del alcance aprobado de HU-28: arqueo, cierre de Caja, transferencias entre cajas, asignación persistente Cajero–Caja, facturación HU-29/30/31 e historial integral de Caja. No se afirma que estas funciones existan.
+
+Deudas y límites:
+
+- `MovimientoCaja` no tiene FK directa a Transaccion: trazabilidad por clave estable, motivo y referencia externa.
+- `SaldoInicialCaja` representa apertura; saldo actual se calcula en el servicio desde apertura y movimientos.
+- Traducción de algunos errores de Caja mediante mensajes exactos en `_error_liquidacion`; desconocidos → 500 genérico.
+- La limitación previa de `rol_en_cliente` en cancelación permanece fuera de este cierre.
+- Recuperación de Pago conserva cliente seleccionado y asociación RESPONSABLE/OPERADOR; la consulta local de CAJERO admite todos sus clientes asociados activamente. No se amplió recuperación en el cambio de bandeja.
+- Exclusivamente Stripe TEST; no aprobación de uso con dinero real, carga o compatibilidad completa entre navegadores.
+- Runtime QA con bind mount y `--noreload`: reiniciar `web` tras cambios Python/templates. Mantener la DB QA al reiniciar; no recrear a ciegas con configuración funcional.
+- Conservar pagos inciertos históricos; recuperar evidencia antes de considerar otro cobro.
 
 ## 14. Commits relevantes
 
@@ -280,4 +287,102 @@ Los datos QA históricos se conservan como evidencia. No debe reintentarse un pa
 | `47cc18e` | API de pagos y validación Stripe TEST. |
 | `31f89c0` | Estado y acciones de pago en operaciones. |
 
-El alcance implementado no representa todavía el cierre integral de HU-28 con Caja.
+El cierre técnico cubre Pago y liquidación con Caja según las decisiones aprobadas. No se modificó Jira ni se mergeó a develop.
+
+
+## 15. Liquidación con Caja: contrato final
+
+`liquidar_transaccion(*, transaccion_id, periodo_id, usuario_id, username="", roles, cliente_seleccionado_id)` controla toda la unidad atómica. La view no añade un atomic exterior ni invoca Stripe.
+
+| Operación | Precondición | Movimientos | Finalización |
+|---|---|---|---|
+| COMPRA | PENDIENTE y Pago APROBADO coherente con la obligación | EGRESO `monto_destino / moneda_destino` | COMPLETADA después del movimiento |
+| VENTA | PENDIENTE; no requiere ni crea Pago | INGRESO `monto_origen / moneda_origen`, EGRESO `monto_destino / moneda_destino` | COMPLETADA junto con ambos movimientos |
+
+Sin período abierto, moneda configurada o fondos suficientes, no hay efectos parciales. COMPRA conserva Pago APROBADO y Transaccion PENDIENTE; no se repite Stripe. En VENTA el egreso fallido revierte también el ingreso.
+
+Orden de locks: `Transaccion → Pago (COMPRA) → Caja → PeriodoCaja`, con `select_for_update(of=("self",))`. El período identifica la Caja; Caja se bloquea antes de revalidar/bloquear período. No hay IO externo durante liquidación.
+
+Claves independientes de clic, intento y período:
+
+```text
+ge:hu28:transaccion:<id>:caja:ingreso-origen:v1
+ge:hu28:transaccion:<id>:caja:egreso-destino:v1
+```
+
+COMPRA usa solo egreso. Movimiento automático idéntico se reutiliza; payload conflictivo se rechaza. Transacción ya COMPLETADA retorna `repetida=true` sin aplicar otro movimiento.
+
+### API operativa
+
+- `GET /api/operaciones/<id>/periodos-liquidacion/`: solo CAJERO efectivo asociado; COMPRA pendiente con Pago aprobado o VENTA pendiente. Lista períodos ABIERTO de Caja HABILITADA; sin locks, saldos ni reserva de fondos.
+- `POST /api/operaciones/<id>/liquidar/`: solo CAJERO; JSON exacto `{"periodo_id": 123}`. Rechaza campos extra, valores booleanos, no enteros o no positivos.
+- Éxito: `{"transaccion_id": 7, "estado": "COMPLETADA", "repetida": false}`.
+- Entrada/contexto/negocio conocido → 400; inexistente/no autorizado indistinguibles → 404; conflicto de idempotencia → 409; error inesperado o ValidationError desconocido → 500 genérico.
+- CSRF normal y sesión OIDC. No se aceptan importes, monedas, Pago, Caja ni información Stripe desde UI.
+
+## 16. Roles y UX final
+
+| Capacidad | USUARIO | CAJERO | ADMINISTRADOR |
+|---|---|---|---|
+| Crear/previsualizar COMPRA/VENTA | Sí | No | No |
+| Iniciar/reintentar Pago | Sí | No | No |
+| Consultar Pago | Sí, cliente seleccionado | Sí, asociación activa sin selected_client | No endpoint operativo; supervisión de operaciones |
+| Recuperar Pago | Sí, contexto previo | Sí, contexto previo | No |
+| Liquidar | No | Sí, asociación activa sin selected_client | No |
+| Abrir Caja/movimiento manual | No | Sí | No |
+| Consultar saldos/movimientos | No | Sí | Sí, supervisión |
+
+Rol efectivo: ADMINISTRADOR > ANALISTA_CAMBIARIO > CAJERO > USUARIO. Un rol inferior adicional no concede capacidad comercial/operativa.
+
+- `/operaciones/`: CAJERO ve solo PENDIENTE de todos sus clientes asociados activamente; COMPRA liquidable solo con Pago APROBADO, VENTA pendiente liquidable. Sin Nueva operación.
+- `/operaciones/historial/`: CAJERO ve COMPLETADA/CANCELADA, sin acciones; usa API de historial con `?vista=historial`. USUARIO/ADMIN mantienen su historial anterior.
+- `/panel/`: selección explícita por `periodo_id` de URL actual; sin parámetro, selector vacío y sin saldos anteriores. No selección activa en sesión.
+- `/cajas/saldos/` y `/cajas/movimientos/`: selector explícito; navegación cruzada conserva `periodo_id`. Ruta `/cajas/periodos/<id>/saldo/` sigue disponible.
+- Sidebar: una sección activa, sin Transferencias/Arqueo; `up-nav="false"` limita el marcado automático conflictivo de Unpoly al sidebar.
+- `caja_contexto.html` concentra título, descripción, badges y responsable/apertura; CSS mínimo responsive. Nuevo movimiento conserva acción primaria localizada y Consultar saldo secundaria.
+- Liquidación bloquea envíos por transaccion_id y protege respuestas tardías. Solo interpreta éxito con ID correcto, COMPLETADA y repetida booleano.
+- Error SALDO_INSUFICIENTE visible en contenedor independiente `role="alert"`; persiste durante refresh. Ante red incierta se consulta detalle antes de considerar otro envío; no POST automático.
+
+## 17. Evidencia final y DoD técnico
+
+11/10/2026, commit funcional `07ef6fd`:
+
+- Suite completa Docker/PostgreSQL: 452 encontrados y ejecutados; 452 aprobados; 0 fallos/errores (72.980 s).
+- Todos los Node/DOM encontrados: 3 ejecutados y aprobados; 0 fallidos.
+- `node --check static/js/operaciones.js`, Django check y diff check limpios; sin migraciones pendientes.
+- Django creó/eliminó su base de tests; no migraciones en base funcional. QA existente separada.
+- QA visual manual aprobado por Axel Pacheco (evidencia de revisión humana, no captura/automatización nueva).
+- Lectura QA: Transacciones 7/8 COMPRA COMPLETADA con Pago APROBADO y un egreso cada una; 9 VENTA COMPLETADA con dos movimientos; 10 VENTA PENDIENTE con cero movimientos.
+
+| Requisito | Estado | Evidencia | Observación |
+|---|---|---|---|
+| Pago único y cinco estados | VALIDADO | pagos/models.py, pagos/tests.py | OneToOne y constraints |
+| Economía derivada del backend | VALIDADO | pagos/services.py | Snapshots origen |
+| Proveedor neutral y Stripe TEST | VALIDADO | pagos/providers.py, stripe_provider.py | SDK 16.0.0; secretos por entorno |
+| Idempotencia, reintento y recuperación | VALIDADO | pagos/test_services.py, test_stripe_provider.py | Incertidumbre no habilita nuevo cobro |
+| Cancelación protegida | VALIDADO | operaciones/services.py y tests | Transaccion antes de Pago |
+| E2E Stripe TEST e idempotencia real | APROBADO | Evidencia histórica sección 12 | Un PaymentIntent; livemode=false |
+| Sin llamada externa bajo locks | VALIDADO | pagos/services.py | Reserva durable antes de proveedor |
+| COMPRA: egreso destino y finalización | VALIDADO | operaciones/tests.py: test_compra_aprobada_registra_solo_egreso_destino | Cobro digital no es ingreso de Caja |
+| VENTA: dos movimientos atómicos | VALIDADO | operaciones/tests.py | Rollback ante egreso insuficiente |
+| Locks y concurrencia de Caja | VALIDADO | cajas/test_saldos_movimientos.py | Dos egresos, misma clave y orden real |
+| Liquidación concurrente/idempotente | VALIDADO | operaciones/tests.py | COMPRA/VENTA sin duplicación |
+| API Pago, catálogo y liquidación | VALIDADO | pagos/test_views.py, operaciones/tests.py | Permisos, CSRF y respuestas controladas |
+| Separación de roles | VALIDADO | Tests servicios, HTTP y templates | Recuperación conserva alcance anterior |
+| Bandeja/historial y Caja explícita | VALIDADO | test_guillermo.py, usuarios/tests.py, cajas/tests.py | Sin selected_client para CAJERO |
+| Error visible y exclusión UI | VALIDADO | static/js/tests/operaciones.test.cjs | 3 DOM reproducibles |
+| UX y contexto Caja/Período | APROBADO MANUAL | Revisión de Axel Pacheco | Sin asignación permanente |
+| Arqueo/cierre/transferencias/facturación | FUERA DE HU-28 | Alcance aprobado | No se documentan como implementados |
+| FK movimiento y historial integral Caja | DEUDA/FUERA DE HU-28 | cajas/models.py y rutas | Trazabilidad textual existente |
+
+### Commits posteriores al primer corte
+
+| Commit | Contenido |
+|---|---|
+| a6989e8 | Merge Caja HU-40/HU-41 desde e0944c8 |
+| 1b8a4d3 | Coordinador y normalización/concurrencia Caja |
+| 0c6ca42 | Endpoint de liquidación |
+| 9d43048 | Catálogo de períodos |
+| 14b8907 | Separación comercial/liquidación por rol |
+| d4626e4 | Bandeja multi-cliente y resumen Caja |
+| 07ef6fd | Navegación, Saldos/Movimientos, historial y ajustes visuales finales |

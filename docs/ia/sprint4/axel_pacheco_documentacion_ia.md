@@ -88,7 +88,9 @@ La Transacción 7 y el Pago `6efc584f-3441-4916-b263-f07b76e1d3c2` produjeron el
 **IA:**
 Se modificaron únicamente el template de operaciones y su JavaScript. Primero se incorporó consulta local; después, acciones explícitas según estado. Se protegieron doble clic y respuestas tardías, se mantuvieron errores dentro del bloque Pago y no se agregaron Stripe.js ni datos financieros al POST.
 
-## Pruebas, Git y cierre
+## Pruebas, Git y cierre del primer corte
+
+Las preguntas 1–14 conservan el contexto histórico anterior a integrar Caja. Sus pendientes se actualizan expresamente en las preguntas 15–18; no describen el estado final actual.
 
 ### Pregunta 11
 
@@ -125,3 +127,46 @@ Debe preservarse la separación Pago/Caja y evitar completar Transacción antes 
 
 **IA:**
 La evidencia respalda la implementación del pago, API, protección de cancelación, UI y QA técnico Stripe TEST. No acredita integración con Caja ni QA visual autenticado completo. La asistencia de IA y las pruebas no sustituyen la revisión humana ni permiten declarar pendientes como terminados.
+
+
+## Cierre técnico final — 11/10/2026 — Axel Pacheco
+
+### Pregunta 15
+
+**Usuario:**
+> ¿Cómo liquidar COMPRA/VENTA sin repetir Stripe ni duplicar Caja?
+
+**IA:**
+Se integró HU-40/HU-41 y se normalizaron locks Caja → PeriodoCaja. El coordinador usa Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. COMPRA aprobada registra solo EGRESO destino: Stripe es cobro digital, no ingreso de efectivo. VENTA registra INGRESO origen y EGRESO destino. Movimientos y COMPLETADA comparten un atomic; un fallo revierte todo. Las claves estables dependen de Transaccion y efecto, nunca del período/clic. Dos liquidaciones concurrentes no duplican el efecto.
+
+### Pregunta 16
+
+**Usuario:**
+> ¿Qué capacidades corresponden a Usuario, Cajero y Administrador?
+
+**IA:**
+USUARIO conserva creación/previsualización e inicio/reintento Pago, con cliente seleccionado; no liquida. CAJERO consulta Pago y liquida clientes asociados activamente sin selected_client; no crea ni inicia/reintenta. ADMIN supervisa sin acciones operativas. Recuperación mantiene exactamente su contexto anterior: CAJERO/USUARIO con selected_client y asociación de responsable/operador. No se amplió al implementar la bandeja multi-cliente.
+
+### Pregunta 17
+
+**Usuario:**
+> ¿Cómo cerrar la experiencia visual operativa sin crear funciones futuras?
+
+**IA:**
+Se separaron bandeja PENDIENTE e historial COMPLETADA/CANCELADA. Saldos y Movimientos tienen rutas de lectura distintas, selección explícita por URL y cálculo backend existente. No se guarda Caja activa en sesión. Sidebar y Unpoly se ajustaron localmente; el partial caja_contexto concentra jerarquía, estados y metadatos. Se preservó la ruta anterior de saldo. El error SALDO_INSUFICIENTE es independiente, visible y persistente durante refresh. QA visual manual aprobado por Axel Pacheco.
+
+También se confirmó el problema de runtime: bind mount nuevo en disco, proceso --noreload/templates cacheados anteriores. Reinicios exclusivos de web conservaron la DB QA, sin build ni migraciones funcionales.
+
+### Pregunta 18
+
+**Usuario:**
+> ¿Qué evidencia permite el cierre técnico y qué queda afuera?
+
+**IA:**
+En el commit funcional 07ef6fd se ejecutó toda la suite Docker/PostgreSQL: 452/452 Django, sin fallos/errores, 72.980 s. Los 3/3 Node/DOM pasaron; sintaxis JS, check, ausencia de migraciones pendientes y diff check quedaron correctos. Las cifras históricas 147, 90, 279 y 151 pertenecen a ejecuciones de distinto alcance y no se suman con la regresión final.
+
+El E2E Stripe histórico de Transaccion 7 validó un PaymentIntent succeeded, livemode=false, USD 12.34 y POST idempotente. La lectura QA final confirmó que la 7 ya fue liquidada: COMPLETADA, Pago APROBADO y un egreso. Las 8/9 también están COMPLETADA; la 10 permanece PENDIENTE sin movimientos parciales. No se realizaron nuevas llamadas Stripe durante este cierre.
+
+El cierre cubre el alcance técnico aprobado de HU-28; no modifica Jira ni equivale a merge. Fuera de HU-28: arqueo, cierre de Caja, transferencias, asignación persistente Cajero–Caja, facturación HU-29/30/31, FK directa MovimientoCaja→Transaccion e historial integral de Caja. Deudas: mapping de mensajes exactos de Caja, autorización previa de cancelación y contexto de recuperación; no se ocultan ni se corrigen fuera de alcance.
+
+Commits posteriores verificados: a6989e8, 1b8a4d3, 0c6ca42, 9d43048, 14b8907, d4626e4 y 07ef6fd. Arquitectura, contratos, DoD y pruebas finales están detallados en docs/HU-28_Realizar_Pago.md.
