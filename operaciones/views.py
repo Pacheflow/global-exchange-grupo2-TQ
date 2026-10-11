@@ -1,7 +1,7 @@
 import json
 from decimal import ROUND_HALF_UP
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
@@ -18,6 +18,7 @@ from .services import (
     cancelar_transaccion,
     crear_transaccion,
     listar_transacciones,
+    liquidar_transaccion,
     listar_metodos_pago_operacion,
     obtener_detalle_transaccion,
     previsualizar_operacion,
@@ -28,6 +29,77 @@ ROLES_OPERADORES = (
     "USUARIO",
 )
 ROLES_HISTORIAL = ("ADMINISTRADOR", *ROLES_OPERADORES)
+
+
+def _error_liquidacion(error):
+    """Traduce solo errores conocidos; nunca serializa detalles técnicos de Caja."""
+    codigo = getattr(error, "code", None)
+    if (
+        isinstance(error, PermissionDenied)
+        or codigo in {"OPERACION_INEXISTENTE", "CLIENTE_INCOHERENTE"}
+        or "cliente" in getattr(error, "error_dict", {})
+    ):
+        return JsonResponse({"error": "La transacción solicitada no está disponible."}, status=404)
+    mensajes = {
+        "PAGO_NO_APROBADO": "La compra requiere un pago aprobado.",
+        "OPERACION_NO_PENDIENTE": "La operación no permite liquidación.",
+        "OBLIGACION_CAMBIADA": "El pago no corresponde a la obligación de la operación.",
+    }
+    if codigo in mensajes:
+        return JsonResponse({"error": mensajes[codigo], "codigo": codigo}, status=400)
+    # Caja aún no define códigos para estas validaciones. Comparación cerrada
+    # y localizada, sin devolver sus mensajes ni depender de fragmentos de texto.
+    errores_caja = {
+        "La clave de idempotencia ya fue usada con otros datos.":
+            ("Conflicto de idempotencia de liquidación.", "CONFLICTO_IDEMPOTENCIA", 409),
+        "El saldo de la moneda es insuficiente para el egreso.":
+            ("Saldo insuficiente para liquidar la operación.", "SALDO_INSUFICIENTE", 400),
+        "El período de caja no existe.":
+            ("El período de caja no está disponible.", "PERIODO_NO_DISPONIBLE", 400),
+        "La caja debe tener un período abierto.":
+            ("El período de caja no está disponible.", "PERIODO_NO_DISPONIBLE", 400),
+        "La moneda no pertenece a la apertura de esta caja.":
+            ("El período no admite las monedas de la operación.", "MONEDA_NO_ADMITIDA", 400),
+    }
+    mensajes_error = error.messages
+    if len(mensajes_error) == 1 and mensajes_error[0] in errores_caja:
+        mensaje, codigo, status = errores_caja[mensajes_error[0]]
+        return JsonResponse({"error": mensaje, "codigo": codigo}, status=status)
+    return JsonResponse({"error": "No se pudo liquidar la operación."}, status=500)
+
+
+@require_POST
+@requiere_alguno_de_roles(*ROLES_OPERADORES)
+def liquidar_transaccion_view(request, transaccion_id):
+    """Frontera HTTP estricta; el coordinador controla autorización y atomicidad."""
+    usuario_id, username = _usuario_sesion(request)
+    if not usuario_id:
+        return JsonResponse({"error": "No se encontró una identidad Keycloak válida."}, status=401)
+    cliente_id = _cliente_seleccionado_id(request)
+    if type(cliente_id) is not int or cliente_id <= 0:
+        return JsonResponse({"error": "Debe seleccionar un cliente válido para operar."}, status=400)
+    datos = _leer_cuerpo_json(request) if request.content_type == "application/json" else None
+    if (
+        not isinstance(datos, dict) or set(datos) != {"periodo_id"}
+        or type(datos["periodo_id"]) is not int or datos["periodo_id"] <= 0
+    ):
+        return JsonResponse({"error": "Enviá únicamente periodo_id como entero positivo en un objeto JSON."}, status=400)
+    try:
+        resultado = liquidar_transaccion(
+            transaccion_id=transaccion_id, periodo_id=datos["periodo_id"],
+            usuario_id=usuario_id,
+            username=username or request.session.get(SESSION_USUARIO, {}).get("preferred_username", ""),
+            roles=request.session.get(SESSION_ROLES, []), cliente_seleccionado_id=cliente_id,
+        )
+    except (ValidationError, PermissionDenied) as error:
+        return _error_liquidacion(error)
+    except Exception:
+        return JsonResponse({"error": "No se pudo liquidar la operación."}, status=500)
+    return JsonResponse({
+        "transaccion_id": resultado.transaccion.pk,
+        "estado": resultado.transaccion.estado,
+        "repetida": resultado.repetida,
+    })
 
 
 @requiere_roles_web(*ROLES_HISTORIAL)

@@ -6,6 +6,11 @@ app_name = "operaciones"
 
 urlpatterns = [
     path(
+        "<int:transaccion_id>/liquidar/",
+        views.liquidar_transaccion_view,
+        name="liquidar_transaccion",
+    ),
+    path(
         "previsualizar/",
         views.previsualizar_operacion_view,
         name="previsualizar_operacion",

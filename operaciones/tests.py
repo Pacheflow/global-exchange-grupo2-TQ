@@ -6,9 +6,9 @@ from queue import Queue
 from threading import Barrier, Event
 from unittest import mock
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, close_old_connections, connection, connections, transaction
-from django.test import TestCase, TransactionTestCase
+from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -342,6 +342,180 @@ class LiquidarTransaccionConcurrenciaTests(EscenarioLiquidacion, TransactionTest
                     claves.append(f"ge:hu28:transaccion:{operacion.pk}:caja:ingreso-origen:v1")
                 self.assertEqual(MovimientoCaja.objects.filter(clave_idempotencia__in=claves).count(), len(claves))
         self.assertEqual(MovimientoCaja.objects.count(), 3)
+
+
+class EscenarioLiquidacionHTTP(EscenarioLiquidacion):
+    def setUp(self):
+        super().setUp()
+        self.operacion_http = self.operacion_liquidacion()
+        self.pago_http = self.pago_liquidacion(self.operacion_http)
+        self.url_liquidar = reverse("operaciones:liquidar_transaccion", args=[self.operacion_http.pk])
+        self.autenticar_liquidacion(self.client)
+
+    def autenticar_liquidacion(self, cliente_http):
+        sesion = cliente_http.session
+        sesion[SESSION_AUTENTICADO] = True
+        sesion[SESSION_EXPIRA_EN] = time.time() + 600
+        sesion[SESSION_ROLES] = ["USUARIO"]
+        sesion[SESSION_USUARIO] = {"sub": self.usuario_id, "preferred_username": self.usuario_username}
+        sesion["selected_client"] = {"id": self.cliente.pk}
+        sesion.save()
+
+    def post_liquidar(self, **datos):
+        return self.client.post(self.url_liquidar, {"periodo_id": self.periodo_liquidacion.pk, **datos},
+                                content_type="application/json")
+
+
+class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
+    """Contrato y mapeo HTTP; los tests del coordinador cubren atomicidad profunda."""
+
+    def test_compra_liquida_y_devuelve_solo_resultado_controlado(self):
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json(), {
+            "transaccion_id": self.operacion_http.pk, "estado": "COMPLETADA", "repetida": False,
+        })
+
+    def test_venta_liquida_correctamente(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        self.url_liquidar = reverse("operaciones:liquidar_transaccion", args=[operacion.pk])
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json(), {"transaccion_id": operacion.pk, "estado": "COMPLETADA", "repetida": False})
+
+    def test_repeticion_devuelve_repetida(self):
+        self.assertEqual(self.post_liquidar().status_code, 200)
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(respuesta.json()["repetida"])
+
+    def test_body_vacio_malformado_lista_o_sin_periodo_se_rechaza(self):
+        with mock.patch("operaciones.views.liquidar_transaccion") as servicio:
+            for cuerpo in ("", "{", "[]", "null", "{}"):
+                with self.subTest(cuerpo=cuerpo):
+                    respuesta = self.client.post(self.url_liquidar, cuerpo, content_type="application/json")
+                    self.assertEqual(respuesta.status_code, 400)
+            respuesta = self.client.post(self.url_liquidar, {"periodo_id": 1})
+            self.assertEqual(respuesta.status_code, 400)
+        servicio.assert_not_called()
+
+    def test_campos_extra_incluidos_importes_y_monedas_se_rechazan(self):
+        with mock.patch("operaciones.views.liquidar_transaccion") as servicio:
+            for campo in ("monto", "moneda", "tipo", "caja_id", "pago_id", "provider",
+                          "referencia_externa", "estado", "otro"):
+                with self.subTest(campo=campo):
+                    self.assertEqual(self.post_liquidar(**{campo: "inyectado"}).status_code, 400)
+        servicio.assert_not_called()
+
+    def test_periodo_debe_ser_entero_positivo_sin_aceptar_booleanos(self):
+        with mock.patch("operaciones.views.liquidar_transaccion") as servicio:
+            for valor in (0, -1, True, False, None, "1", 1.5, [], {}):
+                with self.subTest(valor=valor):
+                    self.assertEqual(self.post_liquidar(periodo_id=valor).status_code, 400)
+        servicio.assert_not_called()
+
+    def test_contexto_sin_cliente_o_invalido_es_400(self):
+        for seleccion in (None, {}, {"id": "1"}, {"id": True}, {"id": -1}):
+            with self.subTest(seleccion=seleccion):
+                sesion = self.client.session
+                sesion["selected_client"] = seleccion
+                sesion.save()
+                with mock.patch("operaciones.views.liquidar_transaccion") as servicio:
+                    self.assertEqual(self.post_liquidar().status_code, 400)
+                servicio.assert_not_called()
+
+    def test_no_autorizada_e_inexistente_devuelven_mismo_404(self):
+        sesion = self.client.session
+        sesion[SESSION_USUARIO] = {"sub": "sin-asociacion"}
+        sesion.save()
+        denegada = self.post_liquidar()
+        self.autenticar_liquidacion(self.client)
+        inexistente = self.client.post(
+            reverse("operaciones:liquidar_transaccion", args=[999999]),
+            {"periodo_id": self.periodo_liquidacion.pk}, content_type="application/json",
+        )
+        self.assertEqual(denegada.status_code, 404)
+        self.assertEqual(inexistente.status_code, 404)
+        self.assertEqual(denegada.json(), inexistente.json())
+        sesion = self.client.session
+        sesion["selected_client"] = {"id": self.cliente.pk + 100}
+        sesion.save()
+        self.assertEqual(self.post_liquidar().json(), inexistente.json())
+        with mock.patch("operaciones.views.liquidar_transaccion", side_effect=PermissionDenied("Interno")):
+            self.assertEqual(self.post_liquidar().json(), inexistente.json())
+
+    def test_saldo_insuficiente_es_400_controlado(self):
+        SaldoInicialCaja.objects.filter(moneda=self.pyg).update(monto=0)
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json()["codigo"], "SALDO_INSUFICIENTE")
+
+    def test_compra_sin_pago_aprobado_es_400(self):
+        operacion = self.operacion_liquidacion()
+        self.url_liquidar = reverse("operaciones:liquidar_transaccion", args=[operacion.pk])
+        self.pago_liquidacion(operacion, Pago.Estado.ERROR)
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json()["codigo"], "PAGO_NO_APROBADO")
+
+    def test_periodo_cerrado_o_inexistente_es_400_controlado(self):
+        respuesta = self.post_liquidar(periodo_id=999999)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json()["codigo"], "PERIODO_NO_DISPONIBLE")
+        self.periodo_liquidacion.estado = "CERRADO"
+        self.periodo_liquidacion.save(update_fields=["estado"])
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json()["codigo"], "PERIODO_NO_DISPONIBLE")
+
+    def test_conflicto_idempotencia_es_409(self):
+        self.movimientos_previos(self.operacion_http, self.pago_http, monto_destino=Decimal("1"))
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertEqual(respuesta.json()["codigo"], "CONFLICTO_IDEMPOTENCIA")
+
+    def test_errores_desconocidos_no_filtran_detalles(self):
+        for error, status in ((RuntimeError("detalle privado"), 500),
+                              (ValidationError("detalle privado"), 500)):
+            with self.subTest(status=status), mock.patch("operaciones.views.liquidar_transaccion", side_effect=error):
+                respuesta = self.post_liquidar()
+                self.assertEqual(respuesta.status_code, status)
+                self.assertEqual(respuesta.json(), {"error": "No se pudo liquidar la operación."})
+                self.assertNotContains(respuesta, "detalle privado", status_code=status)
+
+    def test_autenticacion_roles_metodo_y_csrf_se_conservan(self):
+        anonimo = Client()
+        self.assertEqual(anonimo.post(self.url_liquidar, {}, content_type="application/json").status_code, 401)
+        self.assertEqual(self.client.get(self.url_liquidar).status_code, 405)
+        sesion = self.client.session
+        sesion[SESSION_ROLES] = ["ADMINISTRADOR", "CAJERO"]
+        sesion.save()
+        self.assertEqual(self.post_liquidar().status_code, 403)
+        estricto = Client(enforce_csrf_checks=True)
+        self.autenticar_liquidacion(estricto)
+        self.assertEqual(estricto.post(self.url_liquidar, {"periodo_id": 1}, content_type="application/json").status_code, 403)
+
+    def test_delega_contexto_servidor_sin_llamar_stripe(self):
+        with mock.patch("operaciones.views.liquidar_transaccion", wraps=liquidar_transaccion) as servicio:
+            with mock.patch("pagos.stripe_provider.StripePaymentProvider._cliente") as stripe_cliente:
+                with mock.patch("pagos.views.obtener_payment_provider") as proveedor:
+                    self.assertEqual(self.post_liquidar().status_code, 200)
+        servicio.assert_called_once_with(
+            transaccion_id=self.operacion_http.pk, periodo_id=self.periodo_liquidacion.pk,
+            usuario_id=self.usuario_id, username=self.usuario_username,
+            roles=["USUARIO"], cliente_seleccionado_id=self.cliente.pk,
+        )
+        stripe_cliente.assert_not_called()
+        proveedor.assert_not_called()
+
+
+class LiquidacionHTTPAtomicidadTests(EscenarioLiquidacionHTTP, TransactionTestCase):
+    def test_view_invoca_coordinador_sin_transaccion_externa(self):
+        def ejecutar(**argumentos):
+            self.assertFalse(connection.in_atomic_block)
+            return liquidar_transaccion(**argumentos)
+        with mock.patch("operaciones.views.liquidar_transaccion", side_effect=ejecutar):
+            self.assertEqual(self.post_liquidar().status_code, 200)
 
 
 class BaseOperacionesTests(TestCase):
