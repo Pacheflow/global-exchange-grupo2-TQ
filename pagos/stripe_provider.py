@@ -165,8 +165,8 @@ class StripePaymentProvider:
                 {
                     "amount": unidades, "currency": solicitud.moneda.lower(),
                     "metadata": self._metadata(solicitud), "confirm": True,
-                    "capture_method": "automatic", "confirmation_method": "automatic",
-                    "payment_method_types": ["card"], "error_on_requires_action": True,
+                    "capture_method": "automatic",
+                    "automatic_payment_methods": {"enabled": True, "allow_redirects": "never"},
                     "payment_method": self.METODOS_TEST[self._escenario],
                 },
                 options={"idempotency_key": f"ge:hu28:pago:{solicitud.pago_id}:create:v1"},

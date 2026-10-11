@@ -1,8 +1,8 @@
 """Orquestación interna: reserva local, proveedor fuera de locks y recuperación.
 
-No completa operaciones ni ofrece endpoints. La cancelación deberá protegerse
-antes de exponer estos servicios a usuarios. El proveedor se inyecta desde una
-capa de confianza configurada exclusivamente para TEST.
+No completa operaciones. La cancelación comparte el orden Transaccion -> Pago
+y protege los estados que pueden tener ejecución externa. El proveedor se
+inyecta desde una capa de confianza configurada exclusivamente para TEST.
 """
 
 import json
@@ -337,3 +337,19 @@ def recuperar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id
             return _respuesta(pago, reutilizado=True)
         reserva, referencia = _reserva(transaccion, pago), pago.referencia_externa
     return _invocar(provider, reserva, consulta=True, referencia=referencia, reutilizado=True)
+
+
+def consultar_estado_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id):
+    """Leer evidencia local autorizada, incluso histórica; sin locks ni proveedor."""
+    try:
+        transaccion = Transaccion.objects.select_related("cliente", "pago").get(pk=transaccion_id)
+    except Transaccion.DoesNotExist:
+        raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
+    _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id)
+    if transaccion.tipo != "COMPRA":
+        raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
+    try:
+        pago = transaccion.pago
+    except Pago.DoesNotExist:
+        return None
+    return _respuesta(pago, reutilizado=True)

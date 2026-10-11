@@ -55,8 +55,19 @@ class StripePaymentProviderTests(SimpleTestCase):
         self.assertEqual(args[0]["amount"], 1234)
         self.assertTrue(args[0]["confirm"])
         self.assertEqual(args[0]["capture_method"], "automatic")
-        self.assertEqual(args[0]["payment_method_types"], ["card"])
-        self.assertTrue(args[0]["error_on_requires_action"])
+        self.assertNotIn("payment_method_types", args[0])
+        self.assertEqual(args[0]["automatic_payment_methods"], {
+            "enabled": True, "allow_redirects": "never",
+        })
+        self.assertNotIn("return_url", args[0])
+        self.assertEqual(args[0]["currency"], "usd")
+        self.assertNotIn("confirmation_method", args[0])
+        self.assertEqual(args[0]["metadata"], {
+            "pago_id": str(self.solicitud.pago_id),
+            "transaccion_id": str(self.solicitud.transaccion_id),
+            "huella_solicitud": self.solicitud.huella_solicitud,
+        })
+        self.assertNotIn("error_on_requires_action", args[0])
         self.assertEqual(args[0]["payment_method"], "pm_card_visa")
         self.assertEqual(kwargs["options"]["idempotency_key"], f"ge:hu28:pago:{self.solicitud.pago_id}:create:v1")
         self.assertEqual(self.intents.create.call_args_list[0], self.intents.create.call_args_list[1])
