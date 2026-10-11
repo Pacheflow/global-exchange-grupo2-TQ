@@ -13,7 +13,12 @@
     payload: null,
     idempotencyKey: null,
     transactions: [],
-    cancelTarget: null
+    cancelTarget: null,
+    detailId: null,
+    detailTransaction: null,
+    detailVersion: 0,
+    paymentVersion: 0,
+    paymentPending: {}
   };
 
   function csrfToken() {
@@ -228,6 +233,7 @@
       window.GEApp.toast('Operación' + statusMessage, 'success');
       invalidatePreview();
       loadHistory();
+      if (data.transaccion.tipo === 'COMPRA') showDetail(data.transaccion);
     }).catch(function (error) {
       showFeedback(error.message, 'error');
       window.GEApp.toast(error.message, 'error');
@@ -303,15 +309,148 @@
     document.querySelector('[data-transaction-detail]').innerHTML = html;
   }
 
+  function isCurrentDetail(id, version) {
+    return state.detailId === id && state.detailVersion === version &&
+      document.getElementById('detalle-operacion').classList.contains('is-open');
+  }
+
+  function paymentError(message) {
+    var actions = document.querySelector('[data-payment-actions]');
+    actions.replaceChildren();
+    actions.hidden = true;
+    document.querySelector('[data-payment-state]').textContent = '';
+    document.querySelector('[data-payment-message]').textContent = message;
+  }
+
+  function renderPayment(data, transaction) {
+    var messages = {
+      PAGO_NO_INICIADO: 'Pago no iniciado',
+      EN_PROCESO: 'Pago en proceso',
+      APROBADO: 'Pago aprobado. La operación continúa pendiente de procesamiento.',
+      RECHAZADO: 'Pago rechazado',
+      ERROR: 'No se pudo completar el pago.',
+      INDETERMINADO: 'Pago pendiente de verificación.'
+    };
+    var status = data.estado;
+    if (data.codigo === 'PAGO_NO_INICIADO' && data.pago_id === null && status === null) {
+      status = 'PAGO_NO_INICIADO';
+    }
+    var codes = {
+      PAGO_NO_INICIADO: 'PAGO_NO_INICIADO', EN_PROCESO: 'EN_PROCESO',
+      APROBADO: 'APROBADO', RECHAZADO: 'RECHAZADO',
+      ERROR: 'ERROR_SIN_EJECUCION', INDETERMINADO: 'RESULTADO_DESCONOCIDO'
+    };
+    var known = Object.prototype.hasOwnProperty.call(messages, status) && data.codigo === codes[status];
+    document.querySelector('[data-payment-state]').textContent = known ? status : '';
+    document.querySelector('[data-payment-message]').textContent = known
+      ? messages[status] : 'Estado de pago no disponible.';
+    var actions = document.querySelector('[data-payment-actions]');
+    actions.replaceChildren();
+    actions.hidden = true;
+    if (!known || !transaction || transaction.tipo !== 'COMPRA' ||
+        transaction.estado !== 'PENDIENTE' || page.dataset.canViewPayment !== 'true') return;
+    var options = {
+      PAGO_NO_INICIADO: ['start', 'Iniciar pago'],
+      ERROR: ['retry', 'Reintentar pago'],
+      INDETERMINADO: ['recover', 'Recuperar estado'],
+      EN_PROCESO: ['recover', 'Recuperar estado']
+    };
+    var action = options[status];
+    if (!action) return;
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ge-btn-primary';
+    button.dataset.paymentAction = action[0];
+    button.textContent = action[1];
+    button.disabled = Boolean(state.paymentPending[transaction.id]);
+    actions.appendChild(button);
+    actions.hidden = false;
+  }
+
+  function submitPayment(event) {
+    var button = event.target.closest('[data-payment-action]');
+    if (!button || button.disabled) return;
+    var id = state.detailId;
+    var version = state.detailVersion;
+    if (!isCurrentDetail(id, version) || state.paymentPending[id]) return;
+    var urls = {
+      start: page.dataset.paymentStartUrl,
+      retry: page.dataset.paymentRetryUrl,
+      recover: page.dataset.paymentRecoverUrl
+    };
+    var url = urls[button.dataset.paymentAction];
+    if (!url) return;
+    state.paymentPending[id] = true;
+    ++state.paymentVersion;
+    setBusy(button, true, 'Procesando…');
+    post(resourceUrl(url, id), {}).then(function (data) {
+      if (!isCurrentDetail(id, version)) return;
+      if (data.transaccion_id !== id) {
+        paymentError('Estado de pago no disponible.');
+        return;
+      }
+      renderPayment(data, state.detailTransaction);
+    }).catch(function () {
+      if (!isCurrentDetail(id, version)) return;
+      paymentError('No se pudo confirmar el resultado de la solicitud. Volvé a abrir el detalle para consultar el estado del pago.');
+    }).finally(function () {
+      delete state.paymentPending[id];
+      if (!isCurrentDetail(id, state.detailVersion)) return;
+      if (state.detailVersion !== version) {
+        loadPayment(state.detailTransaction, state.detailVersion);
+        return;
+      }
+      var currentButton = document.querySelector('[data-payment-actions] [data-payment-action]');
+      if (currentButton) currentButton.disabled = false;
+    });
+  }
+
+  function loadPayment(transaction, version) {
+    var section = document.querySelector('[data-payment-section]');
+    if (transaction.tipo !== 'COMPRA' || page.dataset.canViewPayment !== 'true') return;
+    var paymentVersion = ++state.paymentVersion;
+    section.hidden = false;
+    document.querySelector('[data-payment-actions]').replaceChildren();
+    document.querySelector('[data-payment-actions]').hidden = true;
+    document.querySelector('[data-payment-state]').textContent = '';
+    document.querySelector('[data-payment-message]').textContent = 'Consultando estado de pago…';
+    apiRequest(resourceUrl(page.dataset.paymentUrl, transaction.id), {
+      credentials: 'same-origin'
+    }).then(function (data) {
+      if (!isCurrentDetail(transaction.id, version) || state.paymentVersion !== paymentVersion) return;
+      if (data.transaccion_id !== transaction.id) {
+        renderPayment({});
+        return;
+      }
+      renderPayment(data, transaction);
+    }).catch(function () {
+      if (!isCurrentDetail(transaction.id, version) || state.paymentVersion !== paymentVersion) return;
+      paymentError('No se pudo consultar el estado del pago.');
+    });
+  }
+
   function showDetail(transaction) {
+    state.detailId = transaction.id;
+    state.detailTransaction = transaction;
+    var version = ++state.detailVersion;
+    document.querySelector('[data-payment-section]').hidden = true;
+    document.querySelector('[data-payment-state]').textContent = '';
+    document.querySelector('[data-payment-message]').textContent = '';
     var container = document.querySelector('[data-transaction-detail]');
     container.innerHTML = '<p class="ge-frontend-note">Cargando detalle…</p>';
     window.GEApp.openModal('detalle-operacion');
     apiRequest(resourceUrl(page.dataset.detailUrl, transaction.id), {
       credentials: 'same-origin'
     }).then(function (data) {
+      if (!isCurrentDetail(transaction.id, version)) return;
+      if (!data.transaccion || data.transaccion.id !== transaction.id) {
+        throw new Error('No se pudo consultar el detalle de la transacción.');
+      }
       renderDetail(data.transaccion);
+      state.detailTransaction = data.transaccion;
+      loadPayment(data.transaccion, version);
     }).catch(function (error) {
+      if (!isCurrentDetail(transaction.id, version)) return;
       container.innerHTML = '<p class="ge-operation-feedback is-error">' +
         escapeHtml(error.message) + '</p>';
     });
@@ -396,6 +535,7 @@
   });
 
   page.querySelector('[data-reload-history]').addEventListener('click', loadHistory);
+  document.querySelector('[data-payment-actions]').addEventListener('click', submitPayment);
   document.querySelector('[data-confirm-operation]').addEventListener('click', confirmOperation);
   document.querySelector('[data-confirm-cancel]').addEventListener('click', confirmCancellation);
   loadHistory();

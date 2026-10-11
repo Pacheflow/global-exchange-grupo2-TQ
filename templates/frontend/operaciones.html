@@ -11,6 +11,11 @@
        data-methods-url="{% url 'operaciones:metodos_pago_operacion' %}"
        data-history-url="{% url 'operaciones:historial_transacciones' %}"
        data-detail-url="{% url 'operaciones:detalle_transaccion' 0 %}"
+       data-payment-url="{% url 'pagos:consultar' 0 %}"
+       data-payment-start-url="{% url 'pagos:iniciar' 0 %}"
+       data-payment-retry-url="{% url 'pagos:reintentar' 0 %}"
+       data-payment-recover-url="{% url 'pagos:recuperar' 0 %}"
+       data-can-view-payment="{% if not es_supervisor and cliente_operacion %}true{% else %}false{% endif %}"
        data-can-cancel="{% if es_supervisor %}false{% else %}true{% endif %}">
     {% csrf_token %}
 
@@ -171,6 +176,14 @@
     <div class="ge-modal ge-modal-wide" role="dialog" aria-modal="true" aria-labelledby="detalle-operacion-title">
       <h3 id="detalle-operacion-title">Detalle de transacción</h3>
       <div data-transaction-detail></div>
+      <section class="ge-card ge-card--pad24" data-payment-section hidden aria-labelledby="detalle-pago-title">
+        <h4 id="detalle-pago-title">Pago</h4>
+        <div role="status" aria-live="polite">
+          <strong data-payment-state></strong>
+          <p class="ge-frontend-note" data-payment-message></p>
+        </div>
+        <div class="ge-operation-actions" data-payment-actions hidden></div>
+      </section>
       <div class="ge-modal-actions"><button type="button" class="ge-btn-outline" data-ge-modal-close="detalle-operacion">Cerrar</button></div>
     </div>
   </div>
