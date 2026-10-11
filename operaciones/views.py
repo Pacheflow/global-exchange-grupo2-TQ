@@ -6,9 +6,11 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
+from cajas.models import PeriodoCaja
 from clientes.models import Cliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
+from pagos.models import Pago
 from tasas.precision import normalizar_tasa
 from usuarios.decorators import requiere_alguno_de_roles, requiere_roles_web
 from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO, rol_efectivo
@@ -29,6 +31,47 @@ ROLES_OPERADORES = (
     "USUARIO",
 )
 ROLES_HISTORIAL = ("ADMINISTRADOR", *ROLES_OPERADORES)
+
+
+@require_GET
+@requiere_alguno_de_roles(*ROLES_OPERADORES)
+def periodos_liquidacion_view(request, transaccion_id):
+    """Catálogo informativo autorizado; no reserva fondos ni selecciona un período."""
+    usuario_id, _ = _usuario_sesion(request)
+    if not usuario_id:
+        return JsonResponse({"error": "No se encontró una identidad Keycloak válida."}, status=401)
+    cliente_id = _cliente_seleccionado_id(request)
+    if type(cliente_id) is not int or cliente_id <= 0:
+        return JsonResponse({"error": "Debe seleccionar un cliente válido para operar."}, status=400)
+    try:
+        operacion = obtener_detalle_transaccion(
+            transaccion_id=transaccion_id, usuario_id=usuario_id,
+            cliente_id=cliente_id, es_admin=False,
+        )
+    except (ValidationError, PermissionDenied):
+        return JsonResponse({"error": "La transacción solicitada no está disponible."}, status=404)
+    except Exception:
+        return JsonResponse({"error": "No se pudieron consultar los períodos de liquidación."}, status=500)
+    try:
+        if operacion.estado != "PENDIENTE" or operacion.tipo not in {"COMPRA", "VENTA"}:
+            return JsonResponse({"error": "La operación no permite liquidación.", "codigo": "OPERACION_NO_PENDIENTE"}, status=400)
+        if operacion.tipo == "COMPRA" and not Pago.objects.filter(
+            transaccion_id=operacion.pk, estado=Pago.Estado.APROBADO,
+        ).exists():
+            return JsonResponse({"error": "La compra requiere un pago aprobado.", "codigo": "PAGO_NO_APROBADO"}, status=400)
+        periodos = PeriodoCaja.objects.filter(
+            estado="ABIERTO", caja__estado="HABILITADA",
+        ).select_related("caja").order_by("caja__codigo", "pk")
+        return JsonResponse({
+            "transaccion_id": operacion.pk,
+            "periodos": [
+                {"periodo_id": periodo.pk, "estado": periodo.estado,
+                 "caja": {"id": periodo.caja_id, "codigo": periodo.caja.codigo, "nombre": periodo.caja.nombre}}
+                for periodo in periodos
+            ],
+        })
+    except Exception:
+        return JsonResponse({"error": "No se pudieron consultar los períodos de liquidación."}, status=500)
 
 
 def _error_liquidacion(error):

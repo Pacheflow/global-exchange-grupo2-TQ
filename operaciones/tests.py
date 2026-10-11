@@ -9,6 +9,7 @@ from unittest import mock
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, close_old_connections, connection, connections, transaction
 from django.test import Client, TestCase, TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -516,6 +517,140 @@ class LiquidacionHTTPAtomicidadTests(EscenarioLiquidacionHTTP, TransactionTestCa
             return liquidar_transaccion(**argumentos)
         with mock.patch("operaciones.views.liquidar_transaccion", side_effect=ejecutar):
             self.assertEqual(self.post_liquidar().status_code, 200)
+
+
+class PeriodosLiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
+    """Catálogo elegible, permisos e invariantes de solo lectura."""
+
+    def setUp(self):
+        super().setUp()
+        self.url_periodos = reverse("operaciones:periodos_liquidacion", args=[self.operacion_http.pk])
+
+    def test_compra_aprobada_devuelve_contrato_minimo(self):
+        respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json(), {
+            "transaccion_id": self.operacion_http.pk,
+            "periodos": [{"periodo_id": self.periodo_liquidacion.pk, "estado": "ABIERTO",
+                          "caja": {"id": self.caja_liquidacion.pk, "codigo": self.caja_liquidacion.codigo,
+                                   "nombre": self.caja_liquidacion.nombre}}],
+        })
+
+    def test_venta_pendiente_no_requiere_pago(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        self.assertFalse(Pago.objects.filter(transaccion=operacion).exists())
+        respuesta = self.client.get(reverse("operaciones:periodos_liquidacion", args=[operacion.pk]))
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()["transaccion_id"], operacion.pk)
+        self.assertEqual(respuesta.json()["periodos"][0]["periodo_id"], self.periodo_liquidacion.pk)
+
+    def test_caja_deshabilitada_no_aparece(self):
+        self.caja_liquidacion.estado = "DESHABILITADA"
+        self.caja_liquidacion.save(update_fields=["estado"])
+        respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()["periodos"], [])
+
+    def test_periodo_cerrado_no_aparece(self):
+        self.periodo_liquidacion.estado = "CERRADO"
+        self.periodo_liquidacion.save(update_fields=["estado"])
+        respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()["periodos"], [])
+
+    def test_sin_periodos_devuelve_lista_vacia(self):
+        SaldoInicialCaja.objects.all().delete()
+        self.periodo_liquidacion.delete()
+        respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json(), {"transaccion_id": self.operacion_http.pk, "periodos": []})
+
+    def test_compra_sin_pago_o_no_aprobado_no_obtiene_catalogo(self):
+        for estado in (None, Pago.Estado.ERROR, Pago.Estado.RECHAZADO,
+                       Pago.Estado.EN_PROCESO, Pago.Estado.INDETERMINADO):
+            with self.subTest(estado=estado):
+                operacion = self.operacion_liquidacion()
+                if estado:
+                    self.pago_liquidacion(operacion, estado)
+                respuesta = self.client.get(reverse("operaciones:periodos_liquidacion", args=[operacion.pk]))
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertEqual(respuesta.json()["codigo"], "PAGO_NO_APROBADO")
+                self.assertNotIn("periodos", respuesta.json())
+
+    def test_completada_y_cancelada_no_obtienen_catalogo(self):
+        for estado in ("COMPLETADA", "CANCELADA"):
+            with self.subTest(estado=estado):
+                datos = {"estado": estado}
+                if estado == "CANCELADA":
+                    datos.update(cancelado_por_keycloak_id=self.usuario_id,
+                                 cancelado_por_username=self.usuario_username,
+                                 cancelado_en=timezone.now(), motivo_cancelacion="Cancelación de prueba")
+                Transaccion.objects.filter(pk=self.operacion_http.pk).update(**datos)
+                respuesta = self.client.get(self.url_periodos)
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertEqual(respuesta.json()["codigo"], "OPERACION_NO_PENDIENTE")
+                self.assertNotIn("periodos", respuesta.json())
+
+    def test_cliente_no_seleccionado_o_malformado_es_400(self):
+        for seleccion in (None, {}, {"id": "1"}, {"id": True}, {"id": 0}):
+            with self.subTest(seleccion=seleccion):
+                sesion = self.client.session
+                sesion["selected_client"] = seleccion
+                sesion.save()
+                self.assertEqual(self.client.get(self.url_periodos).status_code, 400)
+
+    def test_no_autorizada_e_inexistente_son_indistinguibles(self):
+        inexistente = self.client.get(reverse("operaciones:periodos_liquidacion", args=[999999]))
+        self.assertEqual(inexistente.status_code, 404)
+        self.asociacion.activo = False
+        self.asociacion.save()
+        denegada = self.client.get(self.url_periodos)
+        self.assertEqual(denegada.status_code, 404)
+        self.assertEqual(denegada.json(), inexistente.json())
+        self.asociacion.activo = True
+        self.asociacion.save()
+        sesion = self.client.session
+        sesion[SESSION_USUARIO] = {"sub": "sin-asociacion"}
+        sesion.save()
+        denegada = self.client.get(self.url_periodos)
+        self.assertEqual(denegada.status_code, 404)
+        self.assertEqual(denegada.json(), inexistente.json())
+
+    def test_get_solo_lee_sin_locks_saldos_ni_proveedor(self):
+        # Cero fondos no excluye un período: este catálogo no autoriza el egreso.
+        SaldoInicialCaja.objects.all().update(monto=0)
+        with mock.patch("operaciones.views.liquidar_transaccion") as liquidar:
+            with mock.patch("pagos.stripe_provider.StripePaymentProvider._cliente") as stripe_cliente:
+                with CaptureQueriesContext(connection) as consultas:
+                    respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(len(respuesta.json()["periodos"]), 1)
+        self.assertTrue(consultas.captured_queries)
+        for consulta in consultas.captured_queries:
+            sql = consulta["sql"].lstrip().upper()
+            self.assertNotIn("FOR UPDATE", sql)
+            self.assertFalse(sql.startswith(("INSERT", "UPDATE", "DELETE")), sql)
+            self.assertNotIn("CAJAS_SALDOINICIALCAJA", sql)
+            self.assertNotIn("CAJAS_MOVIMIENTOCAJA", sql)
+        liquidar.assert_not_called()
+        stripe_cliente.assert_not_called()
+
+    def test_autenticacion_roles_y_metodo(self):
+        self.assertEqual(Client().get(self.url_periodos).status_code, 401)
+        self.assertEqual(self.client.post(self.url_periodos).status_code, 405)
+        for roles, status in ((["CAJERO"], 200), (["USUARIO"], 200),
+                              (["ADMINISTRADOR", "CAJERO"], 403), (["ANALISTA_CAMBIARIO"], 403)):
+            with self.subTest(roles=roles):
+                sesion = self.client.session
+                sesion[SESSION_ROLES] = roles
+                sesion.save()
+                self.assertEqual(self.client.get(self.url_periodos).status_code, status)
+
+    def test_error_inesperado_es_500_generico(self):
+        with mock.patch("operaciones.views.obtener_detalle_transaccion", side_effect=RuntimeError("Interno")):
+            respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertEqual(respuesta.json(), {"error": "No se pudieron consultar los períodos de liquidación."})
 
 
 class BaseOperacionesTests(TestCase):
