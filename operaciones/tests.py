@@ -2,15 +2,18 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
-from threading import Event
+from queue import Queue
+from threading import Barrier, Event
 from unittest import mock
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, close_old_connections, connection, connections
+from django.db import IntegrityError, close_old_connections, connection, connections, transaction
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from cajas.models import Caja, MovimientoCaja, PeriodoCaja, SaldoInicialCaja
+from cajas.services import registrar_movimiento_automatico
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
@@ -31,9 +34,314 @@ from .services import (
     cancelar_transaccion,
     crear_transaccion,
     listar_transacciones,
+    liquidar_transaccion,
     previsualizar_operacion,
 )
 from .views import _serializar_transaccion
+
+
+class EscenarioLiquidacion:
+    """Fixtures locales de operación y Caja; no invocan proveedores externos."""
+
+    def setUp(self):
+        super().setUp()
+        BaseOperacionesTests.setUp(self)
+        self.caja_liquidacion = Caja.objects.create(
+            codigo="LIQUIDACION", nombre="Caja liquidación",
+            creado_por_keycloak_id="admin", actualizado_por_keycloak_id="admin",
+        )
+        self.periodo_liquidacion = PeriodoCaja.objects.create(
+            caja=self.caja_liquidacion, responsable_keycloak_id=self.usuario_id,
+        )
+        for moneda in (self.usd, self.pyg):
+            SaldoInicialCaja.objects.create(
+                periodo=self.periodo_liquidacion, moneda=moneda, monto=Decimal("1000"),
+            )
+
+    def operacion_liquidacion(self, tipo="COMPRA"):
+        return Transaccion.objects.create(
+            clave_idempotencia=str(uuid.uuid4()), cliente=self.cliente,
+            creado_por_keycloak_id=self.usuario_id, tipo=tipo,
+            moneda_origen=self.usd, moneda_destino=self.pyg,
+            monto_origen=Decimal("100"), monto_destino=Decimal("70"),
+            tasa_comercial=self.tasa, tasa_aplicada=Decimal("1"),
+            porcentaje_comision=Decimal("30"), importe_comision=Decimal("30"),
+            metodo_pago=self.metodo_activo, metodo_pago_nombre=self.metodo_activo.nombre,
+            estado="PENDIENTE",
+        )
+
+    def pago_liquidacion(self, operacion, estado=Pago.Estado.APROBADO):
+        aprobado = estado == Pago.Estado.APROBADO
+        return Pago.objects.create(
+            transaccion=operacion, metodo_pago=self.metodo_activo, proveedor="stripe",
+            monto=operacion.monto_origen, moneda_codigo=self.usd.codigo,
+            base_importe=Pago.BaseImporte.ORIGEN, estado=estado,
+            iniciado_por_keycloak_id=self.usuario_id,
+            referencia_externa=f"pi_liquidacion{operacion.pk}" if aprobado else None,
+            aprobado_en=timezone.now() if aprobado else None,
+        )
+
+    def argumentos_liquidacion(self, operacion, **cambios):
+        datos = dict(
+            transaccion_id=operacion.pk, periodo_id=self.periodo_liquidacion.pk,
+            usuario_id=self.usuario_id, username=self.usuario_username,
+            roles=["USUARIO"], cliente_seleccionado_id=self.cliente.pk,
+        )
+        datos.update(cambios)
+        return datos
+
+    def movimientos_previos(self, operacion, pago=None, *, monto_destino=None):
+        """Prepara efectos idénticos ya confirmados para probar recuperación local."""
+        datos = dict(
+            periodo_id=self.periodo_liquidacion.pk, usuario_id=self.usuario_id,
+            motivo="Efecto previo", referencia_externa=(
+                pago.referencia_externa if pago else f"transaccion:{operacion.pk}"
+            ),
+        )
+        prefijo = f"ge:hu28:transaccion:{operacion.pk}:caja:"
+        if operacion.tipo == "VENTA":
+            registrar_movimiento_automatico(
+                **datos, tipo="INGRESO", moneda_id=self.usd.pk, monto=operacion.monto_origen,
+                clave_idempotencia=f"{prefijo}ingreso-origen:v1",
+            )
+        registrar_movimiento_automatico(
+            **datos, tipo="EGRESO", moneda_id=self.pyg.pk,
+            monto=monto_destino or operacion.monto_destino,
+            clave_idempotencia=f"{prefijo}egreso-destino:v1",
+        )
+
+
+class LiquidarTransaccionTests(EscenarioLiquidacion, TestCase):
+    """Liquidación local, autorización, idempotencia y rollback de la obligación."""
+
+    def test_compra_aprobada_registra_solo_egreso_destino(self):
+        operacion = self.operacion_liquidacion()
+        pago = self.pago_liquidacion(operacion)
+        resultado = liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        self.assertFalse(resultado.repetida)
+        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        movimiento = MovimientoCaja.objects.get()
+        self.assertEqual((movimiento.tipo, movimiento.moneda_id, movimiento.monto),
+                         ("EGRESO", self.pyg.pk, operacion.monto_destino))
+        self.assertEqual(movimiento.clave_idempotencia,
+                         f"ge:hu28:transaccion:{operacion.pk}:caja:egreso-destino:v1")
+        self.assertEqual(movimiento.referencia_externa, pago.referencia_externa)
+        pago.refresh_from_db()
+        self.assertEqual(pago.estado, Pago.Estado.APROBADO)
+
+    def test_compra_sin_pago_o_no_aprobado_no_liquida(self):
+        for estado in (None, Pago.Estado.EN_PROCESO, Pago.Estado.ERROR,
+                       Pago.Estado.RECHAZADO, Pago.Estado.INDETERMINADO):
+            with self.subTest(estado=estado):
+                operacion = self.operacion_liquidacion()
+                if estado:
+                    self.pago_liquidacion(operacion, estado)
+                with self.assertRaises(ValidationError) as error:
+                    liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+                self.assertEqual(error.exception.code, "PAGO_NO_APROBADO")
+                operacion.refresh_from_db()
+                self.assertEqual(operacion.estado, "PENDIENTE")
+                self.assertFalse(MovimientoCaja.objects.exists())
+
+    def test_compra_sin_saldo_conserva_pago_aprobado(self):
+        operacion = self.operacion_liquidacion()
+        pago = self.pago_liquidacion(operacion)
+        SaldoInicialCaja.objects.filter(moneda=self.pyg).update(monto=0)
+        with self.assertRaisesMessage(ValidationError, "insuficiente"):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        operacion.refresh_from_db()
+        pago.refresh_from_db()
+        self.assertEqual(operacion.estado, "PENDIENTE")
+        self.assertEqual(pago.estado, Pago.Estado.APROBADO)
+        self.assertFalse(MovimientoCaja.objects.exists())
+
+    def _repetir_sin_tocar_caja(self, tipo):
+        operacion = self.operacion_liquidacion(tipo)
+        if tipo == "COMPRA":
+            self.pago_liquidacion(operacion)
+        liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        ids = list(MovimientoCaja.objects.values_list("pk", flat=True))
+        with mock.patch("operaciones.services.registrar_movimiento_automatico") as registrar:
+            with mock.patch("cajas.services._obtener_periodo_abierto") as obtener:
+                resultado = liquidar_transaccion(**self.argumentos_liquidacion(operacion, periodo_id=-1))
+        self.assertTrue(resultado.repetida)
+        registrar.assert_not_called()
+        obtener.assert_not_called()
+        self.assertCountEqual(MovimientoCaja.objects.values_list("pk", flat=True), ids)
+
+    def test_compra_completada_reutiliza_sin_tocar_caja(self):
+        self._repetir_sin_tocar_caja("COMPRA")
+
+    def test_venta_registra_ambos_movimientos_y_completa(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        resultado = liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        self.assertFalse(resultado.repetida)
+        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertFalse(Pago.objects.exists())
+        self.assertCountEqual(
+            MovimientoCaja.objects.values_list("tipo", "moneda_id", "monto", "clave_idempotencia"),
+            [("INGRESO", self.usd.pk, operacion.monto_origen,
+              f"ge:hu28:transaccion:{operacion.pk}:caja:ingreso-origen:v1"),
+             ("EGRESO", self.pyg.pk, operacion.monto_destino,
+              f"ge:hu28:transaccion:{operacion.pk}:caja:egreso-destino:v1")],
+        )
+
+    def test_venta_egreso_insuficiente_revierte_ingreso(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        SaldoInicialCaja.objects.filter(moneda=self.pyg).update(monto=0)
+        with self.assertRaisesMessage(ValidationError, "insuficiente"):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        operacion.refresh_from_db()
+        self.assertEqual(operacion.estado, "PENDIENTE")
+        self.assertFalse(MovimientoCaja.objects.exists())
+
+    def test_venta_completada_reutiliza_sin_tocar_caja(self):
+        self._repetir_sin_tocar_caja("VENTA")
+
+    def test_periodo_invalido_cerrado_o_moneda_ausente_no_deja_parciales(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        with self.assertRaisesMessage(ValidationError, "no existe"):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion, periodo_id=-1))
+        self.periodo_liquidacion.estado = "CERRADO"
+        self.periodo_liquidacion.save(update_fields=["estado"])
+        with self.assertRaisesMessage(ValidationError, "abierto"):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        self.periodo_liquidacion.estado = "ABIERTO"
+        self.periodo_liquidacion.save(update_fields=["estado"])
+        SaldoInicialCaja.objects.filter(moneda=self.pyg).delete()
+        with self.assertRaisesMessage(ValidationError, "no pertenece"):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        operacion.refresh_from_db()
+        self.assertEqual(operacion.estado, "PENDIENTE")
+        self.assertFalse(MovimientoCaja.objects.exists())
+
+    def test_identidad_roles_cliente_y_asociacion_se_validan(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        for cambios in (
+            {"usuario_id": ""}, {"usuario_id": "otro"}, {"roles": ["ADMINISTRADOR", "CAJERO"]},
+            {"roles": ["ANALISTA_CAMBIARIO"]}, {"roles": None},
+            {"cliente_seleccionado_id": self.cliente.pk + 100},
+        ):
+            with self.subTest(cambios=cambios), self.assertRaises(ValidationError):
+                liquidar_transaccion(**self.argumentos_liquidacion(operacion, **cambios))
+        self.asociacion.activo = False
+        self.asociacion.save()
+        with self.assertRaises(ValidationError):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        self.asociacion.activo = True
+        self.asociacion.save()
+        self.cliente.estado = "INACTIVO"
+        self.cliente.save()
+        with self.assertRaises(ValidationError):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        operacion.refresh_from_db()
+        self.assertEqual(operacion.estado, "PENDIENTE")
+        self.assertFalse(MovimientoCaja.objects.exists())
+
+    def test_compra_rechaza_obligacion_distinta_del_pago(self):
+        operacion = self.operacion_liquidacion()
+        self.pago_liquidacion(operacion)
+        operacion.monto_origen += Decimal("1")
+        operacion.save(update_fields=["monto_origen"])
+        with self.assertRaises(ValidationError) as error:
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        self.assertEqual(error.exception.code, "OBLIGACION_CAMBIADA")
+        self.assertFalse(MovimientoCaja.objects.exists())
+
+    def test_conflicto_idempotencia_revierte_ingreso_nuevo(self):
+        operacion = self.operacion_liquidacion("VENTA")
+        # Solo existe un egreso anterior con payload incompatible.
+        registrar_movimiento_automatico(
+            periodo_id=self.periodo_liquidacion.pk, tipo="EGRESO", moneda_id=self.pyg.pk,
+            monto="1", motivo="Previo", usuario_id=self.usuario_id,
+            referencia_externa=f"transaccion:{operacion.pk}",
+            clave_idempotencia=f"ge:hu28:transaccion:{operacion.pk}:caja:egreso-destino:v1",
+        )
+        with self.assertRaisesMessage(ValidationError, "otros datos"):
+            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+        self.assertEqual(MovimientoCaja.objects.count(), 1)
+        operacion.refresh_from_db()
+        self.assertEqual(operacion.estado, "PENDIENTE")
+
+    def test_pendiente_reutiliza_movimientos_identicos_y_completa(self):
+        for tipo in ("COMPRA", "VENTA"):
+            with self.subTest(tipo=tipo):
+                operacion = self.operacion_liquidacion(tipo)
+                pago = self.pago_liquidacion(operacion) if tipo == "COMPRA" else None
+                self.movimientos_previos(operacion, pago)
+                ids = list(MovimientoCaja.objects.values_list("pk", flat=True))
+                resultado = liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+                self.assertFalse(resultado.repetida)
+                self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+                self.assertCountEqual(MovimientoCaja.objects.values_list("pk", flat=True), ids)
+
+    def test_fallo_local_al_completar_revierte_todos_los_movimientos(self):
+        for tipo in ("COMPRA", "VENTA"):
+            with self.subTest(tipo=tipo):
+                operacion = self.operacion_liquidacion(tipo)
+                pago = self.pago_liquidacion(operacion) if tipo == "COMPRA" else None
+                with mock.patch.object(Transaccion, "save", side_effect=RuntimeError("Fallo local")):
+                    with self.assertRaises(RuntimeError):
+                        liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+                operacion.refresh_from_db()
+                self.assertEqual(operacion.estado, "PENDIENTE")
+                self.assertFalse(MovimientoCaja.objects.exists())
+                if pago:
+                    pago.refresh_from_db()
+                    self.assertEqual(pago.estado, Pago.Estado.APROBADO)
+
+
+class LiquidarTransaccionConcurrenciaTests(EscenarioLiquidacion, TransactionTestCase):
+    """Una Transacción serializa dos liquidadores reales antes de cualquier efecto."""
+
+    def test_dos_liquidaciones_concurrentes_compra_y_venta_no_duplican(self):
+        self.assertEqual(connection.vendor, "postgresql")
+        for tipo in ("COMPRA", "VENTA"):
+            with self.subTest(tipo=tipo):
+                operacion = self.operacion_liquidacion(tipo)
+                if tipo == "COMPRA":
+                    self.pago_liquidacion(operacion)
+                argumentos = self.argumentos_liquidacion(operacion)
+                pids, barrera = Queue(), Barrier(3)
+
+                def liquidar():
+                    close_old_connections()
+                    try:
+                        with connections["default"].cursor() as cursor:
+                            cursor.execute("SET lock_timeout = '10s'")
+                            cursor.execute("SELECT pg_backend_pid()")
+                            pids.put(cursor.fetchone()[0])
+                        barrera.wait(timeout=5)
+                        return liquidar_transaccion(**argumentos)
+                    finally:
+                        connections["default"].close()
+
+                with ThreadPoolExecutor(max_workers=2) as ejecutor:
+                    with transaction.atomic():
+                        Transaccion.objects.select_for_update(of=("self",)).get(pk=operacion.pk)
+                        futuros = [ejecutor.submit(liquidar) for _ in range(2)]
+                        barrera.wait(timeout=5)
+                        for _ in futuros:
+                            pid = pids.get(timeout=5)
+                            limite = time.monotonic() + 5
+                            bloqueado = False
+                            while time.monotonic() < limite:
+                                with connection.cursor() as cursor:
+                                    cursor.execute("SELECT cardinality(pg_blocking_pids(%s)) > 0", [pid])
+                                    bloqueado = cursor.fetchone()[0]
+                                if bloqueado:
+                                    break
+                                time.sleep(0.01)
+                            self.assertTrue(bloqueado, "El liquidador no esperó el lock real.")
+                    resultados = [futuro.result(timeout=15) for futuro in futuros]
+                self.assertCountEqual([resultado.repetida for resultado in resultados], [False, True])
+                operacion.refresh_from_db()
+                self.assertEqual(operacion.estado, "COMPLETADA")
+                claves = [f"ge:hu28:transaccion:{operacion.pk}:caja:egreso-destino:v1"]
+                if tipo == "VENTA":
+                    claves.append(f"ge:hu28:transaccion:{operacion.pk}:caja:ingreso-origen:v1")
+                self.assertEqual(MovimientoCaja.objects.filter(clave_idempotencia__in=claves).count(), len(claves))
+        self.assertEqual(MovimientoCaja.objects.count(), 3)
 
 
 class BaseOperacionesTests(TestCase):

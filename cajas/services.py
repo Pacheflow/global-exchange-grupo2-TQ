@@ -218,14 +218,23 @@ def _validar_operador_movimiento(roles, usuario_id):
 
 
 def _obtener_periodo_abierto(periodo_id, *, bloquear=False):
-    """Obtiene un período abierto y opcionalmente lo bloquea para escritura."""
+    """Consulta el período o lo revalida bajo locks explícitos Caja → Período.
 
-    consulta = PeriodoCaja.objects.select_related("caja")
-    if bloquear:
-        consulta = consulta.select_for_update()
+    Los llamadores de escritura mantienen ambos locks en su bloque atómico.
+    La lectura inicial solo identifica la caja; no autoriza el movimiento.
+    """
+
     try:
-        periodo = consulta.get(pk=periodo_id)
-    except (PeriodoCaja.DoesNotExist, TypeError, ValueError):
+        if bloquear:
+            caja_id = PeriodoCaja.objects.values_list("caja_id", flat=True).get(pk=periodo_id)
+            caja = Caja.objects.select_for_update(of=("self",)).get(pk=caja_id)
+            periodo = PeriodoCaja.objects.select_for_update(of=("self",)).get(
+                pk=periodo_id, caja_id=caja.pk,
+            )
+            periodo.caja = caja
+        else:
+            periodo = PeriodoCaja.objects.select_related("caja").get(pk=periodo_id)
+    except (Caja.DoesNotExist, PeriodoCaja.DoesNotExist, TypeError, ValueError):
         raise ValidationError("El período de caja no existe.")
     if periodo.estado != "ABIERTO":
         raise ValidationError("La caja debe tener un período abierto.")

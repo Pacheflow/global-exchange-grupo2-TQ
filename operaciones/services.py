@@ -8,12 +8,14 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from cajas.services import registrar_movimiento_automatico
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
 from pagos.models import Pago
 from tasas.models import TasaComercial
 from tasas.precision import normalizar_tasa
+from usuarios.services.keycloak import rol_efectivo
 
 from .models import Transaccion
 
@@ -69,6 +71,14 @@ class ResultadoCrearTransaccion:
     transaccion: Transaccion
     repetida: bool = False
     cambio_cotizacion: bool = False
+
+
+@dataclass(frozen=True)
+class ResultadoLiquidarTransaccion:
+    """Operación liquidada ahora o resultado previamente completado y reutilizado."""
+
+    transaccion: Transaccion
+    repetida: bool = False
 
 
 def _validar_identidad(usuario_id):
@@ -807,6 +817,83 @@ def crear_transaccion(
     return ResultadoCrearTransaccion(
         transaccion=transaccion,
     )
+
+
+def liquidar_transaccion(
+    *, transaccion_id, periodo_id, usuario_id, username="", roles,
+    cliente_seleccionado_id,
+):
+    """Liquida snapshots de la operación y Caja en un único commit, sin IO externo.
+
+    Locks: Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. La capa superior
+    selecciona y autoriza el período explícito; no existen asignaciones Cajero–Caja.
+    El cobro digital de COMPRA no representa un ingreso de efectivo.
+    """
+    usuario_id = _validar_identidad(usuario_id)
+    if (
+        not isinstance(roles, (list, tuple, set, frozenset))
+        or not all(isinstance(rol, str) for rol in roles)
+        or rol_efectivo(roles) not in {"CAJERO", "USUARIO"}
+    ):
+        raise ValidationError("El rol no permite liquidar operaciones.", code="ROL_NO_PERMITIDO")
+
+    with transaction.atomic():
+        try:
+            operacion = (
+                Transaccion.objects.select_related("moneda_origen", "moneda_destino")
+                .select_for_update(of=("self",)).get(pk=transaccion_id)
+            )
+        except (Transaccion.DoesNotExist, TypeError, ValueError):
+            raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
+        if type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != operacion.cliente_id:
+            raise ValidationError("El cliente seleccionado no corresponde a la operación.", code="CLIENTE_INCOHERENTE")
+        cliente = _obtener_cliente_activo(operacion.cliente_id)
+        _validar_acceso_usuario_cliente(cliente, usuario_id)
+        if operacion.estado == "COMPLETADA":
+            return ResultadoLiquidarTransaccion(operacion, repetida=True)
+        if operacion.estado != "PENDIENTE":
+            raise ValidationError("La operación debe estar pendiente.", code="OPERACION_NO_PENDIENTE")
+        if operacion.tipo not in {"COMPRA", "VENTA"}:
+            raise ValidationError("El tipo de operación no permite liquidación.", code="TIPO_NO_ADMITIDO")
+
+        referencia = f"transaccion:{operacion.pk}"
+        if operacion.tipo == "COMPRA":
+            pago = Pago.objects.select_for_update(of=("self",)).filter(transaccion_id=operacion.pk).first()
+            if pago is None or pago.estado != Pago.Estado.APROBADO:
+                raise ValidationError("La compra requiere un pago aprobado.", code="PAGO_NO_APROBADO")
+            if (
+                pago.transaccion_id != operacion.pk
+                or pago.metodo_pago_id != operacion.metodo_pago_id
+                or pago.monto != operacion.monto_origen
+                or pago.moneda_codigo != operacion.moneda_origen.codigo
+                or pago.base_importe != Pago.BaseImporte.ORIGEN
+                or pago.huella_solicitud != pago.calcular_huella()
+            ):
+                raise ValidationError("El pago no corresponde a la obligación.", code="OBLIGACION_CAMBIADA")
+            pago.full_clean()
+            referencia = pago.referencia_externa
+
+        datos = dict(
+            periodo_id=periodo_id, usuario_id=usuario_id, username=username,
+            motivo=f"Liquidación de {operacion.tipo} {operacion.pk}",
+            referencia_externa=referencia,
+        )
+        prefijo = f"ge:hu28:transaccion:{operacion.pk}:caja:"
+        if operacion.tipo == "VENTA":
+            registrar_movimiento_automatico(
+                **datos, tipo="INGRESO", moneda_id=operacion.moneda_origen_id,
+                monto=operacion.monto_origen,
+                clave_idempotencia=f"{prefijo}ingreso-origen:v1",
+            )
+        registrar_movimiento_automatico(
+            **datos, tipo="EGRESO", moneda_id=operacion.moneda_destino_id,
+            monto=operacion.monto_destino,
+            clave_idempotencia=f"{prefijo}egreso-destino:v1",
+        )
+        operacion.estado = "COMPLETADA"
+        operacion.full_clean()
+        operacion.save(update_fields=["estado", "fecha_actualizacion"])
+        return ResultadoLiquidarTransaccion(operacion)
 
 
 def cancelar_transaccion(
