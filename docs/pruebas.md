@@ -1,32 +1,49 @@
 # Pruebas — Global Exchange
 
-> Estado verificado el 02/10/2026.
+> Estado verificado el 11/10/2026.
 > Suite ejecutada en Docker con `python manage.py test`.
 
 ## Resumen
 
 | Métrica | Valor |
 |---|---|
-| Total de tests detectados | **203** |
-| Tests pasando | **203** |
+| Total de tests detectados | **308** |
+| Tests pasando | **308** |
 | Tests fallando | **0** |
 | Errores | **0** |
-| Duración última ejecución | 20.981 s |
+| Duración última ejecución | 9.935 s |
 
-La suite completa fue ejecutada después de incorporar los cambios de
-operaciones correspondientes a HU-22, HU-23, HU-25 y HU-32/HU-24.
+La suite completa fue ejecutada después de incorporar saldos y movimientos de
+caja correspondientes a HU-40 y HU-41.
 
 ## Detalle por app
 
 | App | Archivo | Métodos `test_*` | Funcionalidad cubierta |
 |---|---|---:|---|
-| `usuarios` | `usuarios/tests.py`, `usuarios/test_production_settings.py` | 54 | Autenticación, sesión, Keycloak, prioridad multirrol, permisos, administración de usuarios y configuración productiva |
+| `usuarios` | `usuarios/tests.py`, `usuarios/test_production_settings.py` | 55 | Autenticación, sesión, Keycloak, prioridad multirrol, permisos, administración de usuarios y configuración productiva |
 | `clientes` | `clientes/tests.py` | 29 | Modelo, clientes, asociaciones Usuario–Cliente, selección, restricción del analista y validaciones |
-| `tasas` | `tasas/tests.py`, `test_reference_rates.py`, `test_simulator.py` | 36 | Proveedor y fallback, simulación, permisos, validación, versionado, histórico y baja lógica |
+| `tasas` | `tasas/tests.py`, `test_reference_rates.py`, `test_simulator.py` | 58 | Proveedor y fallback, simulación, permisos, validación, versionado, histórico y baja lógica |
 | `monedas` | `monedas/tests.py` | 7 | Configuración de monedas, estados y validaciones |
 | `metodos_pago` | `metodos_pago/tests.py` | 6 | Configuración y administración de métodos de pago |
 | `operaciones` | `operaciones/tests.py`, `operaciones/test_guillermo.py` | 71 | Previsualización, compra, venta, huellas de comisión e idempotencia, confirmación, métodos, historial, detalle y cancelación |
-| **Total** | | **203** | |
+| `cajas` | `cajas/tests.py`, `cajas/test_apertura.py`, `cajas/test_saldos_movimientos.py` | 82 | Configuración, apertura, saldos por moneda, movimientos, permisos, concurrencia e idempotencia |
+| **Total** | | **308** | |
+
+## HU-40 y HU-41 — Saldos y movimientos de caja
+
+Los diez escenarios nuevos de Guillermo comprueban saldo inicial, separación
+por moneda, ingresos, egresos, fondos insuficientes, períodos cerrados,
+permisos, trazabilidad inmutable, idempotencia automática y el flujo web.
+
+```bash
+python manage.py test cajas.test_saldos_movimientos
+```
+
+La validación conjunta del módulo ejecutó 82 tests correctamente:
+
+```bash
+python manage.py test cajas.test_saldos_movimientos cajas.test_apertura cajas.tests
+```
 
 ## HU-23 y HU-32/HU-24 — Venta, historial y detalle
 

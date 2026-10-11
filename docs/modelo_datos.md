@@ -127,12 +127,34 @@ Métodos de negocio: `activar()` → estado ACTIVO; `dar_de_baja()` → estado I
 
 ## Relaciones entre apps
 
+### `cajas`
+
+#### `MovimientoCaja`
+
+| Campo | Tipo | Restricciones |
+|---|---|---|
+| `periodo` | `ForeignKey(PeriodoCaja)` | `PROTECT`, solo período abierto al crear |
+| `moneda` | `ForeignKey(Moneda)` | `PROTECT`, debe pertenecer a los saldos de apertura |
+| `tipo` | `CharField(max_length=7)` | `INGRESO` o `EGRESO` |
+| `monto` | `DecimalField(18, 6)` | mayor que cero |
+| `origen` | `CharField(max_length=10)` | `MANUAL` o `AUTOMATICO` |
+| `motivo` | `CharField(max_length=255)` | obligatorio y no vacío |
+| `clave_idempotencia` | `CharField`, nullable, unique | nula en manual y obligatoria en automático |
+| `referencia_externa` | `CharField(max_length=255)` | referencia de la integración automática |
+| `registrado_por_*` | texto | identidad Keycloak capturada en servidor |
+| `fecha_registro` | `DateTimeField` | `auto_now_add=True` |
+
+Un movimiento persistido es inmutable desde el modelo. El saldo no se duplica
+en una columna mutable: se deriva por moneda como `saldo inicial + ingresos -
+egresos`, usando exclusivamente el período consultado.
+
 - `Cliente` → `CategoriaCliente` (FK, PROTECT) — no se puede borrar una categoría con clientes asignados.
 - `UsuarioCliente` → `Cliente` (FK, CASCADE) — borrar un cliente elimina sus asociaciones.
 - `MetodoPago` → `Cliente` (FK, PROTECT) — un método de pago impide borrar físicamente su cliente.
 - `TasaReferencia` y `TasaComercial` → `Moneda` (FK, PROTECT) — una tasa impide borrar físicamente sus monedas.
 - `ConsultaProveedorTasas` → `Moneda` (FK, PROTECT).
 - `TasaReferencia` → `ConsultaProveedorTasas` (FK, PROTECT).
+- `MovimientoCaja` → `PeriodoCaja` y `Moneda` (FK, PROTECT) — preserva la trazabilidad financiera.
 
 ## Reglas de validación en `clean()`
 

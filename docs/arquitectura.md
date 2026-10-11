@@ -26,6 +26,7 @@
 | `metodos_pago` | Métodos de pago por cliente (dual HTML/JSON, ADMINISTRADOR) | `MetodoPago` |
 | `tasas` | Tasas de referencia (proveedor externo), tasas comerciales (versionado), simulador de conversiones | `ConsultaProveedorTasas`, `TasaReferencia`, `TasaComercial` |
 | `operaciones` | Previsualización, compra/venta, idempotencia, cancelación, historial y detalle | `Transaccion` |
+| `cajas` | Configuración, apertura, saldo por moneda y movimientos manuales/automáticos | `Caja`, `PeriodoCaja`, `SaldoInicialCaja`, `MovimientoCaja` |
 
 ## Grafo de dependencias entre apps
 
@@ -36,7 +37,8 @@ usuarios (base, sin imports locales de negocio)
    ├── monedas → usuarios
    ├── tasas → usuarios + monedas (FK Moneda en TasaReferencia y TasaComercial)
    ├── metodos_pago → usuarios + clientes
-   └── operaciones → usuarios + clientes + monedas + tasas + metodos_pago
+   ├── operaciones → usuarios + clientes + monedas + tasas + metodos_pago
+   └── cajas → usuarios + monedas
 ```
 
 ## Montaje de URLs (`config/urls.py`)
@@ -52,6 +54,7 @@ usuarios (base, sin imports locales de negocio)
 | `api/tasas/` | `tasas.urls` (API JSON) |
 | `api/operaciones/` | `operaciones.urls` (API JSON) |
 | `operaciones/` | `operaciones.web_urls` (pantalla operativa) |
+| `cajas/` | `cajas.urls` (configuración, apertura, saldos y movimientos) |
 | (raíz) | `usuarios.urls` (web: home, OIDC, panel, screens) |
 
 ## Estructura de directorios
@@ -99,6 +102,12 @@ global-exchange/
 │   ├── tests.py           # Tasas comerciales
 │   ├── test_reference_rates.py
 │   └── test_simulator.py  # 36 métodos de test en total
+├── cajas/                 # App de caja
+│   ├── models.py          # Caja, período, saldo inicial y movimiento
+│   ├── services.py        # apertura, saldo y movimientos atómicos/idempotentes
+│   ├── views.py           # flujos ADMINISTRADOR y CAJERO
+│   ├── test_apertura.py   # HU-39
+│   └── test_saldos_movimientos.py # HU-40/HU-41
 ├── templates/
 │   ├── frontend/          # Templates del panel (post refactor figma→frontend)
 │   │   ├── base.html      # Shell del panel: CSS/JS, blocks (title, extra_head, sidebar, content, extra_js)

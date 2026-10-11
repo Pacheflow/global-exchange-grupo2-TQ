@@ -12,9 +12,17 @@ from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO
 
 from monedas.models import Moneda
 
-from .forms import AperturaCajaForm, CajaForm, EstadoCajaForm
+from .forms import AperturaCajaForm, CajaForm, EstadoCajaForm, MovimientoCajaForm
 from .models import Caja, PeriodoCaja
-from .services import abrir_caja, cambiar_estado_caja, crear_caja, firmar_catalogo, leer_catalogo
+from .services import (
+    abrir_caja,
+    cambiar_estado_caja,
+    consultar_saldos_caja,
+    crear_caja,
+    firmar_catalogo,
+    leer_catalogo,
+    registrar_movimiento_manual,
+)
 
 logger = logging.getLogger(__name__)
 ERROR_REGISTRO = "No fue posible registrar la caja. Intentá nuevamente."
@@ -27,18 +35,33 @@ def _identidad(request):
     return {"usuario_id": usuario.get("sub", ""), "roles": request.session.get(SESSION_ROLES, [])}
 
 
+def _filas_cajas(cajas):
+    """Añade el período abierto ya precargado a cada fila del catálogo."""
+    return [
+        {
+            "caja": caja,
+            "periodo_abierto": next(
+                (periodo for periodo in caja.periodos.all() if periodo.estado == "ABIERTO"),
+                None,
+            ),
+        }
+        for caja in cajas
+    ]
+
+
 @requiere_roles_web("ADMINISTRADOR")
 @require_GET
 def inicio(request):
     """Consulta el catálogo sin ofrecer operaciones futuras."""
     try:
-        cajas = list(Caja.objects.all())
+        cajas = list(Caja.objects.prefetch_related("periodos").all())
+        filas = _filas_cajas(cajas)
     except DatabaseError:
         logger.error("No fue posible consultar el catálogo de cajas.")
         return render(request, "frontend/cajas.html", {
             "cajas": [], "error": "No fue posible consultar las cajas. Intentá nuevamente.",
         }, status=500)
-    return render(request, "frontend/cajas.html", {"cajas": cajas})
+    return render(request, "frontend/cajas.html", {"cajas": cajas, "filas": filas})
 
 
 @requiere_roles_web("ADMINISTRADOR")
@@ -80,8 +103,10 @@ def cambiar_estado(request, caja_id):
     """Cambia habilitación; el rechazo por período abierto redirige con aviso único."""
     formulario = EstadoCajaForm(request.POST)
     if not formulario.is_valid():
+        cajas = list(Caja.objects.prefetch_related("periodos").all())
         return render(request, "frontend/cajas.html", {
-            "cajas": Caja.objects.all(), "error": "Estado de caja inválido.",
+            "cajas": cajas, "filas": _filas_cajas(cajas),
+            "error": "Estado de caja inválido.",
         }, status=400)
     try:
         cambiar_estado_caja(caja_id=caja_id, **formulario.cleaned_data, **_identidad(request))
@@ -91,8 +116,10 @@ def cambiar_estado(request, caja_id):
         if getattr(error, "code", None) == "caja_abierta":
             messages.error(request, " ".join(error.messages))
             return redirect("cajas:inicio")
+        cajas = list(Caja.objects.prefetch_related("periodos").all())
         return render(request, "frontend/cajas.html", {
-            "cajas": Caja.objects.all(), "error": " ".join(error.messages),
+            "cajas": cajas, "filas": _filas_cajas(cajas),
+            "error": " ".join(error.messages),
         }, status=400)
     except PermissionDenied:
         raise
@@ -110,7 +137,7 @@ def cambiar_estado(request, caja_id):
 def operar(request):
     """Ofrece al cajero cajas habilitadas sin conceder configuración administrativa."""
     cajas = Caja.objects.habilitadas().prefetch_related("periodos")
-    filas = [{"caja": caja, "abierta": any(p.estado == "ABIERTO" for p in caja.periodos.all())} for caja in cajas]
+    filas = _filas_cajas(cajas)
     return render(request, "frontend/cajas_operar.html", {"filas": filas})
 
 
@@ -189,3 +216,74 @@ def apertura_confirmada(request, periodo_id):
         pk=periodo_id, responsable_keycloak_id=usuario_id,
     )
     return render(request, "frontend/caja_apertura_confirmada.html", {"periodo": periodo})
+
+
+@requiere_roles_web("ADMINISTRADOR", "CAJERO")
+@require_GET
+def saldo(request, periodo_id):
+    """Muestra saldo por moneda y movimientos del período abierto."""
+
+    try:
+        periodo, saldos = consultar_saldos_caja(
+            periodo_id=periodo_id,
+            **_identidad(request),
+        )
+    except PeriodoCaja.DoesNotExist as error:
+        raise Http404("El período no existe.") from error
+    except PermissionDenied:
+        raise
+    except ValidationError as error:
+        return render(
+            request,
+            "frontend/caja_saldo.html",
+            {"periodo": None, "saldos": [], "movimientos": [], "error": " ".join(error.messages)},
+            status=400,
+        )
+
+    movimientos = periodo.movimientos.select_related("moneda").all()
+    return render(
+        request,
+        "frontend/caja_saldo.html",
+        {"periodo": periodo, "saldos": saldos, "movimientos": movimientos},
+    )
+
+
+@requiere_roles_web("CAJERO")
+@require_http_methods(["GET", "POST"])
+def registrar_movimiento(request, periodo_id):
+    """Registra un movimiento manual validado y vuelve al saldo de caja."""
+
+    periodo = get_object_or_404(
+        PeriodoCaja.objects.select_related("caja"),
+        pk=periodo_id,
+    )
+    formulario = MovimientoCajaForm(
+        periodo,
+        request.POST if request.method == "POST" else None,
+    )
+    if request.method == "POST" and formulario.is_valid():
+        usuario = request.session.get(SESSION_USUARIO, {})
+        try:
+            registrar_movimiento_manual(
+                periodo_id=periodo.id,
+                tipo=formulario.cleaned_data["tipo"],
+                moneda_id=formulario.cleaned_data["moneda"].id,
+                monto=formulario.cleaned_data["monto"],
+                motivo=formulario.cleaned_data["motivo"],
+                username=usuario.get("username", usuario.get("preferred_username", "")),
+                **_identidad(request),
+            )
+        except PermissionDenied:
+            raise
+        except ValidationError as error:
+            formulario.add_error(None, " ".join(error.messages))
+        else:
+            messages.success(request, "Movimiento registrado correctamente.")
+            return redirect("cajas:saldo", periodo_id=periodo.id)
+
+    return render(
+        request,
+        "frontend/caja_movimiento_form.html",
+        {"periodo": periodo, "form": formulario},
+        status=400 if request.method == "POST" else 200,
+    )
