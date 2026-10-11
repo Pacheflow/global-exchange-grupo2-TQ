@@ -1,6 +1,8 @@
 from django import forms
 
-from .models import Caja
+from monedas.models import Moneda
+
+from .models import Caja, MovimientoCaja
 
 
 class CajaForm(forms.ModelForm):
@@ -69,3 +71,30 @@ class AperturaCajaForm(forms.Form):
     def saldos(self):
         """Devuelve los importes validados como lista explícita para el servicio."""
         return [{"moneda_id": moneda_id, "monto": self.cleaned_data[f"monto_{moneda_id}"]} for moneda_id, _ in self.pares]
+
+
+class MovimientoCajaForm(forms.Form):
+    """Captura un movimiento manual limitado a las monedas de la apertura."""
+
+    tipo = forms.ChoiceField(choices=MovimientoCaja.TIPOS, widget=forms.Select(attrs={"class": "ge-input"}))
+    moneda = forms.ModelChoiceField(queryset=Moneda.objects.none(), widget=forms.Select(attrs={"class": "ge-input"}))
+    monto = forms.CharField(widget=forms.TextInput(attrs={"class": "ge-input", "inputmode": "decimal", "autocomplete": "off"}))
+    motivo = forms.CharField(max_length=255, widget=forms.Textarea(attrs={"class": "ge-input", "rows": 3}))
+
+    def __init__(self, periodo, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        moneda_ids = periodo.saldos_iniciales.values_list("moneda_id", flat=True)
+        self.fields["moneda"].queryset = Moneda.objects.filter(id__in=moneda_ids).order_by("codigo")
+
+    def clean_monto(self):
+        """Valida el monto con la misma regla exacta utilizada por el servicio."""
+        from .services import validar_monto_movimiento
+
+        return validar_monto_movimiento(self.cleaned_data["monto"])
+
+    def clean_motivo(self):
+        """Exige un motivo explícito para preservar la trazabilidad manual."""
+        motivo = self.cleaned_data["motivo"].strip()
+        if not motivo:
+            raise forms.ValidationError("El motivo es obligatorio.")
+        return motivo

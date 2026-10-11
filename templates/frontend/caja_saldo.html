@@ -1,0 +1,42 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+{% block title %}Saldo de caja · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <div class="ge-frontend-section-head">
+    <div>
+      <h2 class="ge-frontend-h2">Saldo de caja{% if periodo %} {{ periodo.caja.codigo }}{% endif %}</h2>
+      {% if periodo %}<p class="ge-frontend-subtitle">Período {{ periodo.id }} · abierto desde {{ periodo.fecha_apertura|date:'d/m/Y H:i' }}</p>{% endif %}
+    </div>
+    {% if periodo and kc_rol_efectivo == 'CAJERO' %}<a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' periodo.id %}">Nuevo movimiento</a>{% endif %}
+  </div>
+  {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
+  {% if periodo %}
+    <div class="ge-card" style="overflow:hidden;margin-bottom:24px">
+      <table class="ge-table">
+        <thead><tr><th>Moneda</th><th>Saldo inicial</th><th>Ingresos</th><th>Egresos</th><th>Saldo actual</th></tr></thead>
+        <tbody>{% for saldo in saldos %}<tr>
+          <td><strong>{{ saldo.moneda.codigo }}</strong> · {{ saldo.moneda.nombre }}</td>
+          <td>{{ saldo.saldo_inicial|importe_inicial }}</td>
+          <td>{{ saldo.ingresos|importe_inicial }}</td>
+          <td>{{ saldo.egresos|importe_inicial }}</td>
+          <td><strong>{{ saldo.saldo_actual|importe_inicial }}</strong></td>
+        </tr>{% empty %}<tr><td colspan="5">Este período no tiene monedas registradas.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    <h3>Movimientos del período</h3>
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Moneda</th><th>Monto</th><th>Origen</th><th>Motivo</th><th>Registrado por</th></tr></thead>
+        <tbody>{% for movimiento in movimientos %}<tr>
+          <td>{{ movimiento.fecha_registro|date:'d/m/Y H:i:s' }}</td><td>{{ movimiento.get_tipo_display }}</td>
+          <td>{{ movimiento.moneda.codigo }}</td><td>{{ movimiento.monto|importe_inicial }}</td>
+          <td>{{ movimiento.get_origen_display }}</td><td>{{ movimiento.motivo }}</td>
+          <td>{{ movimiento.registrado_por_username|default:movimiento.registrado_por_keycloak_id }}</td>
+        </tr>{% empty %}<tr><td colspan="7">Todavía no hay movimientos en este período.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

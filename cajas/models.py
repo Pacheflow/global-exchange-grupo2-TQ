@@ -93,3 +93,59 @@ class SaldoInicialCaja(models.Model):
     def __str__(self):
         """Devuelve el importe inicial completo y su moneda."""
         return f"{self.monto} {self.moneda.codigo} - período {self.periodo_id}"
+
+
+class MovimientoCaja(models.Model):
+    """Movimiento inmutable que modifica el saldo de una moneda del período.
+
+    Los movimientos manuales conservan su motivo y actor. Los automáticos
+    agregan una clave de idempotencia para que una integración externa pueda
+    reintentar sin duplicar el efecto financiero.
+    """
+
+    TIPOS = [("INGRESO", "Ingreso"), ("EGRESO", "Egreso")]
+    ORIGENES = [("MANUAL", "Manual"), ("AUTOMATICO", "Automático")]
+
+    periodo = models.ForeignKey(PeriodoCaja, on_delete=models.PROTECT, related_name="movimientos")
+    moneda = models.ForeignKey("monedas.Moneda", on_delete=models.PROTECT, related_name="movimientos_caja")
+    tipo = models.CharField(max_length=7, choices=TIPOS)
+    monto = models.DecimalField(max_digits=18, decimal_places=6)
+    origen = models.CharField(max_length=10, choices=ORIGENES, default="MANUAL")
+    motivo = models.CharField(max_length=255)
+    clave_idempotencia = models.CharField(max_length=255, null=True, blank=True, unique=True, editable=False)
+    referencia_externa = models.CharField(max_length=255, blank=True, editable=False)
+    registrado_por_keycloak_id = models.CharField(max_length=255, editable=False)
+    registrado_por_username = models.CharField(max_length=150, blank=True, editable=False)
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-fecha_registro", "-id")
+        constraints = [
+            models.CheckConstraint(condition=Q(tipo__in=["INGRESO", "EGRESO"]), name="movimiento_caja_tipo_valido"),
+            models.CheckConstraint(condition=Q(origen__in=["MANUAL", "AUTOMATICO"]), name="movimiento_caja_origen_valido"),
+            models.CheckConstraint(condition=Q(monto__gt=0), name="movimiento_caja_monto_positivo"),
+            models.CheckConstraint(condition=~Q(motivo=""), name="movimiento_caja_motivo_no_vacio"),
+            models.CheckConstraint(
+                condition=(
+                    Q(origen="MANUAL", clave_idempotencia__isnull=True)
+                    | Q(origen="AUTOMATICO", clave_idempotencia__isnull=False)
+                ),
+                name="movimiento_caja_idempotencia_segun_origen",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        """Normaliza el alta e impide alterar un movimiento ya auditado."""
+        if self.pk is not None:
+            raise ValueError("Los movimientos de caja son inmutables.")
+        self.motivo = self.motivo.strip()
+        self.referencia_externa = self.referencia_externa.strip()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Impide el borrado destructivo de un movimiento auditado."""
+        raise ValueError("Los movimientos de caja no se pueden eliminar.")
+
+    def __str__(self):
+        """Identifica tipo, monto, moneda y período del movimiento."""
+        return f"{self.tipo} {self.monto} {self.moneda.codigo} - período {self.periodo_id}"

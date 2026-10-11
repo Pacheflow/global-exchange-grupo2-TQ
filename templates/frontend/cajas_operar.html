@@ -9,8 +9,15 @@
     <thead><tr><th>Código</th><th>Nombre</th><th>Disponibilidad</th><th>Acción</th></tr></thead>
     <tbody>{% for fila in filas %}<tr>
       <td>{{ fila.caja.codigo }}</td><td>{{ fila.caja.nombre }}</td>
-      <td>{% if fila.abierta %}Con período abierto{% else %}Disponible para apertura{% endif %}</td>
-      <td>{% if not fila.abierta %}<a class="ge-btn-primary" href="{% url 'cajas:apertura' fila.caja.id %}">Registrar apertura</a>{% endif %}</td>
+      <td>{% if fila.periodo_abierto %}Con período abierto{% else %}Disponible para apertura{% endif %}</td>
+      <td class="ge-inline-actions">
+        {% if fila.periodo_abierto %}
+          <a class="ge-btn-ghost" href="{% url 'cajas:saldo' fila.periodo_abierto.id %}">Consultar saldo</a>
+          <a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' fila.periodo_abierto.id %}">Nuevo movimiento</a>
+        {% else %}
+          <a class="ge-btn-primary" href="{% url 'cajas:apertura' fila.caja.id %}">Registrar apertura</a>
+        {% endif %}
+      </td>
     </tr>{% empty %}<tr><td colspan="4">No hay cajas habilitadas.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>
