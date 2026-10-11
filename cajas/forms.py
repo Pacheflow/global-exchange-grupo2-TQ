@@ -45,9 +45,17 @@ class AperturaCajaForm(forms.Form):
         self.pares = pares
         for moneda_id, codigo in pares:
             self.fields[f"monto_{moneda_id}"] = forms.CharField(
-                label=f"Saldo inicial {codigo}",
-                widget=forms.TextInput(attrs={"class": "ge-input", "inputmode": "decimal", "autocomplete": "off"}),
-            )
+            label=f"Saldo inicial {codigo}",
+            widget=forms.NumberInput(
+                attrs={
+                    "class": "ge-input",
+                    "inputmode": "decimal",
+                    "autocomplete": "off",
+                    "min": "0",
+                    "step": "any",
+                }
+            ),
+    )
 
     def clean(self):
         """Valida decimales exactos y rechaza monedas adicionales o campos repetidos."""
