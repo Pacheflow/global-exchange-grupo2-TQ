@@ -9,7 +9,8 @@ from usuarios.services.keycloak import rol_efectivo
 from monedas.models import Moneda
 
 from .forms import CajaForm, EstadoCajaForm
-from .models import Caja, MovimientoCaja, PeriodoCaja, SaldoInicialCaja
+from .models import ArqueoCaja, Caja, CierreCaja, DetalleArqueoCaja, DetalleCierreCaja, MovimientoCaja, PeriodoCaja, SaldoInicialCaja
+
 
 SAL_CATALOGO = "cajas.apertura.catalogo"
 
@@ -422,3 +423,182 @@ def registrar_movimiento_automatico(
         movimiento.full_clean()
         movimiento.save()
         return ResultadoMovimientoCaja(movimiento)
+
+def realizar_arqueo(
+    *,
+    periodo_id,
+    saldos_fisicos,
+    usuario_id,
+    username="",
+    roles,
+    observacion="",
+):
+    """Realiza y guarda el arqueo de un período de caja abierto.
+
+    Calcula por moneda:
+    diferencia = saldo físico - saldo teórico.
+
+    Clasifica el resultado como SOBRANTE, FALTANTE o SIN_DIFERENCIA
+    y conserva usuario, fecha y observación para trazabilidad.
+
+    Requisito relacionado: HU-42.
+    """
+
+    _validar_cajero(roles, usuario_id)
+
+    if not isinstance(saldos_fisicos, list):
+        raise ValidationError("Los saldos físicos deben enviarse como una lista.")
+
+    with transaction.atomic():
+        # Bloqueamos el período para evitar movimientos mientras se calcula el arqueo.
+        periodo = _obtener_periodo_abierto(periodo_id, bloquear=True)
+        saldos_teoricos = _saldos_del_periodo(periodo)
+
+        fisicos = {}
+
+        for saldo in saldos_fisicos:
+            if not isinstance(saldo, dict) or type(saldo.get("moneda_id")) is not int:
+                raise ValidationError("La moneda del saldo físico no es válida.")
+
+            moneda_id = saldo["moneda_id"]
+
+            if moneda_id in fisicos:
+                raise ValidationError("No se permite repetir monedas en el arqueo.")
+
+            fisicos[moneda_id] = validar_importe_inicial(saldo.get("monto"))
+
+        monedas_esperadas = {
+            saldo.moneda.id
+            for saldo in saldos_teoricos
+        }
+
+        if set(fisicos) != monedas_esperadas:
+            raise ValidationError(
+                "Se debe ingresar el saldo físico de todas las monedas del período."
+            )
+
+        arqueo = ArqueoCaja.objects.create(
+            periodo=periodo,
+            realizado_por_keycloak_id=usuario_id.strip(),
+            realizado_por_username=username,
+            observacion=observacion.strip() if isinstance(observacion, str) else "",
+        )
+
+        for saldo in saldos_teoricos:
+            saldo_fisico = fisicos[saldo.moneda.id]
+            diferencia = saldo_fisico - saldo.saldo_actual
+
+            if diferencia > 0:
+                resultado = "SOBRANTE"
+            elif diferencia < 0:
+                resultado = "FALTANTE"
+            else:
+                resultado = "SIN_DIFERENCIA"
+
+            DetalleArqueoCaja.objects.create(
+                arqueo=arqueo,
+                moneda=saldo.moneda,
+                saldo_teorico=saldo.saldo_actual,
+                saldo_fisico=saldo_fisico,
+                diferencia=diferencia,
+                resultado=resultado,
+            )
+
+        return arqueo
+def cerrar_caja(
+    *,
+    periodo_id,
+    usuario_id,
+    username="",
+    roles,
+):
+    """Cierra un período abierto utilizando su último arqueo.
+
+    Conserva los saldos teóricos, físicos y diferencias del arqueo,
+    registra al usuario responsable y cambia el período a CERRADO.
+
+    Requisito relacionado: HU-43.
+    """
+
+    _validar_cajero(roles, usuario_id)
+
+    with transaction.atomic():
+        periodo = _obtener_periodo_abierto(periodo_id, bloquear=True)
+
+        arqueo = (
+            ArqueoCaja.objects
+            .filter(periodo=periodo)
+            .prefetch_related("detalles__moneda")
+            .order_by("-fecha_arqueo", "-id")
+            .first()
+        )
+
+        if arqueo is None:
+            raise ValidationError(
+                "Debe realizarse un arqueo antes de cerrar la caja."
+            )
+        if periodo.movimientos.filter(
+            fecha_registro__gt=arqueo.fecha_arqueo
+        ).exists():
+            raise ValidationError(
+                "Se registraron movimientos después del arqueo. "
+                "Debe realizarse un nuevo arqueo antes de cerrar la caja."
+            )
+
+        if CierreCaja.objects.filter(periodo=periodo).exists():
+            raise ValidationError("Este período ya fue cerrado.")
+
+        cierre = CierreCaja.objects.create(
+            periodo=periodo,
+            arqueo=arqueo,
+            cerrado_por_keycloak_id=usuario_id.strip(),
+            cerrado_por_username=username,
+        )
+
+        for detalle in arqueo.detalles.all():
+            DetalleCierreCaja.objects.create(
+                cierre=cierre,
+                moneda=detalle.moneda,
+                saldo_teorico=detalle.saldo_teorico,
+                saldo_fisico=detalle.saldo_fisico,
+                diferencia=detalle.diferencia,
+            )
+
+        periodo.estado = "CERRADO"
+        periodo.save(update_fields=["estado"])
+
+        return cierre
+def consultar_historial_caja(*, caja_id, usuario_id, roles):
+    """Consulta el historial completo de una caja sin modificar sus registros.
+
+    Incluye aperturas, movimientos, arqueos, diferencias y cierres
+    de todos los períodos de la caja.
+
+    Requisito relacionado: HU-44.
+    """
+
+    if rol_efectivo(roles) not in {"ADMINISTRADOR", "CAJERO"}:
+        raise PermissionDenied(
+            "Solo ADMINISTRADOR o CAJERO pueden consultar el historial de caja."
+        )
+
+    if not isinstance(usuario_id, str) or not usuario_id.strip():
+        raise ValidationError(
+            "No se encontró una identidad Keycloak válida."
+        )
+
+    try:
+        caja = Caja.objects.get(pk=caja_id)
+    except (Caja.DoesNotExist, TypeError, ValueError):
+        raise ValidationError("La caja no existe.")
+
+    periodos = list(
+        caja.periodos.prefetch_related(
+            "saldos_iniciales__moneda",
+            "movimientos__moneda",
+            "arqueos__detalles__moneda",
+            "cierre__detalles__moneda",
+        ).all()
+    )
+
+    return caja, periodos

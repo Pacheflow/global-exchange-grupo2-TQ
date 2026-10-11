@@ -14,6 +14,7 @@
       <tr><td>{{ fila.caja.codigo }}</td><td>{{ fila.caja.nombre }}</td><td>{{ fila.caja.get_estado_display }}</td>
         <td><div class="ge-inline-actions">
           {% if fila.periodo_abierto %}<a class="ge-btn-ghost" href="{% url 'cajas:saldo' fila.periodo_abierto.id %}">Ver saldo</a>{% endif %}
+          <a class="ge-btn-ghost" href="{% url 'cajas:historial' fila.caja.id %}">Historial</a>
           <form method="post" action="{% url 'cajas:cambiar_estado' fila.caja.id %}" up-submit="false">{% csrf_token %}
           {% if fila.caja.estado == 'HABILITADA' %}
             <input type="hidden" name="estado" value="DESHABILITADA"><button class="ge-btn-ghost" type="submit">Deshabilitar</button>
