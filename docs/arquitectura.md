@@ -1,8 +1,8 @@
 # Arquitectura — Global Exchange
 
 > Documentación técnica derivada del estado real verificado.
-> Rama `develop`, merge en curso todavía sin commit.
-> Última actualización: 2026-10-02.
+> Actualización HU-28 en `feature/hu28-pago-modelo`, corte funcional `07ef6fd`.
+> Última actualización de Pagos/Operaciones/Caja: 2026-10-11; resto conserva el corte anterior.
 
 ## Stack de tecnología
 
@@ -25,7 +25,8 @@
 | `monedas` | Catálogo de monedas (escritura ADMINISTRADOR, lectura de activas todos los roles) | `Moneda` |
 | `metodos_pago` | Métodos de pago por cliente (dual HTML/JSON, ADMINISTRADOR) | `MetodoPago` |
 | `tasas` | Tasas de referencia (proveedor externo), tasas comerciales (versionado), simulador de conversiones | `ConsultaProveedorTasas`, `TasaReferencia`, `TasaComercial` |
-| `operaciones` | Previsualización, compra/venta, idempotencia, cancelación, historial y detalle | `Transaccion` |
+| `operaciones` | Previsualización, compra/venta pendiente, idempotencia, cancelación, historial, detalle y liquidación | `Transaccion` |
+| `pagos` | Pago COMPRA, proveedor neutral y Stripe TEST, reserva/reintento/recuperación | `Pago` |
 | `cajas` | Configuración, apertura, saldo por moneda y movimientos manuales/automáticos | `Caja`, `PeriodoCaja`, `SaldoInicialCaja`, `MovimientoCaja` |
 
 ## Grafo de dependencias entre apps
@@ -37,7 +38,8 @@ usuarios (base, sin imports locales de negocio)
    ├── monedas → usuarios
    ├── tasas → usuarios + monedas (FK Moneda en TasaReferencia y TasaComercial)
    ├── metodos_pago → usuarios + clientes
-   ├── operaciones → usuarios + clientes + monedas + tasas + metodos_pago
+   ├── operaciones → usuarios + clientes + monedas + tasas + metodos_pago + pagos + cajas
+   ├── pagos → usuarios + clientes + operaciones (modelo Transaccion) + metodos_pago
    └── cajas → usuarios + monedas
 ```
 
@@ -52,7 +54,7 @@ usuarios (base, sin imports locales de negocio)
 | `api/monedas/` | `monedas.urls` (API JSON) |
 | `api/metodos-pago/` | `metodos_pago.urls` (API JSON o HTML, dual) |
 | `api/tasas/` | `tasas.urls` (API JSON) |
-| `api/operaciones/` | `operaciones.urls` (API JSON) |
+| `api/operaciones/` | `operaciones.urls` + `pagos.urls` (API JSON) |
 | `operaciones/` | `operaciones.web_urls` (pantalla operativa) |
 | `cajas/` | `cajas.urls` (configuración, apertura, saldos y movimientos) |
 | (raíz) | `usuarios.urls` (web: home, OIDC, panel, screens) |
@@ -162,3 +164,16 @@ Entrypoint (`docker/entrypoint.sh`): espera PostgreSQL → migrate → runserver
 - **Frontend activo server-side**: las vistas renderizan Django Templates y el
   comportamiento interactivo usa JavaScript convencional. Las fuentes y el bundle
   React/Vite heredados fueron retirados tras comprobar que ninguna template los cargaba.
+
+
+## Arquitectura final HU-28
+
+Pago: UI → API autenticada/CSRF → pagos/services → PaymentProvider → StripePaymentProvider → Stripe TEST. Reserva local durable, IO externo fuera de locks y persistencia posterior. Pago aprobado no completa Transaccion por sí solo.
+
+Liquidación: CAJERO asociado elige periodo_id explícito → API → liquidar_transaccion → registrar_movimiento_automatico → COMPLETADA. COMPRA exige Pago aprobado y egreso destino; VENTA ingreso origen/egreso destino. Una unidad atómica sin IO externo; locks Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. Claves estables por Transaccion/efecto evitan duplicación.
+
+Saldos se calculan en backend desde SaldoInicialCaja y MovimientoCaja. Vistas Saldos/Movimientos comparten selección y servicio; template caja_contexto reutilizado para identidad/estados/metadatos. No Caja activa persistida ni asignación Cajero–Caja.
+
+Runtime QA comprobado: bind mount /app, runserver --noreload y templates cacheados. Reiniciar exclusivamente el contenedor existente conserva DB QA y recarga código. La configuración estándar de entrypoint puede migrar: no usarla a ciegas para QA.
+
+Fuera del alcance: arqueo/cierre/transferencias, facturación, asignación persistente, FK directa MovimientoCaja→Transaccion e historial integral de Caja. Ver [documentación HU-28](HU-28_Realizar_Pago.md) para evidencia y deudas.

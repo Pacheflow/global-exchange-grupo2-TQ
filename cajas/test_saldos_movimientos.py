@@ -1,8 +1,12 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from queue import Queue
+from threading import Barrier
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.test import TestCase
+from django.db import OperationalError, close_old_connections, connection, connections, transaction
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
 from monedas.models import Moneda
@@ -194,4 +198,130 @@ class SaldosMovimientosCajaTests(TestCase):
             reverse("cajas:registrar_movimiento", args=[self.periodo.id])
         )
         self.assertEqual(registro.status_code, 403)
+
+
+class ConcurrenciaMovimientosCajaTests(TransactionTestCase):
+    """Verifica exclusión e idempotencia con conexiones PostgreSQL independientes."""
+
+    def setUp(self):
+        self.assertEqual(connection.vendor, "postgresql")
+        self.caja = Caja.objects.create(
+            codigo="CONCURRENTES", nombre="Caja concurrente",
+            creado_por_keycloak_id="admin", actualizado_por_keycloak_id="admin",
+        )
+        self.periodo = PeriodoCaja.objects.create(
+            caja=self.caja, responsable_keycloak_id="cajero",
+        )
+        self.moneda, _ = Moneda.objects.get_or_create(
+            codigo="USD", defaults={"nombre": "Dólar", "simbolo": "$"},
+        )
+        SaldoInicialCaja.objects.create(
+            periodo=self.periodo, moneda=self.moneda, monto=Decimal("100"),
+        )
+
+    def _movimiento(self, *, automatico=False, tipo="INGRESO", monto="40"):
+        datos = dict(
+            periodo_id=self.periodo.pk, moneda_id=self.moneda.pk,
+            tipo=tipo, monto=monto, motivo="Prueba concurrente", usuario_id="cajero",
+        )
+        if automatico:
+            return registrar_movimiento_automatico(
+                **datos, clave_idempotencia="evento-concurrente", referencia_externa="QA",
+            )
+        return registrar_movimiento_manual(**datos, roles=["CAJERO"])
+
+    def _conexion_independiente(self, accion, pids, barrera):
+        close_old_connections()
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SET lock_timeout = '10s'")
+                cursor.execute("SELECT pg_backend_pid()")
+                pids.put(cursor.fetchone()[0])
+            barrera.wait(timeout=5)
+            return accion()
+        finally:
+            connections["default"].close()
+
+    def _esperar_bloqueo(self, pid, *, directo=True):
+        """Comprueba espera real, incluida la cola detrás de otra conexión bloqueada."""
+        limite = time.monotonic() + 5
+        while time.monotonic() < limite:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s))"
+                    if directo else "SELECT cardinality(pg_blocking_pids(%s)) > 0",
+                    [pid],
+                )
+                if cursor.fetchone()[0]:
+                    return
+            time.sleep(0.01)
+        self.fail("La conexión independiente no llegó a esperar el lock.")
+
+    def _competir(self, accion):
+        """Retiene Caja hasta comprobar que ambas solicitudes están bloqueadas."""
+        pids, barrera = Queue(), Barrier(3)
+        with ThreadPoolExecutor(max_workers=2) as ejecutor:
+            with transaction.atomic():
+                Caja.objects.select_for_update(of=("self",)).get(pk=self.caja.pk)
+                futuros = [
+                    ejecutor.submit(self._conexion_independiente, accion, pids, barrera)
+                    for _ in range(2)
+                ]
+                barrera.wait(timeout=5)
+                for _ in futuros:
+                    self._esperar_bloqueo(pids.get(timeout=5), directo=False)
+            return [futuro.result(timeout=15) for futuro in futuros]
+
+    def test_dos_egresos_concurrentes_no_dejan_saldo_negativo(self):
+        """Dos egresos de 70 sobre 100 compiten: uno confirma y otro se rechaza."""
+        def egresar():
+            try:
+                self._movimiento(tipo="EGRESO", monto="70")
+                return "confirmado"
+            except ValidationError as error:
+                if "insuficiente" not in " ".join(error.messages):
+                    raise
+                return "saldo_insuficiente"
+
+        self.assertCountEqual(self._competir(egresar), ["confirmado", "saldo_insuficiente"])
+        self.assertEqual(MovimientoCaja.objects.count(), 1)
+        _, saldos = consultar_saldos_caja(
+            periodo_id=self.periodo.pk, usuario_id="cajero", roles=["CAJERO"],
+        )
+        self.assertEqual(saldos[0].saldo_actual, Decimal("30"))
+
+    def test_automaticos_concurrentes_reutilizan_el_mismo_movimiento(self):
+        """La misma clave simultánea produce un alta y una reutilización sin duplicar saldo."""
+        resultados = self._competir(lambda: self._movimiento(automatico=True))
+        self.assertEqual(resultados[0].movimiento.pk, resultados[1].movimiento.pk)
+        self.assertCountEqual([resultado.repetido for resultado in resultados], [False, True])
+        self.assertEqual(MovimientoCaja.objects.count(), 1)
+        _, saldos = consultar_saldos_caja(
+            periodo_id=self.periodo.pk, usuario_id="cajero", roles=["CAJERO"],
+        )
+        self.assertEqual(saldos[0].saldo_actual, Decimal("140"))
+
+    def test_manual_y_automatico_bloquean_caja_antes_de_periodo(self):
+        """Mientras esperan Período, ambos servicios ya retienen el lock de Caja."""
+        for automatico in (False, True):
+            with self.subTest(automatico=automatico):
+                pids, barrera = Queue(), Barrier(2)
+                with ThreadPoolExecutor(max_workers=1) as ejecutor:
+                    with transaction.atomic():
+                        PeriodoCaja.objects.select_for_update(of=("self",)).get(pk=self.periodo.pk)
+                        futuro = ejecutor.submit(
+                            self._conexion_independiente,
+                            lambda: self._movimiento(automatico=automatico), pids, barrera,
+                        )
+                        barrera.wait(timeout=5)
+                        self._esperar_bloqueo(pids.get(timeout=5))
+                        # Si Caja se adquiriera después de Período, NOWAIT tendría éxito.
+                        with self.assertRaises(OperationalError) as error:
+                            with transaction.atomic():
+                                Caja.objects.select_for_update(
+                                    of=("self",), nowait=True,
+                                ).get(pk=self.caja.pk)
+                        self.assertEqual(error.exception.__cause__.sqlstate, "55P03")
+                    futuro.result(timeout=15)
+        self.assertEqual(MovimientoCaja.objects.count(), 2)
 

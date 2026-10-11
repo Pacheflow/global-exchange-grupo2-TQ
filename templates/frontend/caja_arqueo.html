@@ -24,6 +24,8 @@
     </div>
   </div>
 
+  {% if periodo %}{% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo formato_fecha='d/m/Y H:i' only %}{% endif %}
+
   {% if error %}
     <div class="ge-error-banner" role="alert">
       {{ error }}
@@ -92,7 +94,7 @@
         </button>
 
         <a
-          class="ge-btn-secondary"
+          class="ge-btn-outline"
           href="{% url 'cajas:saldo' periodo.id %}"
         >
           Volver

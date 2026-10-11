@@ -8,11 +8,14 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from cajas.services import registrar_movimiento_automatico
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
+from pagos.models import Pago
 from tasas.models import TasaComercial
 from tasas.precision import normalizar_tasa
+from usuarios.services.keycloak import rol_efectivo
 
 from .models import Transaccion
 
@@ -68,6 +71,14 @@ class ResultadoCrearTransaccion:
     transaccion: Transaccion
     repetida: bool = False
     cambio_cotizacion: bool = False
+
+
+@dataclass(frozen=True)
+class ResultadoLiquidarTransaccion:
+    """Operación liquidada ahora o resultado previamente completado y reutilizado."""
+
+    transaccion: Transaccion
+    repetida: bool = False
 
 
 def _validar_identidad(usuario_id):
@@ -595,7 +606,8 @@ def crear_transaccion(
     par), verifica si la cotización cambió comparando la versión de la
     tasa mostrada durante la previsualización contra la versión vigente y
     guarda los snapshots al crear una única Transaccion de forma atómica
-    e idempotente.
+    e idempotente, inicialmente PENDIENTE tanto para COMPRA como para VENTA.
+    La confirmación comercial no procesa pagos ni confirma la liquidación.
 
     La versión de tasa y la huella de categoría/comisión recibidas desde la
     previsualización solo se usan para detectar cambios. Los valores aplicados
@@ -778,7 +790,7 @@ def crear_transaccion(
                 importe_comision=importe_comision,
                 metodo_pago=metodo_pago,
                 metodo_pago_nombre=metodo_pago.nombre,
-                estado="COMPLETADA",
+                estado="PENDIENTE",
             )
 
             transaccion.full_clean()
@@ -807,6 +819,87 @@ def crear_transaccion(
     )
 
 
+def liquidar_transaccion(
+    *, transaccion_id, periodo_id, usuario_id, username="", roles,
+    cliente_seleccionado_id,
+):
+    """Liquida snapshots de la operación y Caja en un único commit, sin IO externo.
+
+    Locks: Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. La capa superior
+    selecciona y autoriza el período explícito; no existen asignaciones Cajero–Caja.
+    El cobro digital de COMPRA no representa un ingreso de efectivo.
+    El Cajero puede omitir cliente_seleccionado_id: se revalida la asociación
+    activa con el cliente de la operación bajo el lock de Transaccion.
+    """
+    usuario_id = _validar_identidad(usuario_id)
+    if (
+        not isinstance(roles, (list, tuple, set, frozenset))
+        or not all(isinstance(rol, str) for rol in roles)
+        or rol_efectivo(roles) != "CAJERO"
+    ):
+        raise ValidationError("El rol no permite liquidar operaciones.", code="ROL_NO_PERMITIDO")
+
+    with transaction.atomic():
+        try:
+            operacion = (
+                Transaccion.objects.select_related("moneda_origen", "moneda_destino")
+                .select_for_update(of=("self",)).get(pk=transaccion_id)
+            )
+        except (Transaccion.DoesNotExist, TypeError, ValueError):
+            raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
+        if cliente_seleccionado_id is not None and (
+            type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != operacion.cliente_id
+        ):
+            raise ValidationError("El cliente seleccionado no corresponde a la operación.", code="CLIENTE_INCOHERENTE")
+        cliente = _obtener_cliente_activo(operacion.cliente_id)
+        _validar_acceso_usuario_cliente(cliente, usuario_id)
+        if operacion.estado == "COMPLETADA":
+            return ResultadoLiquidarTransaccion(operacion, repetida=True)
+        if operacion.estado != "PENDIENTE":
+            raise ValidationError("La operación debe estar pendiente.", code="OPERACION_NO_PENDIENTE")
+        if operacion.tipo not in {"COMPRA", "VENTA"}:
+            raise ValidationError("El tipo de operación no permite liquidación.", code="TIPO_NO_ADMITIDO")
+
+        referencia = f"transaccion:{operacion.pk}"
+        if operacion.tipo == "COMPRA":
+            pago = Pago.objects.select_for_update(of=("self",)).filter(transaccion_id=operacion.pk).first()
+            if pago is None or pago.estado != Pago.Estado.APROBADO:
+                raise ValidationError("La compra requiere un pago aprobado.", code="PAGO_NO_APROBADO")
+            if (
+                pago.transaccion_id != operacion.pk
+                or pago.metodo_pago_id != operacion.metodo_pago_id
+                or pago.monto != operacion.monto_origen
+                or pago.moneda_codigo != operacion.moneda_origen.codigo
+                or pago.base_importe != Pago.BaseImporte.ORIGEN
+                or pago.huella_solicitud != pago.calcular_huella()
+            ):
+                raise ValidationError("El pago no corresponde a la obligación.", code="OBLIGACION_CAMBIADA")
+            pago.full_clean()
+            referencia = pago.referencia_externa
+
+        datos = dict(
+            periodo_id=periodo_id, usuario_id=usuario_id, username=username,
+            motivo=f"Liquidación de {operacion.tipo} {operacion.pk}",
+            referencia_externa=referencia,
+        )
+        prefijo = f"ge:hu28:transaccion:{operacion.pk}:caja:"
+        if operacion.tipo == "VENTA":
+            registrar_movimiento_automatico(
+                **datos, tipo="INGRESO", moneda_id=operacion.moneda_origen_id,
+                monto=operacion.monto_origen,
+                clave_idempotencia=f"{prefijo}ingreso-origen:v1",
+            )
+        registrar_movimiento_automatico(
+            **datos, tipo="EGRESO", moneda_id=operacion.moneda_destino_id,
+            monto=operacion.monto_destino,
+            clave_idempotencia=f"{prefijo}egreso-destino:v1",
+        )
+        operacion.estado = "COMPLETADA"
+        operacion.full_clean()
+        operacion.save(update_fields=["estado", "fecha_actualizacion"])
+        return ResultadoLiquidarTransaccion(operacion)
+
+
 def cancelar_transaccion(
     *,
     transaccion_id,
@@ -827,7 +920,7 @@ def cancelar_transaccion(
         try:
             transaccion_obj = (
                 Transaccion.objects
-                .select_for_update()
+                .select_for_update(of=("self",))
                 .select_related(
                     "cliente",
                     "moneda_origen",
@@ -850,6 +943,24 @@ def cancelar_transaccion(
             raise ValidationError(
                 {"estado": "Solo una transacción PENDIENTE puede cancelarse."}
             )
+
+        # Compartir el orden de locks de pagos: Transaccion -> Pago. La reserva
+        # EN_PROCESO queda confirmada antes de IO, por lo que tampoco se cancela
+        # mientras el proveedor trabaja fuera de la transacción de base de datos.
+        pago = (
+            Pago.objects.select_for_update(of=("self",))
+            .filter(transaccion_id=transaccion_obj.pk).first()
+        )
+        if pago is not None and pago.estado not in (Pago.Estado.ERROR, Pago.Estado.RECHAZADO):
+            mensajes = {
+                Pago.Estado.EN_PROCESO: ("El pago está en proceso.", "PAGO_EN_PROCESO"),
+                Pago.Estado.INDETERMINADO: ("El resultado del pago debe verificarse.", "PAGO_INDETERMINADO"),
+                Pago.Estado.APROBADO: ("La operación tiene un pago aprobado.", "PAGO_APROBADO"),
+            }
+            mensaje, codigo = mensajes.get(
+                pago.estado, ("El estado del pago no permite cancelar.", "PAGO_ESTADO_NO_CANCELABLE"),
+            )
+            raise ValidationError({"pago": ValidationError(mensaje, code=codigo)})
 
         # Se conserva la operacion y se registran los datos de cancelacion.
         transaccion_obj.estado = "CANCELADA"
@@ -920,6 +1031,7 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
             "moneda_destino",
             "tasa_comercial",
             "metodo_pago",
+            "pago",
         )
         .distinct()
     )
@@ -946,6 +1058,7 @@ def obtener_detalle_transaccion(
     usuario_id,
     cliente_id=None,
     es_admin=False,
+    permitir_clientes_asociados=False,
 ):
     """Obtiene una transacción del cliente seleccionado de forma segura.
 
@@ -959,6 +1072,8 @@ def obtener_detalle_transaccion(
         cliente_id (int | None): Cliente seleccionado y esperado para la
             transacción; el administrador global puede omitirlo.
         es_admin (bool): Permite consultar globalmente sin asociación.
+        permitir_clientes_asociados (bool): Habilita la consulta operativa de
+            Cajero sin cliente seleccionado, manteniendo la asociación activa.
 
     Returns:
         Transaccion: Registro histórico solicitado con sus relaciones.
@@ -976,7 +1091,7 @@ def obtener_detalle_transaccion(
         cliente = _obtener_cliente_activo(cliente_id)
         if not es_admin:
             _validar_acceso_usuario_cliente(cliente, usuario_id)
-    elif not es_admin:
+    elif not es_admin and not permitir_clientes_asociados:
         raise ValidationError(
             {"cliente": "Debe seleccionar un cliente para consultar el detalle."}
         )
@@ -992,6 +1107,11 @@ def obtener_detalle_transaccion(
                 "tasa_comercial",
                 "metodo_pago",
             )
+            .filter(**({
+                "cliente__usuarios_asignados__keycloak_user_id": usuario_id,
+                "cliente__usuarios_asignados__activo": True,
+                "cliente__estado": "ACTIVO",
+            } if permitir_clientes_asociados and not es_admin else {}))
             .get(
                 pk=transaccion_id,
                 **({"cliente": cliente} if cliente is not None else {}),

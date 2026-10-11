@@ -1,6 +1,6 @@
 # Endpoints API — Global Exchange
 
-> Contrato verificado en código el 02/10/2026. Las escrituras usan JSON y conservan protección CSRF.
+> Contrato de Operaciones/Pagos/Caja actualizado en código el 11/10/2026; resto conserva el corte anterior. Las escrituras usan JSON y conservan protección CSRF.
 
 La autorización utiliza un único rol efectivo con prioridad
 `ADMINISTRADOR > ANALISTA_CAMBIARIO > CAJERO > USUARIO`. Tener un rol inferior
@@ -81,8 +81,8 @@ Cada escritura crea una nueva versión y conserva el histórico. La desactivaci�
 
 | Endpoint | Método | Rol efectivo |
 |---|---|---|
-| `/api/operaciones/previsualizar/` | POST | CAJERO o USUARIO |
-| `/api/operaciones/crear/` | POST | CAJERO o USUARIO |
+| `/api/operaciones/previsualizar/` | POST | USUARIO |
+| `/api/operaciones/crear/` | POST | USUARIO |
 | `/api/operaciones/cancelar/` | POST | CAJERO o USUARIO |
 | `/api/operaciones/metodos-pago/` | GET | CAJERO o USUARIO |
 | `/api/operaciones/historial/` | GET | ADMINISTRADOR, CAJERO o USUARIO |
@@ -98,7 +98,7 @@ tasa junto con la huella de categoría y porcentaje de comisión, sin persistir.
 En `COMPRA` se usa `TasaComercial.compra`; en `VENTA`, `TasaComercial.venta`.
 La confirmación vuelve a leer y bloquear la configuración vigente, compara la
 huella del preview, recalcula siempre en backend y crea una transacción
-`COMPLETADA`. Si cambió la versión, categoría o comisión, responde con error y no
+`PENDIENTE`. Si cambió la versión, categoría o comisión, responde con error y no
 crea registros. No existe snapshot histórico de categoría.
 
 Cada transacción nueva conserva además una huella SHA-256 nullable destinada
@@ -135,7 +135,7 @@ La confirmación visual previa a la cancelación corresponde a la integración d
 
 > Nota de alcance: Jira HU-25 permite cancelar una transacción pendiente por solicitud del usuario. La guía de trabajo del Sprint también describe el caso `CAMBIO_COTIZACION`; para esta implementación se siguieron los criterios de aceptación vigentes de Jira proporcionados para HU-25.
 
-El servicio registra el método de pago seleccionado como parte de la operación. El procesamiento real del pago no se implementa en este módulo.
+El servicio registra el método de pago seleccionado como parte de la operación. El procesamiento del pago se delega a `pagos`; la finalización explícita a `liquidar_transaccion`.
 
 ## Métodos de pago — ADMINISTRADOR
 
@@ -164,8 +164,7 @@ monto positivo y motivo; un egreso sin fondos se rechaza.
 No se expone una ruta HTTP pública para movimientos automáticos. La integración
 interna usa `registrar_movimiento_automatico()` con una clave de idempotencia:
 un reintento idéntico devuelve el movimiento original y un reintento con datos
-distintos se rechaza. Esta interfaz de servicio queda lista para la integración
-con pagos sin acoplarla prematuramente a HU-28.
+distintos se rechaza. HU-28 utiliza esta interfaz desde su coordinador de liquidación, sin acoplar Caja al proveedor Stripe.
 
 ## Respuestas de autorización
 
@@ -183,3 +182,31 @@ con pagos sin acoplarla prematuramente a HU-28.
 - `/pagos/`: alias técnico conservado por compatibilidad con la pantalla integrada; la UI lo denomina “Métodos de pago”.
 - `/cajas/operar/`: listado operativo y entrada a apertura, saldos y movimientos para CAJERO.
 - `/cajas/`: configuración y supervisión de cajas para ADMINISTRADOR.
+
+
+## HU-28: Pago y liquidación (11/10/2026)
+
+| Endpoint | Método | Rol efectivo / función |
+|---|---|---|
+| `/api/operaciones/<id>/pago/iniciar/` | POST `{}` | USUARIO; reserva e inicio Stripe TEST |
+| `/api/operaciones/<id>/pago/reintentar/` | POST `{}` | USUARIO; reintento permitido desde ERROR |
+| `/api/operaciones/<id>/pago/recuperar/` | POST `{}` | CAJERO o USUARIO; consulta externa, nunca nuevo cobro |
+| `/api/operaciones/<id>/pago/` | GET | CAJERO o USUARIO; consulta local |
+| `/api/operaciones/<id>/periodos-liquidacion/` | GET | CAJERO; períodos ABIERTO/Caja HABILITADA, operación elegible |
+| `/api/operaciones/<id>/liquidar/` | POST `{"periodo_id": 123}` | CAJERO; coordinador atómico |
+
+USUARIO mantiene selected_client. CAJERO no lo requiere para bandeja, detalle, consulta Pago, catálogo y liquidación, pero sí requiere asociación activa. Recuperación conserva selected_client y autorización anterior. ADMIN no utiliza estos endpoints operativos.
+
+Liquidación devuelve únicamente transaccion_id, estado real y repetida booleano. 400: entrada/negocio conocido; 404: inexistente/no autorizado indistinguibles; 409: conflicto idempotencia; 500: error desconocido genérico. JSON estricto, sin importes/monedas/Caja/Pago desde cliente; CSRF normal. El catálogo no bloquea, reserva ni garantiza saldo.
+
+Para CAJERO, `/api/operaciones/historial/` lista PENDIENTE y `?vista=historial` COMPLETADA/CANCELADA. USUARIO/ADMIN conservan el historial previo.
+
+### Navegación final
+
+- `/operaciones/`: bandeja pendiente para CAJERO; flujo comercial/supervisión según rol vigente.
+- `/operaciones/historial/`: historial de solo lectura para CAJERO.
+- `/panel/?periodo_id=<id>`: resumen de Caja elegido explícitamente; sin parámetro no muestra saldos.
+- `/cajas/saldos/?periodo_id=<id>` y `/cajas/movimientos/?periodo_id=<id>`: lectura ADMIN/CAJERO; sin ID, selector vacío. Error controlado para período inválido/cerrado o Caja deshabilitada.
+- Ruta legado `/cajas/periodos/<id>/saldo/` conservada. No selección activa en sesión.
+
+Contratos y decisiones completos: [HU-28 Realizar Pago](HU-28_Realizar_Pago.md).

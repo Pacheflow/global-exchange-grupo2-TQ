@@ -14,6 +14,7 @@ from monedas.models import Moneda
 
 from .forms import AperturaCajaForm, ArqueoCajaForm, CajaForm, EstadoCajaForm, MovimientoCajaForm
 from .models import ArqueoCaja, Caja, PeriodoCaja
+from .presentacion import contexto_acciones_periodo
 from .services import (
     abrir_caja,
     cambiar_estado_caja,
@@ -221,6 +222,50 @@ def apertura_confirmada(request, periodo_id):
     return render(request, "frontend/caja_apertura_confirmada.html", {"periodo": periodo})
 
 
+def _consulta_periodo(request, *, seccion):
+    """Selección explícita de navegación, sin persistir una Caja activa."""
+    candidatos = PeriodoCaja.objects.filter(
+        estado="ABIERTO", caja__estado="HABILITADA",
+    ).select_related("caja").order_by("caja__codigo", "pk")
+    contexto = {
+        "seccion": seccion, "periodos_disponibles": candidatos,
+        "periodo": None, "saldos": [], "movimientos": [],
+    }
+    seleccion = request.GET.get("periodo_id")
+    status = 200
+    if seleccion is not None:
+        if (not seleccion.isdecimal() or len(seleccion) > 10
+                or int(seleccion) <= 0
+                or not candidatos.filter(pk=int(seleccion)).exists()):
+            contexto["error"] = "Seleccioná un período abierto de una caja habilitada."
+            status = 400
+        else:
+            try:
+                periodo, saldos = consultar_saldos_caja(
+                    periodo_id=int(seleccion), **_identidad(request),
+                )
+                contexto.update(periodo=periodo, saldos=saldos)
+                contexto.update(contexto_acciones_periodo(periodo))
+                if seccion == "movimientos":
+                    contexto["movimientos"] = periodo.movimientos.select_related("moneda").all()
+            except (ValidationError, PeriodoCaja.DoesNotExist):
+                contexto["error"] = "El período seleccionado ya no está disponible."
+                status = 400
+    return render(request, "frontend/caja_consulta.html", contexto, status=status)
+
+
+@requiere_roles_web("ADMINISTRADOR", "CAJERO")
+@require_GET
+def saldos(request):
+    return _consulta_periodo(request, seccion="saldos")
+
+
+@requiere_roles_web("ADMINISTRADOR", "CAJERO")
+@require_GET
+def movimientos(request):
+    return _consulta_periodo(request, seccion="movimientos")
+
+
 @requiere_roles_web("ADMINISTRADOR", "CAJERO")
 @require_GET
 def saldo(request, periodo_id):
@@ -247,7 +292,8 @@ def saldo(request, periodo_id):
     return render(
         request,
         "frontend/caja_saldo.html",
-        {"periodo": periodo, "saldos": saldos, "movimientos": movimientos},
+        {"periodo": periodo, "saldos": saldos, "movimientos": movimientos,
+         **contexto_acciones_periodo(periodo)},
     )
 
 
@@ -421,7 +467,7 @@ def cierre(request, periodo_id):
             )
 
         messages.success(request, "Caja cerrada correctamente.")
-        return redirect("cajas:inicio")
+        return redirect("cajas:historial", caja_id=periodo.caja_id)
 
     return render(
         request,
@@ -431,6 +477,24 @@ def cierre(request, periodo_id):
             "arqueo": arqueo,
         },
     )
+@requiere_roles_web("ADMINISTRADOR", "CAJERO")
+@require_GET
+def historial_selector(request):
+    """Selecciona explícitamente una Caja, incluyendo cajas sin período abierto."""
+    cajas = Caja.objects.order_by("codigo", "pk")
+    seleccion = request.GET.get("caja_id")
+    error = None
+    if seleccion is not None:
+        if (not seleccion.isdecimal() or len(seleccion) > 10
+                or int(seleccion) <= 0 or not cajas.filter(pk=int(seleccion)).exists()):
+            error = "Seleccioná una Caja válida para consultar su historial."
+        else:
+            return redirect("cajas:historial", caja_id=int(seleccion))
+    return render(request, "frontend/caja_historial_selector.html", {
+        "cajas": cajas, "error": error,
+    }, status=400 if error else 200)
+
+
 @requiere_roles_web("ADMINISTRADOR", "CAJERO")
 @require_GET
 def historial(request, caja_id):

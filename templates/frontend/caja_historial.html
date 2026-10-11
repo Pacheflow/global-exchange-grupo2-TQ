@@ -16,9 +16,10 @@
         Historial de caja{% if caja %} {{ caja.codigo }}{% endif %}
       </h2>
 
-      {% if caja %}
+      <a class="ge-btn-outline" href="{% url 'cajas:historial_selector' %}">Seleccionar otra Caja</a>
+  {% if caja %}
         <p class="ge-frontend-subtitle">
-          {{ caja.nombre }}
+          Períodos, movimientos, arqueos y cierres · {{ caja.nombre }}
         </p>
       {% endif %}
     </div>
@@ -35,49 +36,8 @@
     {% for periodo in periodos %}
       <div class="ge-card" style="padding:24px; margin-bottom:24px">
 
-        <h3>
-          Período {{ periodo.id }} · {{ periodo.get_estado_display }}
-        </h3>
-
-        <p>
-          <strong>Apertura:</strong>
-          {{ periodo.fecha_apertura|date:'d/m/Y H:i:s' }}
-          ·
-          <strong>Usuario:</strong>
-          {{ periodo.responsable_username|default:periodo.responsable_keycloak_id }}
-        </p>
-
-        <h4>Movimientos</h4>
-
-        <table class="ge-table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Moneda</th>
-              <th>Monto</th>
-              <th>Usuario</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for movimiento in periodo.movimientos.all %}
-              <tr>
-                <td>{{ movimiento.fecha_registro|date:'d/m/Y H:i:s' }}</td>
-                <td>{{ movimiento.get_tipo_display }}</td>
-                <td>{{ movimiento.moneda.codigo }}</td>
-                <td>{{ movimiento.monto|importe_inicial }}</td>
-                <td>
-                  {{ movimiento.registrado_por_username|default:movimiento.registrado_por_keycloak_id }}
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="5">No hay movimientos registrados.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        {% include 'frontend/partials/caja_contexto.html' with caja=caja periodo=periodo formato_fecha='d/m/Y H:i' only %}
+        {% include 'frontend/partials/caja_movimientos_tabla.html' with movimientos=periodo.movimientos.all %}
 
         <h4 style="margin-top:24px">Arqueos</h4>
 
