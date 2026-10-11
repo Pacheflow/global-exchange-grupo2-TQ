@@ -4,6 +4,8 @@ from . import views
 
 app_name = "cajas"
 urlpatterns = [
+    path("saldos/", views.saldos, name="saldos"),
+    path("movimientos/", views.movimientos, name="movimientos"),
     path("", views.inicio, name="inicio"),
     path("crear/", views.crear, name="crear"),
     path("operar/", views.operar, name="operar"),

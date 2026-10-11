@@ -399,7 +399,8 @@ def dashboard(request):
         periodos = PeriodoCaja.objects.filter(
             estado="ABIERTO", caja__estado="HABILITADA",
         ).select_related("caja").order_by("caja__codigo", "pk")
-        context.update(periodos_disponibles=periodos, periodo_caja=None, saldos_caja=[])
+        context.update(periodos_disponibles=periodos, periodo_caja=None,
+                       periodo_seleccionado_id=None, saldos_caja=[])
         seleccion = request.GET.get("periodo_id")
         if seleccion is not None:
             if not seleccion.isdecimal() or len(seleccion) > 10 or int(seleccion) <= 0:
@@ -412,7 +413,8 @@ def dashboard(request):
                         periodo_id=int(seleccion), usuario_id=user_id,
                         roles=request.session.get(SESSION_ROLES, []),
                     )
-                    context.update(periodo_caja=periodo, saldos_caja=saldos)
+                    context.update(periodo_caja=periodo, periodo_seleccionado_id=periodo.pk,
+                                   saldos_caja=saldos)
                 except ValidationError:
                     context["error_caja"] = "El período seleccionado ya no está disponible."
     elif rol_sesion == "ANALISTA_CAMBIARIO":

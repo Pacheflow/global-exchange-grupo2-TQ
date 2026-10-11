@@ -1,0 +1,22 @@
+<section class="ge-caja-contexto" aria-label="Contexto de Caja y Período">
+  <div>
+    <h3 class="ge-caja-contexto-titulo">{{ caja.codigo }}</h3>
+    <p class="ge-caja-contexto-subtitulo">{{ caja.nombre }}</p>
+  </div>
+  <div class="ge-caja-contexto-estados">
+    <span class="ge-status-badge ge-status-badge--md {% if caja.estado == 'HABILITADA' %}ge-status-badge--success{% else %}ge-status-badge--neutral{% endif %}">
+      <span class="ge-status-dot" aria-hidden="true"></span>Caja {{ caja.estado }}
+    </span>
+    {% if periodo %}
+    <span class="ge-status-badge ge-status-badge--md {% if periodo.estado == 'ABIERTO' %}ge-status-badge--success{% else %}ge-status-badge--neutral{% endif %}">
+      <span class="ge-status-dot" aria-hidden="true"></span>Período #{{ periodo.pk }} {{ periodo.estado }}
+    </span>
+    {% endif %}
+  </div>
+  {% if periodo %}
+  <dl class="ge-caja-contexto-metadatos">
+    <div><dt>Responsable</dt><dd>{{ periodo.responsable_username|default:periodo.responsable_keycloak_id }}{% if mostrar_identificador and periodo.responsable_username %} <span>({{ periodo.responsable_keycloak_id }})</span>{% endif %}</dd></div>
+    <div><dt>Apertura</dt><dd><time datetime="{{ periodo.fecha_apertura|date:'c' }}">{{ periodo.fecha_apertura|date:formato_fecha|default:'—' }}</time></dd></div>
+  </dl>
+  {% endif %}
+</section>

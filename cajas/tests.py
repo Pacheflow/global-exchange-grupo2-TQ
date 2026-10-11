@@ -331,6 +331,121 @@ class CajaTests(TestCase):
         }).status_code, 404)
 
 
+class ConsultaCajaNavegacionTests(TestCase):
+    """Contrato de lectura y navegación explícita de Saldos/Movimientos."""
+
+    def setUp(self):
+        from monedas.models import Moneda
+        from .models import PeriodoCaja, SaldoInicialCaja, MovimientoCaja
+        self.autenticar("CAJERO")
+        self.caja = Caja.objects.create(codigo="NAV-01", nombre="Principal",
+            creado_por_keycloak_id="admin", actualizado_por_keycloak_id="admin")
+        self.periodo = PeriodoCaja.objects.create(caja=self.caja, responsable_keycloak_id="otro")
+        moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar", "simbolo": "$"})
+        SaldoInicialCaja.objects.create(periodo=self.periodo, moneda=moneda, monto=100)
+        MovimientoCaja.objects.create(periodo=self.periodo, moneda=moneda,
+            tipo="EGRESO", monto=30, origen="MANUAL", motivo="Entrega de efectivo",
+            referencia_externa="transaccion:123", registrado_por_keycloak_id="otro")
+
+    def autenticar(self, rol):
+        sesion = self.client.session
+        sesion[SESSION_AUTENTICADO] = True
+        sesion[SESSION_EXPIRA_EN] = time.time() + 3600
+        sesion[SESSION_ROLES] = [rol]
+        sesion[SESSION_USUARIO] = {"sub": "nav-cajero", "preferred_username": "cajero"}
+        sesion.save()
+
+    def test_sin_seleccion_no_carga_datos_ni_autoselecciona(self):
+        for nombre in ("saldos", "movimientos"):
+            with self.subTest(seccion=nombre), mock.patch("cajas.views.consultar_saldos_caja") as consultar:
+                respuesta = self.client.get(reverse(f"cajas:{nombre}"))
+                self.assertContains(respuesta, '<option value="">Seleccioná una Caja/Período</option>')
+                self.assertNotContains(respuesta, " selected")
+                self.assertIsNone(respuesta.context["periodo"])
+                consultar.assert_not_called()
+
+    def test_datos_backend_y_navegacion_conservan_periodo(self):
+        from .services import consultar_saldos_caja
+        for nombre, destino in (("saldos", "movimientos"), ("movimientos", "saldos")):
+            with self.subTest(seccion=nombre), mock.patch("cajas.views.consultar_saldos_caja", wraps=consultar_saldos_caja) as consultar:
+                respuesta = self.client.get(reverse(f"cajas:{nombre}"), {"periodo_id": self.periodo.pk})
+                consultar.assert_called_once_with(periodo_id=self.periodo.pk, usuario_id="nav-cajero", roles=["CAJERO"])
+                self.assertEqual(respuesta.context["saldos"][0].saldo_actual, 70)
+                self.assertContains(respuesta, "NAV-01")
+                self.assertContains(respuesta, "ABIERTO")
+                self.assertContains(respuesta, reverse(f"cajas:{destino}") + f"?periodo_id={self.periodo.pk}")
+                if nombre == "movimientos":
+                    for texto in ("Entrega de efectivo", "transaccion:123", "Manual", "Fecha", "Origen"):
+                        self.assertContains(respuesta, texto)
+                else:
+                    self.assertNotContains(respuesta, "Entrega de efectivo")
+                self.assertNotIn("periodo_id", self.client.session)
+
+    def test_periodo_invalido_o_cerrado_controlado(self):
+        for nombre in ("saldos", "movimientos"):
+            for valor in ("", "abc", "-1", "0", "1.2", "9" * 20, "999999"):
+                with self.subTest(seccion=nombre, valor=valor):
+                    respuesta = self.client.get(reverse(f"cajas:{nombre}"), {"periodo_id": valor})
+                    self.assertContains(respuesta, 'role="alert"', status_code=400)
+                    self.assertIsNone(respuesta.context["periodo"])
+        self.periodo.estado = "CERRADO"
+        self.periodo.save()
+        for nombre in ("saldos", "movimientos"):
+            respuesta = self.client.get(reverse(f"cajas:{nombre}"), {"periodo_id": self.periodo.pk})
+            self.assertEqual(respuesta.status_code, 400)
+
+    def test_caja_deshabilitada_no_es_candidata(self):
+        self.caja.estado = "DESHABILITADA"
+        self.caja.save()
+        for nombre in ("saldos", "movimientos"):
+            respuesta = self.client.get(reverse(f"cajas:{nombre}"), {"periodo_id": self.periodo.pk})
+            self.assertEqual(respuesta.status_code, 400)
+            self.assertFalse(respuesta.context["periodos_disponibles"].exists())
+
+    def test_sidebar_activo_unico_y_unpoly_limitado(self):
+        from html.parser import HTMLParser
+
+        class EnlacesSidebar(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.en_nav = False
+                self.activos = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "nav" and attrs.get("class") == "ge-frontend-nav":
+                    self.en_nav = True
+                if self.en_nav and tag == "a" and "is-active" in attrs.get("class", "").split():
+                    self.activos.append(attrs.get("href"))
+            def handle_endtag(self, tag):
+                if tag == "nav":
+                    self.en_nav = False
+
+        for nombre in ("saldos", "movimientos", "operar", "apertura"):
+            with self.subTest(seccion=nombre):
+                url = reverse(f"cajas:{nombre}", args=[self.caja.pk] if nombre == "apertura" else [])
+                respuesta = self.client.get(url)
+                self.assertContains(respuesta, 'class="ge-frontend-nav" up-nav="false"')
+                parser = EnlacesSidebar()
+                parser.feed(respuesta.content.decode())
+                esperado = reverse("cajas:operar") if nombre == "apertura" else url
+                self.assertEqual(parser.activos, [esperado])
+
+    def test_permisos_conservan_consulta_admin_y_excluyen_usuario(self):
+        for rol, status in (("ADMINISTRADOR", 200), ("USUARIO", 403), ("ANALISTA_CAMBIARIO", 403)):
+            self.autenticar(rol)
+            for nombre in ("saldos", "movimientos"):
+                with self.subTest(rol=rol, seccion=nombre):
+                    respuesta = self.client.get(reverse(f"cajas:{nombre}"), {"periodo_id": self.periodo.pk})
+                    self.assertEqual(respuesta.status_code, status)
+                    if rol == "ADMINISTRADOR":
+                        self.assertNotContains(respuesta, "Nuevo movimiento")
+
+    def test_ruta_anterior_sigue_mostrando_saldos_y_movimientos(self):
+        respuesta = self.client.get(reverse("cajas:saldo", args=[self.periodo.pk]))
+        self.assertContains(respuesta, "Entrega de efectivo")
+        self.assertEqual(respuesta.context["saldos"][0].saldo_actual, 70)
+
+
 class BloqueoCajaTests(TransactionTestCase):
     """Comprueba el bloqueo real en PostgreSQL con dos conexiones independientes."""
 

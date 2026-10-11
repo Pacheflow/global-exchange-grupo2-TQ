@@ -14,24 +14,22 @@
       <div class="ge-field"><label for="resumen-periodo">Caja/Período abierto</label>
         <select id="resumen-periodo" name="periodo_id" required>
           <option value="">Seleccioná una Caja/Período</option>
-          {% for candidato in periodos_disponibles %}<option value="{{ candidato.pk }}"{% if periodo_caja.pk == candidato.pk %} selected{% endif %}>{{ candidato.caja.codigo }} — {{ candidato.caja.nombre }} · Período {{ candidato.pk }}</option>{% endfor %}
+          {% for candidato in periodos_disponibles %}<option value="{{ candidato.pk }}"{% if periodo_seleccionado_id == candidato.pk %} selected{% endif %}>{{ candidato.caja.codigo }} — {{ candidato.caja.nombre }} · Período {{ candidato.pk }}</option>{% endfor %}
         </select>
       </div>
       <button class="ge-btn-primary" type="submit">Consultar</button>
     </form>
     {% if not periodos_disponibles %}<p class="ge-frontend-note">No hay cajas habilitadas con períodos abiertos disponibles.</p>{% endif %}
   </section>
-  {% if periodo_caja %}
+  {% if periodo_seleccionado_id %}
   <section class="ge-card ge-card--pad24">
-    <h3>{{ periodo_caja.caja.codigo }} — {{ periodo_caja.caja.nombre }}</h3>
-    <p>Estado Caja: {{ periodo_caja.caja.estado }} · Período #{{ periodo_caja.pk }} · {{ periodo_caja.estado }}</p>
-    <p>Responsable: {{ periodo_caja.responsable_username|default:periodo_caja.responsable_keycloak_id }} · Apertura: {{ periodo_caja.fecha_apertura|date:'d/m/Y H:i' }}</p>
+    {% include 'frontend/partials/caja_contexto.html' with caja=periodo_caja.caja periodo=periodo_caja formato_fecha='d/m/Y H:i' only %}
     <table class="ge-table"><thead><tr><th>Moneda</th><th>Saldo actual</th></tr></thead>
       <tbody>{% for saldo in saldos_caja %}<tr><td>{{ saldo.moneda.codigo }}</td><td>{{ saldo.saldo_actual|importe_inicial }}</td></tr>{% empty %}<tr><td colspan="2">Sin monedas registradas.</td></tr>{% endfor %}</tbody>
     </table>
     <div class="ge-btn-row">
-      <a class="ge-btn-outline" href="{% url 'cajas:saldo' periodo_caja.pk %}">Saldos</a>
-      <a class="ge-btn-outline" href="{% url 'cajas:saldo' periodo_caja.pk %}#movimientos">Movimientos</a>
+      <a class="ge-btn-outline" href="{% url 'cajas:saldos' %}?periodo_id={{ periodo_caja.pk }}">Saldos</a>
+      <a class="ge-btn-outline" href="{% url 'cajas:movimientos' %}?periodo_id={{ periodo_caja.pk }}">Movimientos</a>
     </div>
   </section>
   {% endif %}

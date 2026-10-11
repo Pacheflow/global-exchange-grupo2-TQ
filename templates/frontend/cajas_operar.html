@@ -2,7 +2,7 @@
 {% block title %}Abrir caja · Global Exchange{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-<div class="ge-frontend-main-pad">
+<div class="ge-frontend-main-pad ge-cajas-operar">
   <h2 class="ge-frontend-h2">Abrir caja</h2>
   <p>Seleccioná una caja habilitada para iniciar su período operativo.</p>
   <div class="ge-card"><table class="ge-table">
@@ -13,7 +13,7 @@
       <td class="ge-inline-actions">
         {% if fila.periodo_abierto %}
           <a class="ge-btn-ghost" href="{% url 'cajas:saldo' fila.periodo_abierto.id %}">Consultar saldo</a>
-          <a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' fila.periodo_abierto.id %}">Nuevo movimiento</a>
+          <a class="ge-btn-primary ge-caja-movimiento-accion" href="{% url 'cajas:registrar_movimiento' fila.periodo_abierto.id %}">Nuevo movimiento</a>
         {% else %}
           <a class="ge-btn-primary" href="{% url 'cajas:apertura' fila.caja.id %}">Registrar apertura</a>
         {% endif %}

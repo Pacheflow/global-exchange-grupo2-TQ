@@ -143,7 +143,7 @@ def liquidar_transaccion_view(request, transaccion_id):
 
 @requiere_roles_web(*ROLES_HISTORIAL)
 @require_GET
-def inicio_operaciones(request):
+def inicio_operaciones(request, *, historico=False):
     """Presenta la interfaz de operaciones con catálogos activos.
 
     La consulta del cliente seleccionado respeta el mismo alcance que los
@@ -181,10 +181,18 @@ def inicio_operaciones(request):
             "es_supervisor": es_supervisor,
             "puede_crear": rol == "USUARIO" and cliente_operacion is not None,
             "puede_pagar": rol == "USUARIO" and cliente_operacion is not None,
-            "puede_liquidar": rol == "CAJERO",
+            "puede_liquidar": rol == "CAJERO" and not historico,
             "es_cajero": rol == "CAJERO",
+            "es_historial_cajero": historico,
         },
     )
+
+
+@requiere_roles_web("CAJERO")
+@require_GET
+def historial_operaciones_cajero(request):
+    """Consulta histórica separada, sin capacidades operativas."""
+    return inicio_operaciones(request, historico=True)
 
 
 def _usuario_sesion(request):
@@ -595,6 +603,10 @@ def historial_transacciones_view(request):
             },
             status=400,
         )
+
+    if es_cajero:
+        estados = {"COMPLETADA", "CANCELADA"} if request.GET.get("vista") == "historial" else {"PENDIENTE"}
+        transacciones = [tx for tx in transacciones if tx.estado in estados]
 
     return JsonResponse(
         {

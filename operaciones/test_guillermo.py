@@ -92,6 +92,93 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertEqual(self.client.get(reverse("operaciones:historial_transacciones")).status_code, 400)
         self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[tx.pk])).status_code, 400)
 
+    def test_bandeja_e_historial_cajero_separan_estados_y_clientes(self):
+        from django.utils import timezone
+        from .models import Transaccion
+        segundo = self.crear_cliente_asociado()
+        excluido = self.crear_cliente_asociado_documento("cliente-excluido")
+        esperados = {"PENDIENTE": set(), "COMPLETADA": set(), "CANCELADA": set()}
+        for cliente in (self.cliente, segundo, excluido):
+            for estado in esperados:
+                tx = self.crear(cliente_id=cliente.pk, clave_idempotencia=self.clave_idempotencia()).transaccion
+                campos = {"estado": estado}
+                if estado == "CANCELADA":
+                    campos.update(cancelado_por_keycloak_id=self.usuario_id,
+                        cancelado_por_username=self.usuario_username,
+                        cancelado_en=timezone.now(), motivo_cancelacion="Prueba histórica")
+                Transaccion.objects.filter(pk=tx.pk).update(**campos)
+                if cliente != excluido:
+                    esperados[estado].add(tx.pk)
+        UsuarioCliente.objects.filter(cliente=excluido).update(activo=False)
+        self.autenticar(roles=("CAJERO", "USUARIO"))
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        url = reverse("operaciones:historial_transacciones")
+        bandeja = self.client.get(url).json()["transacciones"]
+        historico = self.client.get(url, {"vista": "historial"}).json()["transacciones"]
+        self.assertEqual({tx["id"] for tx in bandeja}, esperados["PENDIENTE"])
+        self.assertEqual({tx["id"] for tx in historico}, esperados["COMPLETADA"] | esperados["CANCELADA"])
+        self.assertTrue(all("pago_estado" in tx for tx in bandeja + historico))
+
+    def crear_cliente_asociado_documento(self, documento):
+        cliente = Cliente.objects.create(nombre_razon_social=documento, tipo_persona="FISICA",
+            documento=documento, estado="ACTIVO", categoria=self.categoria)
+        UsuarioCliente.objects.create(cliente=cliente, keycloak_user_id=self.usuario_id,
+            username=self.usuario_username, activo=True)
+        return cliente
+
+    def test_historial_cajero_solo_lectura_y_sidebar_unico(self):
+        from html.parser import HTMLParser
+
+        class Sidebar(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.en_nav = False
+                self.activos = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "nav" and attrs.get("class") == "ge-frontend-nav":
+                    self.en_nav = True
+                if self.en_nav and tag == "a" and attrs.get("aria-current") == "page":
+                    self.activos.append(attrs["href"])
+            def handle_endtag(self, tag):
+                if tag == "nav":
+                    self.en_nav = False
+
+        self.autenticar(roles=("CAJERO",))
+        sesion = self.client.session
+        sesion["selected_client"] = {"id": "inválido"}
+        sesion.save()
+        for nombre in ("inicio", "historial"):
+            url = reverse(f"operaciones_web:{nombre}")
+            respuesta = self.client.get(url)
+            self.assertEqual(respuesta.status_code, 200)
+            parser = Sidebar()
+            parser.feed(respuesta.content.decode())
+            self.assertEqual(parser.activos, [url])
+            self.assertNotContains(respuesta, "Nueva operación")
+            if nombre == "historial":
+                for atributo in ('data-can-pay="false"', 'data-can-liquidate="false"',
+                                 'data-can-view-payment="false"', 'data-can-cancel="false"'):
+                    self.assertContains(respuesta, atributo)
+                self.assertContains(respuesta, '?vista=historial')
+            else:
+                self.assertContains(respuesta, 'data-can-liquidate="true"')
+
+    def test_historial_nuevo_no_altera_usuario_ni_admin(self):
+        tx = self.crear().transaccion
+        from .models import Transaccion
+        Transaccion.objects.filter(pk=tx.pk).update(estado="COMPLETADA")
+        pendiente = self.crear(clave_idempotencia=self.clave_idempotencia()).transaccion
+        for roles in (("USUARIO",), ("ADMINISTRADOR", "CAJERO")):
+            self.autenticar(roles=roles)
+            url = reverse("operaciones:historial_transacciones")
+            for query in ({}, {"vista": "historial"}):
+                datos = self.client.get(url, query).json()["transacciones"]
+                self.assertEqual({item["id"] for item in datos}, {tx.pk, pendiente.pk})
+            self.assertEqual(self.client.get(reverse("operaciones_web:historial")).status_code, 403)
+
     def test_cajero_renderiza_bandeja_con_selected_client_invalido(self):
         for roles in (("CAJERO",), ("CAJERO", "USUARIO")):
             with self.subTest(roles=roles):

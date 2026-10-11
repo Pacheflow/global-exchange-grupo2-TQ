@@ -1,0 +1,33 @@
+{% extends 'frontend/base.html' %}
+{% block title %}{% if seccion == 'saldos' %}Saldos{% else %}Movimientos{% endif %} · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <div class="ge-frontend-section-head"><h2 class="ge-frontend-h2">{% if seccion == 'saldos' %}Saldos{% else %}Movimientos{% endif %}</h2></div>
+  {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
+  <section class="ge-card ge-card--pad24">
+    <form method="get">
+      <div class="ge-field"><label for="consulta-periodo">Caja/Período abierto</label>
+        <select id="consulta-periodo" name="periodo_id" required>
+          <option value="">Seleccioná una Caja/Período</option>
+          {% for candidato in periodos_disponibles %}<option value="{{ candidato.pk }}"{% if periodo.pk == candidato.pk %} selected{% endif %}>{{ candidato.caja.codigo }} — {{ candidato.caja.nombre }} · Período {{ candidato.pk }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="ge-btn-primary" type="submit">Consultar</button>
+    </form>
+    {% if not periodos_disponibles %}<p class="ge-frontend-note">No hay cajas habilitadas con períodos abiertos disponibles.</p>{% endif %}
+  </section>
+  {% if periodo %}
+    <section class="ge-card ge-card--pad24">
+      {% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo formato_fecha='d/m/Y H:i' only %}
+      <div class="ge-btn-row">
+        {% if seccion == 'saldos' %}<a class="ge-btn-outline" href="{% url 'cajas:movimientos' %}?periodo_id={{ periodo.pk }}">Movimientos</a>
+        {% else %}<a class="ge-btn-outline" href="{% url 'cajas:saldos' %}?periodo_id={{ periodo.pk }}">Saldos</a>{% endif %}
+        {% if kc_rol_efectivo == 'CAJERO' %}<a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' periodo.pk %}">Nuevo movimiento</a>{% endif %}
+      </div>
+    </section>
+    {% if seccion == 'saldos' %}{% include 'frontend/partials/caja_saldos_tabla.html' %}
+    {% else %}{% include 'frontend/partials/caja_movimientos_tabla.html' %}{% endif %}
+  {% endif %}
+</div>
+{% endblock %}

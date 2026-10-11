@@ -487,13 +487,34 @@ class SesionYAutorizacionTests(TestCase):
         self.assertContains(response, "RESUMEN-QA")
         self.assertContains(response, "Responsable QA")
         url = reverse("cajas:saldo", args=[periodo.pk])
-        self.assertContains(response, url + "#movimientos")
+        self.assertContains(response, reverse("cajas:movimientos") + f"?periodo_id={periodo.pk}")
+        self.assertContains(response, reverse("cajas:saldos") + f"?periodo_id={periodo.pk}")
         movimientos = self.client.get(url)
         self.assertEqual(movimientos.status_code, 200)
         for texto in ("Liquidación QA", "Automático", "transaccion:123", 'id="movimientos"'):
             self.assertContains(movimientos, texto)
         self.assertEqual(movimientos.context["movimientos"].count(), 1)
         self.assertEqual(movimientos.context["saldos"][0].saldo_actual, 70)
+
+    def test_resumen_sin_url_no_reutiliza_periodo_previo(self):
+        _, periodo = self.escenario_caja_cajero()
+        seleccionada = self.client.get(reverse("usuarios:dashboard"), {"periodo_id": periodo.pk})
+        self.assertEqual(seleccionada.context["periodo_seleccionado_id"], periodo.pk)
+        self.assertEqual(seleccionada.context["saldos_caja"][0].saldo_actual, 70)
+        sesion = self.client.session
+        sesion["periodo_id"] = periodo.pk
+        sesion["periodo_caja"] = periodo.pk
+        sesion.save()
+        with patch("cajas.services.consultar_saldos_caja") as consultar:
+            vacia = self.client.get(reverse("usuarios:dashboard"))
+        consultar.assert_not_called()
+        self.assertIsNone(vacia.context["periodo_seleccionado_id"])
+        self.assertIsNone(vacia.context["periodo_caja"])
+        self.assertEqual(vacia.context["saldos_caja"], [])
+        self.assertNotContains(vacia, " selected")
+        self.assertNotContains(vacia, "Saldo actual")
+        self.assertNotContains(vacia, "Responsable QA")
+        self.assertContains(vacia, reverse("operaciones_web:inicio"))
 
     def test_resumen_excluye_cajas_deshabilitadas_y_periodos_cerrados(self):
         caja, periodo = self.escenario_caja_cajero()

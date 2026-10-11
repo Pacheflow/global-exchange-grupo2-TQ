@@ -1,0 +1,14 @@
+{% load importes_caja %}
+    <h3 id="movimientos">Movimientos del período</h3>
+    <div class="ge-card" style="overflow:hidden">
+      <table class="ge-table">
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Moneda</th><th>Monto</th><th>Origen</th><th>Motivo</th><th>Referencia externa</th><th>Registrado por</th></tr></thead>
+        <tbody>{% for movimiento in movimientos %}<tr>
+          <td>{{ movimiento.fecha_registro|date:'d/m/Y H:i:s' }}</td><td>{{ movimiento.get_tipo_display }}</td>
+          <td>{{ movimiento.moneda.codigo }}</td><td>{{ movimiento.monto|importe_inicial }}</td>
+          <td>{{ movimiento.get_origen_display }}</td><td>{{ movimiento.motivo }}</td>
+          <td>{{ movimiento.referencia_externa|default:"—" }}</td>
+          <td>{{ movimiento.registrado_por_username|default:movimiento.registrado_por_keycloak_id }}</td>
+        </tr>{% empty %}<tr><td colspan="8">Todavía no hay movimientos en este período.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
