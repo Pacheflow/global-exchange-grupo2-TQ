@@ -137,6 +137,21 @@
 .ge-status-badge--neutral { background: rgba(100, 120, 160, 0.1); color: var(--text-2); }
 .ge-status-badge--neutral .ge-status-dot { background: var(--text-2); }
 
+/* Acciones primarias de Abrir caja: prevalecen sobre enlaces/up-current. */
+.ge-cajas-operar .ge-inline-actions > a.ge-caja-movimiento-accion { background: var(--primary); color: #fff; }
+.ge-cajas-operar .ge-inline-actions > a.ge-caja-movimiento-accion:hover { background: var(--primary); filter: brightness(.9); }
+.ge-cajas-operar .ge-inline-actions > a.ge-caja-movimiento-accion:focus-visible { outline: 2px solid var(--primary-hover); outline-offset: 2px; }
+
+/* Contexto reutilizable de Caja/Período. */
+.ge-caja-contexto { display: grid; gap: 16px; margin-bottom: 24px; min-width: 0; }
+.ge-caja-contexto-titulo { margin: 0; font-size: 22px; line-height: 1.25; color: var(--text); overflow-wrap: anywhere; }
+.ge-caja-contexto-subtitulo { margin: 6px 0 0; color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
+.ge-caja-contexto-estados { display: flex; flex-wrap: wrap; gap: 8px; }
+.ge-caja-contexto-metadatos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 24px; margin: 0; padding-top: 16px; border-top: 1px solid var(--border); }
+.ge-caja-contexto-metadatos > div { min-width: 0; }
+.ge-caja-contexto-metadatos dt { margin-bottom: 4px; color: var(--text-2); font-size: 12px; }
+.ge-caja-contexto-metadatos dd { margin: 0; color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+
 /* ── KPI simple (análogo a ge-kpi con etiqueta sobre el valor) ── */
 .ge-kpi--simple { display: block; }
 .ge-kpi--simple .ge-kpi-label { margin-bottom: 8px; }

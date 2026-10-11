@@ -4,8 +4,9 @@
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
 <div class="ge-frontend-main-pad">
-  <h2 class="ge-frontend-h2">{% if confirmar %}Confirmar apertura{% else %}Saldos iniciales{% endif %} — {{ caja.codigo }}</h2>
-  <p>{{ caja.nombre }}. Registrá un importe explícito por cada moneda. Se permite cero.</p>
+  <h2 class="ge-frontend-h2">{% if confirmar %}Confirmar apertura{% else %}Saldos iniciales{% endif %}</h2>
+  {% include 'frontend/partials/caja_contexto.html' with caja=caja only %}
+  <p>Registrá un importe explícito por cada moneda. Se permite cero.</p>
   {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
   {% if sin_monedas %}<p role="alert">No hay monedas activas configuradas. Un administrador debe habilitar al menos una.</p>{% endif %}
   <form method="post" class="ge-card" up-submit="false">{% csrf_token %}

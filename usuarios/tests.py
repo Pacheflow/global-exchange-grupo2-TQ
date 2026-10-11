@@ -450,6 +450,89 @@ class SesionYAutorizacionTests(TestCase):
         sql_ejecutado = "\n".join(consulta["sql"] for consulta in consultas)
         self.assertNotIn("clientes_usuariocliente", sql_ejecutado.lower())
 
+    def escenario_caja_cajero(self):
+        from cajas.models import Caja, PeriodoCaja, SaldoInicialCaja, MovimientoCaja
+        from monedas.models import Moneda
+        self.autenticar_con_roles(["CAJERO", "USUARIO"])
+        caja = Caja.objects.create(codigo="RESUMEN-QA", nombre="Principal", creado_por_keycloak_id="admin", actualizado_por_keycloak_id="admin")
+        periodo = PeriodoCaja.objects.create(caja=caja, responsable_keycloak_id="otro-cajero", responsable_username="Responsable QA")
+        moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar", "simbolo": "$"})
+        SaldoInicialCaja.objects.create(periodo=periodo, moneda=moneda, monto=100)
+        MovimientoCaja.objects.create(periodo=periodo, moneda=moneda, tipo="EGRESO", monto=30,
+            origen="AUTOMATICO", motivo="Liquidación QA", referencia_externa="transaccion:123",
+            clave_idempotencia="qa:dashboard:egreso", registrado_por_keycloak_id="otro-cajero")
+        return caja, periodo
+
+    def test_resumen_cajero_exige_seleccion_y_sidebar_funcional(self):
+        _, periodo = self.escenario_caja_cajero()
+        with patch("cajas.services.consultar_saldos_caja") as consultar:
+            response = self.client.get(reverse("usuarios:dashboard"))
+        consultar.assert_not_called()
+        self.assertIsNone(response.context["periodo_caja"])
+        self.assertContains(response, "Seleccioná una Caja/Período")
+        self.assertNotContains(response, " selected")
+        for etiqueta in ("Saldos", "Movimientos", "Historial", "Abrir caja"):
+            self.assertContains(response, etiqueta)
+        for etiqueta in ("Transferencias", "Arqueo", "Próximamente"):
+            self.assertNotContains(response, etiqueta)
+        self.assertIn(periodo, response.context["periodos_disponibles"])
+
+    def test_resumen_saldo_y_movimientos_reutilizan_backend(self):
+        from cajas.services import consultar_saldos_caja
+        caja, periodo = self.escenario_caja_cajero()
+        with patch("cajas.services.consultar_saldos_caja", wraps=consultar_saldos_caja) as consultar:
+            response = self.client.get(reverse("usuarios:dashboard"), {"periodo_id": periodo.pk})
+        consultar.assert_called_once_with(periodo_id=periodo.pk, usuario_id="usuario-keycloak-1", roles=["CAJERO", "USUARIO"])
+        self.assertEqual(response.context["saldos_caja"][0].saldo_actual, 70)
+        self.assertContains(response, "RESUMEN-QA")
+        self.assertContains(response, "Responsable QA")
+        url = reverse("cajas:saldo", args=[periodo.pk])
+        self.assertContains(response, reverse("cajas:movimientos") + f"?periodo_id={periodo.pk}")
+        self.assertContains(response, reverse("cajas:saldos") + f"?periodo_id={periodo.pk}")
+        movimientos = self.client.get(url)
+        self.assertEqual(movimientos.status_code, 200)
+        for texto in ("Liquidación QA", "Automático", "transaccion:123", 'id="movimientos"'):
+            self.assertContains(movimientos, texto)
+        self.assertEqual(movimientos.context["movimientos"].count(), 1)
+        self.assertEqual(movimientos.context["saldos"][0].saldo_actual, 70)
+
+    def test_resumen_sin_url_no_reutiliza_periodo_previo(self):
+        _, periodo = self.escenario_caja_cajero()
+        seleccionada = self.client.get(reverse("usuarios:dashboard"), {"periodo_id": periodo.pk})
+        self.assertEqual(seleccionada.context["periodo_seleccionado_id"], periodo.pk)
+        self.assertEqual(seleccionada.context["saldos_caja"][0].saldo_actual, 70)
+        sesion = self.client.session
+        sesion["periodo_id"] = periodo.pk
+        sesion["periodo_caja"] = periodo.pk
+        sesion.save()
+        with patch("cajas.services.consultar_saldos_caja") as consultar:
+            vacia = self.client.get(reverse("usuarios:dashboard"))
+        consultar.assert_not_called()
+        self.assertIsNone(vacia.context["periodo_seleccionado_id"])
+        self.assertIsNone(vacia.context["periodo_caja"])
+        self.assertEqual(vacia.context["saldos_caja"], [])
+        self.assertNotContains(vacia, " selected")
+        self.assertNotContains(vacia, "Saldo actual")
+        self.assertNotContains(vacia, "Responsable QA")
+        self.assertContains(vacia, reverse("operaciones_web:inicio"))
+
+    def test_resumen_excluye_cajas_deshabilitadas_y_periodos_cerrados(self):
+        caja, periodo = self.escenario_caja_cajero()
+        for campo, valor in (("estado", "DESHABILITADA"),):
+            setattr(caja, campo, valor)
+            caja.save()
+        response = self.client.get(reverse("usuarios:dashboard"), {"periodo_id": periodo.pk})
+        self.assertFalse(response.context["periodos_disponibles"].exists())
+        self.assertIsNone(response.context["periodo_caja"])
+        self.assertContains(response, "ya no está disponible")
+        caja.estado = "HABILITADA"
+        caja.save()
+        periodo.estado = "CERRADO"
+        periodo.save()
+        response = self.client.get(reverse("usuarios:dashboard"), {"periodo_id": periodo.pk})
+        self.assertFalse(response.context["periodos_disponibles"].exists())
+        self.assertIsNone(response.context["periodo_caja"])
+
     def test_multirrol_cajero_usuario_opera_como_cajero(self):
         """El cajero prevalece sobre usuario y conserva el modo operativo."""
 

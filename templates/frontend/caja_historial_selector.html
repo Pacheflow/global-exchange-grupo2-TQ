@@ -1,0 +1,21 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Historial de Caja · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <div class="ge-frontend-section-head"><div><h2 class="ge-frontend-h2">Historial de Caja</h2><p class="ge-frontend-subtitle">Períodos, movimientos, arqueos y cierres</p></div></div>
+  {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
+  <section class="ge-card ge-card--pad24">
+    <form method="get">
+      <div class="ge-field"><label for="historial-caja">Caja</label>
+        <select id="historial-caja" name="caja_id" required>
+          <option value="">Seleccioná una Caja</option>
+          {% for caja in cajas %}<option value="{{ caja.pk }}">{{ caja.codigo }} — {{ caja.nombre }} · {{ caja.estado }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="ge-btn-primary" type="submit">Consultar historial</button>
+    </form>
+    {% if not cajas %}<p class="ge-frontend-note">No hay cajas disponibles.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

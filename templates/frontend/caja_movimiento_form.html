@@ -4,7 +4,7 @@
 {% block content %}
 <div class="ge-frontend-main-pad">
   <h2 class="ge-frontend-h2">Registrar movimiento</h2>
-  <p class="ge-frontend-subtitle">Caja {{ periodo.caja.codigo }} · período {{ periodo.id }}</p>
+  {% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo formato_fecha='d/m/Y H:i' only %}
   <form method="post" class="ge-card" up-submit="false">{% csrf_token %}
     {% if form.non_field_errors %}<div class="ge-error-banner" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     {% for field in form %}
