@@ -10,7 +10,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from usuarios.decorators import requiere_alguno_de_roles
-from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO
+from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO, rol_efectivo
 
 from .factory import obtener_payment_provider
 from .services import (
@@ -50,10 +50,12 @@ def _errores_controlados(view):
     return wrapper
 
 
-def _contexto(request):
+def _contexto(request, *, permitir_sin_cliente=False):
     seleccionado = request.session.get("selected_client")
     cliente_id = seleccionado.get("id") if isinstance(seleccionado, dict) else None
-    if type(cliente_id) is not int or cliente_id <= 0:
+    if permitir_sin_cliente and rol_efectivo(request.session.get(SESSION_ROLES, [])) == "CAJERO":
+        cliente_id = None
+    elif type(cliente_id) is not int or cliente_id <= 0:
         return None
     usuario = request.session.get(SESSION_USUARIO, {})
     return dict(
@@ -125,7 +127,7 @@ def recuperar(request, transaccion_id):
 @requiere_alguno_de_roles("CAJERO", "USUARIO")
 @require_GET
 def consultar(request, transaccion_id):
-    contexto = _contexto(request)
+    contexto = _contexto(request, permitir_sin_cliente=True)
     if contexto is None:
         return _error("Seleccione un cliente válido para operar.", "CONTEXTO_CLIENTE_INVALIDO", 400)
     resultado = consultar_estado_pago(transaccion_id=transaccion_id, **contexto)

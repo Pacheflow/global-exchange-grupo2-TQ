@@ -58,6 +58,63 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         )
         return cliente
 
+    def test_bandeja_cajero_todos_asociados_sin_cliente_seleccionado(self):
+        otro = self.crear_cliente_asociado()
+        primero = self.crear().transaccion
+        segundo = self.crear(cliente_id=otro.pk).transaccion
+        self.autenticar(roles=("CAJERO", "USUARIO"))
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        url = reverse("operaciones:historial_transacciones")
+        datos = self.client.get(url).json()["transacciones"]
+        self.assertEqual({tx["id"] for tx in datos}, {primero.pk, segundo.pk})
+        self.assertTrue(all("pago_estado" in tx for tx in datos))
+        self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk])).status_code, 200)
+        pagina = self.client.get(reverse("operaciones_web:inicio"))
+        self.assertContains(pagina, "Bandeja operativa")
+        self.assertNotContains(pagina, "Nueva operación")
+        self.assertNotContains(pagina, "Seleccioná un cliente para operar")
+        UsuarioCliente.objects.filter(cliente=otro).update(activo=False)
+        datos = self.client.get(url).json()["transacciones"]
+        self.assertEqual({tx["id"] for tx in datos}, {primero.pk})
+        detalle = self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk]))
+        self.assertEqual(detalle.status_code, 404)
+        inexistente = self.client.get(reverse("operaciones:detalle_transaccion", args=[999999]))
+        self.assertEqual(detalle.json(), inexistente.json())
+
+    def test_usuario_sigue_requiriendo_cliente_para_historial_y_detalle(self):
+        tx = self.crear().transaccion
+        self.autenticar()
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        self.assertEqual(self.client.get(reverse("operaciones:historial_transacciones")).status_code, 400)
+        self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[tx.pk])).status_code, 400)
+
+    def test_cajero_renderiza_bandeja_con_selected_client_invalido(self):
+        for roles in (("CAJERO",), ("CAJERO", "USUARIO")):
+            with self.subTest(roles=roles):
+                self.autenticar(roles=roles)
+                sesion = self.client.session
+                sesion["selected_client"] = {"id": "contexto-invalido"}
+                sesion.save()
+                respuesta = self.client.get(reverse("operaciones_web:inicio"))
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertContains(respuesta, "Bandeja operativa")
+                self.assertNotContains(respuesta, "Nueva operación")
+                self.assertIsNone(respuesta.context["cliente_operacion"])
+                self.assertContains(respuesta, "Historial de operaciones")
+
+    def test_usuario_con_contexto_invalido_conserva_comportamiento_previo(self):
+        self.autenticar()
+        sesion = self.client.session
+        sesion["selected_client"] = {"id": "contexto-invalido"}
+        sesion.save()
+        # Caracterización del comportamiento previo; no corregir USUARIO en este paso.
+        with self.assertRaises(ValueError):
+            self.client.get(reverse("operaciones_web:inicio"))
+
     def test_venta_previsualiza_y_confirma_con_tasa_de_venta(self):
         """Comprueba el flujo HU-23 con tasa de venta y estado PENDIENTE."""
 

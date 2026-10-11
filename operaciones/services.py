@@ -828,6 +828,8 @@ def liquidar_transaccion(
     Locks: Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. La capa superior
     selecciona y autoriza el período explícito; no existen asignaciones Cajero–Caja.
     El cobro digital de COMPRA no representa un ingreso de efectivo.
+    El Cajero puede omitir cliente_seleccionado_id: se revalida la asociación
+    activa con el cliente de la operación bajo el lock de Transaccion.
     """
     usuario_id = _validar_identidad(usuario_id)
     if (
@@ -845,7 +847,9 @@ def liquidar_transaccion(
             )
         except (Transaccion.DoesNotExist, TypeError, ValueError):
             raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
-        if type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != operacion.cliente_id:
+        if cliente_seleccionado_id is not None and (
+            type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != operacion.cliente_id
+        ):
             raise ValidationError("El cliente seleccionado no corresponde a la operación.", code="CLIENTE_INCOHERENTE")
         cliente = _obtener_cliente_activo(operacion.cliente_id)
         _validar_acceso_usuario_cliente(cliente, usuario_id)
@@ -1027,6 +1031,7 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
             "moneda_destino",
             "tasa_comercial",
             "metodo_pago",
+            "pago",
         )
         .distinct()
     )
@@ -1053,6 +1058,7 @@ def obtener_detalle_transaccion(
     usuario_id,
     cliente_id=None,
     es_admin=False,
+    permitir_clientes_asociados=False,
 ):
     """Obtiene una transacción del cliente seleccionado de forma segura.
 
@@ -1066,6 +1072,8 @@ def obtener_detalle_transaccion(
         cliente_id (int | None): Cliente seleccionado y esperado para la
             transacción; el administrador global puede omitirlo.
         es_admin (bool): Permite consultar globalmente sin asociación.
+        permitir_clientes_asociados (bool): Habilita la consulta operativa de
+            Cajero sin cliente seleccionado, manteniendo la asociación activa.
 
     Returns:
         Transaccion: Registro histórico solicitado con sus relaciones.
@@ -1083,7 +1091,7 @@ def obtener_detalle_transaccion(
         cliente = _obtener_cliente_activo(cliente_id)
         if not es_admin:
             _validar_acceso_usuario_cliente(cliente, usuario_id)
-    elif not es_admin:
+    elif not es_admin and not permitir_clientes_asociados:
         raise ValidationError(
             {"cliente": "Debe seleccionar un cliente para consultar el detalle."}
         )
@@ -1099,6 +1107,11 @@ def obtener_detalle_transaccion(
                 "tasa_comercial",
                 "metodo_pago",
             )
+            .filter(**({
+                "cliente__usuarios_asignados__keycloak_user_id": usuario_id,
+                "cliente__usuarios_asignados__activo": True,
+                "cliente__estado": "ACTIVO",
+            } if permitir_clientes_asociados and not es_admin else {}))
             .get(
                 pk=transaccion_id,
                 **({"cliente": cliente} if cliente is not None else {}),

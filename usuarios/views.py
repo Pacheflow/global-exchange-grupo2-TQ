@@ -355,7 +355,7 @@ def dashboard(request):
     """Renderiza el panel principal según el rol del usuario.
 
     Para ADMINISTRADOR agrega totales de clientes, monedas activas y métodos
-    de pago; para CAJERO agrega clientes asociados, monedas y tasas vigentes;
+    de pago; para CAJERO permite elegir un período y consultar sus saldos;
     para ANALISTA_CAMBIARIO agrega únicamente información cambiaria.
     """
     profile = request.session["kc_user"]
@@ -379,6 +379,8 @@ def dashboard(request):
             metodos_pago_count=MetodoPago.objects.count(),
         )
     elif rol_sesion == "CAJERO":
+        from cajas.models import PeriodoCaja
+        from cajas.services import consultar_saldos_caja
         from clientes.models import UsuarioCliente
         from monedas.models import Moneda
         from tasas.models import TasaComercial
@@ -394,6 +396,25 @@ def dashboard(request):
                 vigente=True
             ).count(),
         )
+        periodos = PeriodoCaja.objects.filter(
+            estado="ABIERTO", caja__estado="HABILITADA",
+        ).select_related("caja").order_by("caja__codigo", "pk")
+        context.update(periodos_disponibles=periodos, periodo_caja=None, saldos_caja=[])
+        seleccion = request.GET.get("periodo_id")
+        if seleccion is not None:
+            if not seleccion.isdecimal() or len(seleccion) > 10 or int(seleccion) <= 0:
+                context["error_caja"] = "Seleccioná un período abierto disponible."
+            elif not periodos.filter(pk=int(seleccion)).exists():
+                context["error_caja"] = "El período seleccionado ya no está disponible."
+            else:
+                try:
+                    periodo, saldos = consultar_saldos_caja(
+                        periodo_id=int(seleccion), usuario_id=user_id,
+                        roles=request.session.get(SESSION_ROLES, []),
+                    )
+                    context.update(periodo_caja=periodo, saldos_caja=saldos)
+                except ValidationError:
+                    context["error_caja"] = "El período seleccionado ya no está disponible."
     elif rol_sesion == "ANALISTA_CAMBIARIO":
         from monedas.models import Moneda
         from tasas.models import TasaComercial

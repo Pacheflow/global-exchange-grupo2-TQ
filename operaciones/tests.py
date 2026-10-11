@@ -415,15 +415,12 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
                     self.assertEqual(self.post_liquidar(periodo_id=valor).status_code, 400)
         servicio.assert_not_called()
 
-    def test_contexto_sin_cliente_o_invalido_es_400(self):
-        for seleccion in (None, {}, {"id": "1"}, {"id": True}, {"id": -1}):
-            with self.subTest(seleccion=seleccion):
-                sesion = self.client.session
-                sesion["selected_client"] = seleccion
-                sesion.save()
-                with mock.patch("operaciones.views.liquidar_transaccion") as servicio:
-                    self.assertEqual(self.post_liquidar().status_code, 400)
-                servicio.assert_not_called()
+    def test_cajero_liquida_sin_contexto_de_cliente_seleccionado(self):
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        self.assertEqual(self.post_liquidar().status_code, 200)
+        self.assertEqual(MovimientoCaja.objects.count(), 1)
 
     def test_no_autorizada_e_inexistente_devuelven_mismo_404(self):
         sesion = self.client.session
@@ -441,6 +438,8 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         sesion = self.client.session
         sesion["selected_client"] = {"id": self.cliente.pk + 100}
         sesion.save()
+        self.asociacion.activo = False
+        self.asociacion.save()
         self.assertEqual(self.post_liquidar().json(), inexistente.json())
         with mock.patch("operaciones.views.liquidar_transaccion", side_effect=PermissionDenied("Interno")):
             self.assertEqual(self.post_liquidar().json(), inexistente.json())
@@ -513,7 +512,7 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         servicio.assert_called_once_with(
             transaccion_id=self.operacion_http.pk, periodo_id=self.periodo_liquidacion.pk,
             usuario_id=self.usuario_id, username=self.usuario_username,
-            roles=["CAJERO"], cliente_seleccionado_id=self.cliente.pk,
+            roles=["CAJERO"], cliente_seleccionado_id=None,
         )
         stripe_cliente.assert_not_called()
         proveedor.assert_not_called()
@@ -600,13 +599,13 @@ class PeriodosLiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
                 self.assertEqual(respuesta.json()["codigo"], "OPERACION_NO_PENDIENTE")
                 self.assertNotIn("periodos", respuesta.json())
 
-    def test_cliente_no_seleccionado_o_malformado_es_400(self):
+    def test_catalogo_cajero_ignora_cliente_seleccionado(self):
         for seleccion in (None, {}, {"id": "1"}, {"id": True}, {"id": 0}):
             with self.subTest(seleccion=seleccion):
                 sesion = self.client.session
                 sesion["selected_client"] = seleccion
                 sesion.save()
-                self.assertEqual(self.client.get(self.url_periodos).status_code, 400)
+                self.assertEqual(self.client.get(self.url_periodos).status_code, 200)
 
     def test_no_autorizada_e_inexistente_son_indistinguibles(self):
         inexistente = self.client.get(reverse("operaciones:periodos_liquidacion", args=[999999]))

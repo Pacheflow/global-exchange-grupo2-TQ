@@ -75,20 +75,25 @@ def _bloquear(transaccion_id):
     return transaccion, pago
 
 
-def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, *, roles_permitidos=("CAJERO", "USUARIO")):
+def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, *, roles_permitidos=("CAJERO", "USUARIO"), permitir_sin_cliente=False):
     if not isinstance(usuario_id, str) or not usuario_id.strip() or len(usuario_id) > 255:
         raise PermissionDenied("Identidad inválida.")
     if not isinstance(roles, (list, tuple, set, frozenset)) or not all(isinstance(r, str) for r in roles):
         raise PermissionDenied("Roles inválidos.")
     usuario_id = usuario_id.strip()
+    rol = rol_efectivo(roles)
+    consulta_cajero = permitir_sin_cliente and rol == "CAJERO"
     if (
-        rol_efectivo(roles) not in roles_permitidos
-        or type(cliente_seleccionado_id) is not int
-        or cliente_seleccionado_id != transaccion.cliente_id
+        rol not in roles_permitidos
+        or (not (consulta_cajero and cliente_seleccionado_id is None)
+            and (type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != transaccion.cliente_id))
         or transaccion.cliente.estado != "ACTIVO"
         or not UsuarioCliente.objects.filter(
             cliente_id=transaccion.cliente_id, keycloak_user_id=usuario_id,
-            activo=True, rol_en_cliente__in=("RESPONSABLE", "OPERADOR"),
+            activo=True,
+            **({} if consulta_cajero else {
+                "rol_en_cliente__in": ("RESPONSABLE", "OPERADOR"),
+            }),
         ).exists()
     ):
         raise PermissionDenied("No tiene permiso para procesar el pago de esta operación.")
@@ -345,7 +350,7 @@ def consultar_estado_pago(*, transaccion_id, usuario_id, roles, cliente_seleccio
         transaccion = Transaccion.objects.select_related("cliente", "pago").get(pk=transaccion_id)
     except Transaccion.DoesNotExist:
         raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
-    _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id)
+    _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, permitir_sin_cliente=True)
     if transaccion.tipo != "COMPRA":
         raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
     try:

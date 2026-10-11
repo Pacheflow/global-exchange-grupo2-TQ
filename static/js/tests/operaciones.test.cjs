@@ -70,7 +70,7 @@ function runtime(canPay = false, canLiquidate = true) {
   // Exponer funciones solo en la copia en memoria, sin hooks en código productivo.
   const source = fs.readFileSync(path.join(__dirname, '../operaciones.js'), 'utf8').replace(
     /\s*loadHistory\(\);\s*\}\)\(\);\s*$/,
-    '\n globalThis.ui = { state, showDetail, renderPayment };\n})();'
+    '\n globalThis.ui = { state, showDetail, renderPayment, renderHistory };\n})();'
   );
   vm.runInNewContext(source, context);
   return { ...context, get, calls };
@@ -104,6 +104,28 @@ test('SALDO_INSUFICIENTE permanece visible tras refrescar detalle y catálogo, s
   assert.equal(error.hidden, true, 'no trasladar el error a otra operación');
   const template = fs.readFileSync(path.join(__dirname, '../../../templates/frontend/operaciones.html'), 'utf8');
   assert.match(template, /class="ge-operation-feedback is-error" data-liquidation-error role="alert" hidden/);
+});
+
+test('bandeja distingue Compra aprobada y Venta pendiente del historial no liquidable', () => {
+  const app = runtime();
+  app.get('[data-operaciones-page]').dataset.operativeInbox = 'true';
+  for (const [tipo, estado, pago_estado, liquidable] of [
+    ['COMPRA', 'PENDIENTE', 'APROBADO', true],
+    ['COMPRA', 'PENDIENTE', 'ERROR', false],
+    ['COMPRA', 'PENDIENTE', null, false],
+    ['VENTA', 'PENDIENTE', null, true],
+    ['COMPRA', 'COMPLETADA', 'APROBADO', false],
+    ['VENTA', 'CANCELADA', null, false]
+  ]) {
+    app.ui.state.transactions = [{ ...transaction(1), tipo, estado, pago_estado }];
+    app.ui.renderHistory();
+    const html = app.get('[data-history-body]').innerHTML;
+    assert.equal(html.includes('Ver / Liquidar'), liquidable);
+    assert.equal(html.includes('Ver detalle'), !liquidable);
+    assert.equal(html.includes('data-cancel-index'), false);
+    assert.equal(html.includes('Iniciar pago'), false);
+    assert.ok(html.includes(tipo === 'VENTA' ? 'No aplica' : (pago_estado || 'Pago no iniciado')));
+  }
 });
 
 test('capacidades UI: Cajero consulta sin iniciar/reintentar; Usuario no consulta catálogo ni liquida', async () => {

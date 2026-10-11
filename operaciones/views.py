@@ -40,13 +40,11 @@ def periodos_liquidacion_view(request, transaccion_id):
     usuario_id, _ = _usuario_sesion(request)
     if not usuario_id:
         return JsonResponse({"error": "No se encontró una identidad Keycloak válida."}, status=401)
-    cliente_id = _cliente_seleccionado_id(request)
-    if type(cliente_id) is not int or cliente_id <= 0:
-        return JsonResponse({"error": "Debe seleccionar un cliente válido para operar."}, status=400)
+    cliente_id = None
     try:
         operacion = obtener_detalle_transaccion(
             transaccion_id=transaccion_id, usuario_id=usuario_id,
-            cliente_id=cliente_id, es_admin=False,
+            cliente_id=cliente_id, es_admin=False, permitir_clientes_asociados=True,
         )
     except (ValidationError, PermissionDenied):
         return JsonResponse({"error": "La transacción solicitada no está disponible."}, status=404)
@@ -118,9 +116,7 @@ def liquidar_transaccion_view(request, transaccion_id):
     usuario_id, username = _usuario_sesion(request)
     if not usuario_id:
         return JsonResponse({"error": "No se encontró una identidad Keycloak válida."}, status=401)
-    cliente_id = _cliente_seleccionado_id(request)
-    if type(cliente_id) is not int or cliente_id <= 0:
-        return JsonResponse({"error": "Debe seleccionar un cliente válido para operar."}, status=400)
+    cliente_id = None
     datos = _leer_cuerpo_json(request) if request.content_type == "application/json" else None
     if (
         not isinstance(datos, dict) or set(datos) != {"periodo_id"}
@@ -158,22 +154,22 @@ def inicio_operaciones(request):
     rol = rol_efectivo(request.session.get(SESSION_ROLES, []))
     es_supervisor = rol == "ADMINISTRADOR"
     cliente_operacion = None
-    seleccion = request.session.get("selected_client", {})
-    cliente_id = seleccion.get("id") if isinstance(seleccion, dict) else None
+    if rol == "USUARIO":
+        seleccion = request.session.get("selected_client", {})
+        cliente_id = seleccion.get("id") if isinstance(seleccion, dict) else None
+        if cliente_id:
+            clientes = Cliente.objects.select_related(
+                "categoria",
+                "metodo_pago_preferido",
+            ).filter(id=cliente_id, estado="ACTIVO")
 
-    if cliente_id and not es_supervisor:
-        clientes = Cliente.objects.select_related(
-            "categoria",
-            "metodo_pago_preferido",
-        ).filter(id=cliente_id, estado="ACTIVO")
+            usuario_id, _ = _usuario_sesion(request)
+            clientes = clientes.filter(
+                usuarios_asignados__keycloak_user_id=usuario_id,
+                usuarios_asignados__activo=True,
+            )
 
-        usuario_id, _ = _usuario_sesion(request)
-        clientes = clientes.filter(
-            usuarios_asignados__keycloak_user_id=usuario_id,
-            usuarios_asignados__activo=True,
-        )
-
-        cliente_operacion = clientes.first()
+            cliente_operacion = clientes.first()
 
     return render(
         request,
@@ -185,7 +181,8 @@ def inicio_operaciones(request):
             "es_supervisor": es_supervisor,
             "puede_crear": rol == "USUARIO" and cliente_operacion is not None,
             "puede_pagar": rol == "USUARIO" and cliente_operacion is not None,
-            "puede_liquidar": rol == "CAJERO" and cliente_operacion is not None,
+            "puede_liquidar": rol == "CAJERO",
+            "es_cajero": rol == "CAJERO",
         },
     )
 
@@ -576,8 +573,9 @@ def historial_transacciones_view(request):
     es_admin = rol_efectivo(
         request.session.get(SESSION_ROLES, [])
     ) == "ADMINISTRADOR"
-    cliente_id = None if es_admin else _cliente_seleccionado_id(request)
-    if not es_admin and cliente_id is None:
+    es_cajero = rol_efectivo(request.session.get(SESSION_ROLES, [])) == "CAJERO"
+    cliente_id = None if es_admin or es_cajero else _cliente_seleccionado_id(request)
+    if not es_admin and not es_cajero and cliente_id is None:
         return JsonResponse(
             {"error": "Debe seleccionar un cliente para consultar su historial."},
             status=400,
@@ -601,7 +599,10 @@ def historial_transacciones_view(request):
     return JsonResponse(
         {
             "transacciones": [
-                _serializar_transaccion(transaccion)
+                {**_serializar_transaccion(transaccion), **(
+                    {"pago_estado": getattr(getattr(transaccion, "pago", None), "estado", None)}
+                    if es_cajero else {}
+                )}
                 for transaccion in transacciones
             ]
         }
@@ -623,8 +624,9 @@ def detalle_transaccion_view(request, transaccion_id):
     es_admin = rol_efectivo(
         request.session.get(SESSION_ROLES, [])
     ) == "ADMINISTRADOR"
-    cliente_id = None if es_admin else _cliente_seleccionado_id(request)
-    if not es_admin and cliente_id is None:
+    es_cajero = rol_efectivo(request.session.get(SESSION_ROLES, [])) == "CAJERO"
+    cliente_id = None if es_admin or es_cajero else _cliente_seleccionado_id(request)
+    if not es_admin and not es_cajero and cliente_id is None:
         return JsonResponse(
             {"error": "Debe seleccionar un cliente para consultar el detalle."},
             status=400,
@@ -636,6 +638,7 @@ def detalle_transaccion_view(request, transaccion_id):
             usuario_id=usuario_id,
             cliente_id=cliente_id,
             es_admin=es_admin,
+            permitir_clientes_asociados=es_cajero,
         )
     except ValidationError as exc:
         return JsonResponse(

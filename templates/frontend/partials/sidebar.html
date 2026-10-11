@@ -21,11 +21,9 @@
     {% elif rol == 'cajero' %}
       <a href="{% url 'operaciones_web:inicio' %}" {% if request.resolver_match.namespace == 'operaciones_web' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='operations' size=18 %}</span><span class="ge-frontend-nav-label">Operaciones</span></a>
       <a href="{% url 'cajas:operar' %}" {% if request.resolver_match.namespace == 'cajas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='cash' size=18 %}</span><span class="ge-frontend-nav-label">Abrir caja</span></a>
-      {% include 'frontend/partials/sidebar_pending.html' with icon='balance' label='Saldos' %}
-      {% include 'frontend/partials/sidebar_pending.html' with icon='transactions' label='Movimientos' %}
-      {% include 'frontend/partials/sidebar_pending.html' with icon='transfer' label='Transferencias' %}
-      {% include 'frontend/partials/sidebar_pending.html' with icon='reconciliation' label='Arqueo' %}
-      {% include 'frontend/partials/sidebar_pending.html' with icon='history' label='Historial' %}
+      <a href="{% url 'usuarios:dashboard' %}#selector-caja"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='balance' size=18 %}</span><span class="ge-frontend-nav-label">Saldos</span></a>
+      <a href="{% url 'usuarios:dashboard' %}#selector-caja"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='transactions' size=18 %}</span><span class="ge-frontend-nav-label">Movimientos</span></a>
+      <a href="{% url 'operaciones_web:inicio' %}#historial-title"><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='history' size=18 %}</span><span class="ge-frontend-nav-label">Historial de operaciones</span></a>
       <a href="{% url 'usuarios:tasas' %}" {% if request.resolver_match.url_name == 'tasas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='rates' size=18 %}</span><span class="ge-frontend-nav-label">Tasas</span></a>
       <a href="{% url 'usuarios:monedas' %}" {% if request.resolver_match.url_name == 'monedas' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span class="ge-frontend-nav-label">Monedas</span></a>
 

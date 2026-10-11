@@ -260,11 +260,22 @@
 
   function renderHistory() {
     if (!state.transactions.length) {
-      historyBody.innerHTML = '<tr><td colspan="6" class="no-data">Todavía no hay transacciones disponibles.</td></tr>';
+      historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 6) + '" class="no-data">Todavía no hay transacciones disponibles.</td></tr>';
       return;
     }
 
     historyBody.innerHTML = state.transactions.map(function (transaction, index) {
+      if (page.dataset.operativeInbox === 'true') {
+        var liquidable = transaction.estado === 'PENDIENTE' &&
+          (transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && transaction.pago_estado === 'APROBADO'));
+        var payment = transaction.tipo === 'VENTA' ? 'No aplica' : (transaction.pago_estado || 'Pago no iniciado');
+        return '<tr><td>#' + escapeHtml(transaction.id) + '</td><td>' + escapeHtml(transaction.cliente.nombre_razon_social) +
+          '</td><td>' + escapeHtml(transaction.tipo) + '</td><td>' + escapeHtml(formatAmount(transaction.monto_origen, transaction.moneda_origen.codigo)) +
+          '</td><td>' + escapeHtml(formatAmount(transaction.monto_destino, transaction.moneda_destino.codigo)) +
+          '</td><td>' + escapeHtml(payment) + '</td><td>' + statusBadge(transaction.estado) +
+          '</td><td><button type="button" class="ge-btn-ghost" data-detail-index="' + index + '">' +
+          (liquidable ? 'Ver / Liquidar' : 'Ver detalle') + '</button></td></tr>';
+      }
       var cancelButton = page.dataset.canCancel === 'true' && transaction.estado === 'PENDIENTE'
         ? '<button type="button" class="ge-btn-ghost ge-btn-ghost--danger" data-cancel-index="' + index + '">Cancelar</button>'
         : '';
@@ -280,12 +291,12 @@
   }
 
   function loadHistory() {
-    historyBody.innerHTML = '<tr><td colspan="6" class="no-data">Cargando historial…</td></tr>';
+    historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 6) + '" class="no-data">Cargando historial…</td></tr>';
     apiRequest(page.dataset.historyUrl, { credentials: 'same-origin' }).then(function (data) {
       state.transactions = data.transacciones || [];
       renderHistory();
     }).catch(function (error) {
-      historyBody.innerHTML = '<tr><td colspan="6" class="no-data">' + escapeHtml(error.message) + '</td></tr>';
+      historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 6) + '" class="no-data">' + escapeHtml(error.message) + '</td></tr>';
     });
   }
 

@@ -128,6 +128,25 @@ class _EscenarioHTTP:
 
 
 class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
+    def test_cajero_consulta_pago_sin_selected_client_usuario_no(self):
+        pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)
+        for roles, status in ((["CAJERO"], 200), (["USUARIO"], 400)):
+            self.autenticar(roles=roles)
+            sesion = self.client.session
+            sesion.pop("selected_client", None)
+            sesion.save()
+            respuesta = self.client.get(self.url("consultar"))
+            self.assertEqual(respuesta.status_code, status)
+            if status == 200:
+                self.assertEqual(respuesta.json()["pago_id"], str(pago.pk))
+        self.autenticar(roles=["CAJERO"])
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion[SESSION_USUARIO] = {"sub": "ajeno"}
+        sesion.save()
+        self.assertEqual(self.client.get(self.url("consultar")).status_code, 404)
+        self.factory_mock.assert_not_called()
+
     def test_cajero_consulta_pero_no_inicia_ni_reintenta_y_admin_no_opera(self):
         pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)
         for roles in (["CAJERO"], ["CAJERO", "USUARIO"], ["ADMINISTRADOR", "CAJERO", "USUARIO"]):
