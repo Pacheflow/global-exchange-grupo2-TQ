@@ -149,6 +149,24 @@ El servicio registra el método de pago seleccionado como parte de la operación
 
 Las vistas son duales HTML/JSON según `Accept` o `Content-Type`. “Métodos de pago” es configuración HU-37; no representa pagos ni transacciones reales.
 
+## Caja — saldos y movimientos
+
+| Ruta web | Método | Rol efectivo | Función |
+|---|---|---|---|
+| `/cajas/periodos/<id>/saldo/` | GET | ADMINISTRADOR o CAJERO | Consulta saldo y trazabilidad del período abierto, separados por moneda |
+| `/cajas/periodos/<id>/movimientos/crear/` | GET/POST | CAJERO | Presenta el formulario o registra un ingreso/egreso manual |
+
+El administrador supervisa saldos, pero no registra movimientos manuales. El
+cajero puede operar cualquier caja habilitada según el contrato vigente del
+proyecto. Un movimiento requiere caja abierta, moneda incluida en la apertura,
+monto positivo y motivo; un egreso sin fondos se rechaza.
+
+No se expone una ruta HTTP pública para movimientos automáticos. La integración
+interna usa `registrar_movimiento_automatico()` con una clave de idempotencia:
+un reintento idéntico devuelve el movimiento original y un reintento con datos
+distintos se rechaza. Esta interfaz de servicio queda lista para la integración
+con pagos sin acoplarla prematuramente a HU-28.
+
 ## Respuestas de autorización
 
 - API sin sesión cuando corresponde autenticación: `401` JSON.
@@ -163,3 +181,5 @@ Las vistas son duales HTML/JSON según `Accept` o `Content-Type`. “Métodos de
 - `/acceso-administrador/`: diagnóstico protegido; no es navegación de negocio.
 - `/metodos-pago/`: entrada web canónica del módulo de configuración.
 - `/pagos/`: alias técnico conservado por compatibilidad con la pantalla integrada; la UI lo denomina “Métodos de pago”.
+- `/cajas/operar/`: listado operativo y entrada a apertura, saldos y movimientos para CAJERO.
+- `/cajas/`: configuración y supervisión de cajas para ADMINISTRADOR.

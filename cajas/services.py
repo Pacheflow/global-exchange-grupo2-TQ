@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from django.core import signing
@@ -8,9 +9,28 @@ from usuarios.services.keycloak import rol_efectivo
 from monedas.models import Moneda
 
 from .forms import CajaForm, EstadoCajaForm
-from .models import Caja, PeriodoCaja, SaldoInicialCaja
+from .models import Caja, MovimientoCaja, PeriodoCaja, SaldoInicialCaja
 
 SAL_CATALOGO = "cajas.apertura.catalogo"
+
+
+@dataclass(frozen=True)
+class SaldoMonedaCaja:
+    """Saldo teórico de una moneda dentro de un período de caja."""
+
+    moneda: Moneda
+    saldo_inicial: Decimal
+    ingresos: Decimal
+    egresos: Decimal
+    saldo_actual: Decimal
+
+
+@dataclass(frozen=True)
+class ResultadoMovimientoCaja:
+    """Resultado de registrar un movimiento, incluido un reintento idempotente."""
+
+    movimiento: MovimientoCaja
+    repetido: bool = False
 
 
 def validar_importe_inicial(valor):
@@ -168,3 +188,228 @@ def cambiar_estado_caja(*, caja_id, estado, usuario_id, roles):
         caja.actualizado_por_keycloak_id = usuario_id.strip()
         caja.save(update_fields=["estado", "actualizado_por_keycloak_id", "fecha_actualizacion"])
     return caja
+
+
+def validar_monto_movimiento(valor):
+    """Convierte un monto positivo y exacto con hasta seis decimales."""
+
+    monto = validar_importe_inicial(valor)
+    if monto <= 0:
+        raise ValidationError("El monto del movimiento debe ser mayor que cero.")
+    return monto
+
+
+def _validar_consulta_saldo(roles, usuario_id):
+    """Autoriza la consulta global a ADMINISTRADOR y la operación a CAJERO."""
+
+    if rol_efectivo(roles) not in {"ADMINISTRADOR", "CAJERO"}:
+        raise PermissionDenied("Solo ADMINISTRADOR o CAJERO pueden consultar saldos de caja.")
+    if not isinstance(usuario_id, str) or not usuario_id.strip():
+        raise ValidationError("No se encontró una identidad Keycloak válida.")
+
+
+def _validar_operador_movimiento(roles, usuario_id):
+    """Restringe los movimientos manuales al rol efectivo CAJERO."""
+
+    if rol_efectivo(roles) != "CAJERO":
+        raise PermissionDenied("Solo el rol efectivo CAJERO puede registrar movimientos manuales.")
+    if not isinstance(usuario_id, str) or not usuario_id.strip():
+        raise ValidationError("No se encontró una identidad Keycloak válida.")
+
+
+def _obtener_periodo_abierto(periodo_id, *, bloquear=False):
+    """Obtiene un período abierto y opcionalmente lo bloquea para escritura."""
+
+    consulta = PeriodoCaja.objects.select_related("caja")
+    if bloquear:
+        consulta = consulta.select_for_update()
+    try:
+        periodo = consulta.get(pk=periodo_id)
+    except (PeriodoCaja.DoesNotExist, TypeError, ValueError):
+        raise ValidationError("El período de caja no existe.")
+    if periodo.estado != "ABIERTO":
+        raise ValidationError("La caja debe tener un período abierto.")
+    return periodo
+
+
+def _saldos_del_periodo(periodo):
+    """Calcula saldos exclusivamente desde la apertura y sus movimientos."""
+
+    iniciales = list(
+        periodo.saldos_iniciales.select_related("moneda").order_by("moneda__codigo")
+    )
+    acumulados = {
+        saldo.moneda_id: {"INGRESO": Decimal("0"), "EGRESO": Decimal("0")}
+        for saldo in iniciales
+    }
+    for movimiento in periodo.movimientos.all().only("moneda_id", "tipo", "monto"):
+        if movimiento.moneda_id in acumulados:
+            acumulados[movimiento.moneda_id][movimiento.tipo] += movimiento.monto
+
+    return [
+        SaldoMonedaCaja(
+            moneda=saldo.moneda,
+            saldo_inicial=saldo.monto,
+            ingresos=acumulados[saldo.moneda_id]["INGRESO"],
+            egresos=acumulados[saldo.moneda_id]["EGRESO"],
+            saldo_actual=(
+                saldo.monto
+                + acumulados[saldo.moneda_id]["INGRESO"]
+                - acumulados[saldo.moneda_id]["EGRESO"]
+            ),
+        )
+        for saldo in iniciales
+    ]
+
+
+def consultar_saldos_caja(*, periodo_id, usuario_id, roles):
+    """Devuelve el saldo por moneda de un período abierto autorizado.
+
+    El cálculo usa únicamente saldos iniciales y movimientos pertenecientes al
+    mismo período. Las monedas nunca se mezclan y no se persiste un saldo
+    derivado que pueda quedar desactualizado.
+
+    Requisito relacionado: HU-40.
+    """
+
+    _validar_consulta_saldo(roles, usuario_id)
+    periodo = _obtener_periodo_abierto(periodo_id)
+    return periodo, _saldos_del_periodo(periodo)
+
+
+def _validar_moneda_del_periodo(periodo, moneda_id):
+    """Exige que la moneda forme parte de los saldos iniciales del período."""
+
+    try:
+        return periodo.saldos_iniciales.select_related("moneda").get(
+            moneda_id=moneda_id
+        ).moneda
+    except (SaldoInicialCaja.DoesNotExist, TypeError, ValueError):
+        raise ValidationError("La moneda no pertenece a la apertura de esta caja.")
+
+
+def _saldo_actual(periodo, moneda_id):
+    """Calcula el saldo actual de una moneda con el período ya bloqueado."""
+
+    return next(
+        saldo.saldo_actual
+        for saldo in _saldos_del_periodo(periodo)
+        if saldo.moneda.id == moneda_id
+    )
+
+
+def registrar_movimiento_manual(
+    *,
+    periodo_id,
+    tipo,
+    moneda_id,
+    monto,
+    motivo,
+    usuario_id,
+    username="",
+    roles,
+):
+    """Registra atómicamente un ingreso o egreso manual en una caja abierta.
+
+    El bloqueo del período serializa movimientos concurrentes. Antes de un
+    egreso se recalcula el saldo dentro de la misma transacción, evitando que
+    dos solicitudes dejen fondos negativos.
+
+    Requisito relacionado: HU-41.
+    """
+
+    _validar_operador_movimiento(roles, usuario_id)
+    if tipo not in dict(MovimientoCaja.TIPOS):
+        raise ValidationError("El tipo de movimiento no es válido.")
+    monto_decimal = validar_monto_movimiento(monto)
+    motivo_limpio = motivo.strip() if isinstance(motivo, str) else ""
+    if not motivo_limpio:
+        raise ValidationError("El motivo es obligatorio para un movimiento manual.")
+
+    with transaction.atomic():
+        periodo = _obtener_periodo_abierto(periodo_id, bloquear=True)
+        moneda = _validar_moneda_del_periodo(periodo, moneda_id)
+        if tipo == "EGRESO" and monto_decimal > _saldo_actual(periodo, moneda.id):
+            raise ValidationError("El saldo de la moneda es insuficiente para el egreso.")
+        movimiento = MovimientoCaja(
+            periodo=periodo,
+            moneda=moneda,
+            tipo=tipo,
+            monto=monto_decimal,
+            origen="MANUAL",
+            motivo=motivo_limpio,
+            registrado_por_keycloak_id=usuario_id.strip(),
+            registrado_por_username=username,
+        )
+        movimiento.full_clean()
+        movimiento.save()
+        return movimiento
+
+
+def registrar_movimiento_automatico(
+    *,
+    periodo_id,
+    tipo,
+    moneda_id,
+    monto,
+    motivo,
+    clave_idempotencia,
+    referencia_externa,
+    usuario_id,
+    username="",
+):
+    """Registra un efecto automático una sola vez mediante idempotencia.
+
+    Este contrato queda disponible para el flujo de pago: el llamador define
+    el tipo y la moneda según la operación confirmada. Un reintento con la
+    misma clave devuelve el movimiento original; si los datos difieren, se
+    rechaza para no ocultar una inconsistencia de integración.
+
+    Requisito relacionado: HU-41 e integración futura con HU-28.
+    """
+
+    if not isinstance(usuario_id, str) or not usuario_id.strip():
+        raise ValidationError("No se encontró una identidad Keycloak válida.")
+    if tipo not in dict(MovimientoCaja.TIPOS):
+        raise ValidationError("El tipo de movimiento no es válido.")
+    monto_decimal = validar_monto_movimiento(monto)
+    motivo_limpio = motivo.strip() if isinstance(motivo, str) else ""
+    clave = clave_idempotencia.strip() if isinstance(clave_idempotencia, str) else ""
+    referencia = referencia_externa.strip() if isinstance(referencia_externa, str) else ""
+    if not motivo_limpio:
+        raise ValidationError("El movimiento automático debe indicar un motivo.")
+    if not clave:
+        raise ValidationError("El movimiento automático requiere una clave de idempotencia.")
+
+    with transaction.atomic():
+        periodo = _obtener_periodo_abierto(periodo_id, bloquear=True)
+        moneda = _validar_moneda_del_periodo(periodo, moneda_id)
+        existente = MovimientoCaja.objects.filter(clave_idempotencia=clave).first()
+        if existente:
+            coincide = (
+                existente.periodo_id == periodo.id
+                and existente.moneda_id == moneda.id
+                and existente.tipo == tipo
+                and existente.monto == monto_decimal
+                and existente.referencia_externa == referencia
+            )
+            if not coincide:
+                raise ValidationError("La clave de idempotencia ya fue usada con otros datos.")
+            return ResultadoMovimientoCaja(existente, repetido=True)
+        if tipo == "EGRESO" and monto_decimal > _saldo_actual(periodo, moneda.id):
+            raise ValidationError("El saldo de la moneda es insuficiente para el egreso.")
+        movimiento = MovimientoCaja(
+            periodo=periodo,
+            moneda=moneda,
+            tipo=tipo,
+            monto=monto_decimal,
+            origen="AUTOMATICO",
+            motivo=motivo_limpio,
+            clave_idempotencia=clave,
+            referencia_externa=referencia,
+            registrado_por_keycloak_id=usuario_id.strip(),
+            registrado_por_username=username,
+        )
+        movimiento.full_clean()
+        movimiento.save()
+        return ResultadoMovimientoCaja(movimiento)
