@@ -24,12 +24,14 @@
   {% if periodo_seleccionado_id %}
   <section class="ge-card ge-card--pad24">
     {% include 'frontend/partials/caja_contexto.html' with caja=periodo_caja.caja periodo=periodo_caja formato_fecha='d/m/Y H:i' only %}
+    {% include 'frontend/partials/caja_acciones_periodo.html' with periodo=periodo_caja %}
     <table class="ge-table"><thead><tr><th>Moneda</th><th>Saldo actual</th></tr></thead>
       <tbody>{% for saldo in saldos_caja %}<tr><td>{{ saldo.moneda.codigo }}</td><td>{{ saldo.saldo_actual|importe_inicial }}</td></tr>{% empty %}<tr><td colspan="2">Sin monedas registradas.</td></tr>{% endfor %}</tbody>
     </table>
     <div class="ge-btn-row">
       <a class="ge-btn-outline" href="{% url 'cajas:saldos' %}?periodo_id={{ periodo_caja.pk }}">Saldos</a>
       <a class="ge-btn-outline" href="{% url 'cajas:movimientos' %}?periodo_id={{ periodo_caja.pk }}">Movimientos</a>
+      <a class="ge-btn-outline" href="{% url 'cajas:historial' periodo_caja.caja_id %}">Historial de Caja</a>
     </div>
   </section>
   {% endif %}

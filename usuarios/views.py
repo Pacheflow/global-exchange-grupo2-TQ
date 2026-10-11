@@ -381,6 +381,7 @@ def dashboard(request):
     elif rol_sesion == "CAJERO":
         from cajas.models import PeriodoCaja
         from cajas.services import consultar_saldos_caja
+        from cajas.presentacion import contexto_acciones_periodo
         from clientes.models import UsuarioCliente
         from monedas.models import Moneda
         from tasas.models import TasaComercial
@@ -415,6 +416,7 @@ def dashboard(request):
                     )
                     context.update(periodo_caja=periodo, periodo_seleccionado_id=periodo.pk,
                                    saldos_caja=saldos)
+                    context.update(contexto_acciones_periodo(periodo))
                 except ValidationError:
                     context["error_caja"] = "El período seleccionado ya no está disponible."
     elif rol_sesion == "ANALISTA_CAMBIARIO":

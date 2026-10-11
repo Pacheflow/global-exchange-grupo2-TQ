@@ -4,6 +4,7 @@ from . import views
 
 app_name = "cajas"
 urlpatterns = [
+    path("historial/", views.historial_selector, name="historial_selector"),
     path("saldos/", views.saldos, name="saldos"),
     path("movimientos/", views.movimientos, name="movimientos"),
     path("", views.inicio, name="inicio"),

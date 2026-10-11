@@ -20,10 +20,11 @@
   {% if periodo %}
     <section class="ge-card ge-card--pad24">
       {% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo formato_fecha='d/m/Y H:i' only %}
+      {% include 'frontend/partials/caja_acciones_periodo.html' %}
       <div class="ge-btn-row">
         {% if seccion == 'saldos' %}<a class="ge-btn-outline" href="{% url 'cajas:movimientos' %}?periodo_id={{ periodo.pk }}">Movimientos</a>
         {% else %}<a class="ge-btn-outline" href="{% url 'cajas:saldos' %}?periodo_id={{ periodo.pk }}">Saldos</a>{% endif %}
-        {% if kc_rol_efectivo == 'CAJERO' %}<a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' periodo.pk %}">Nuevo movimiento</a>{% endif %}
+        <a class="ge-btn-outline" href="{% url 'cajas:historial' periodo.caja_id %}">Historial de Caja</a>
       </div>
     </section>
     {% if seccion == 'saldos' %}{% include 'frontend/partials/caja_saldos_tabla.html' %}
