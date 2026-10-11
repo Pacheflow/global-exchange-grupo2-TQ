@@ -92,6 +92,12 @@ class PagoServiceTests(TransactionTestCase):
         iniciar_pago(**self.argumentos())
         return Pago.objects.get(transaccion=self.transaccion)
 
+    def test_cajero_no_puede_reintentar_sin_invocar_proveedor(self):
+        for roles in (["CAJERO"], ["CAJERO", "USUARIO"], ["ADMINISTRADOR", "USUARIO"]):
+            with self.subTest(roles=roles), self.assertRaises(PermissionDenied):
+                reintentar_pago(**self.argumentos(roles=roles))
+        self.provider.iniciar.assert_not_called()
+
     def test_reserva_confirmada_y_aprobacion_no_completa_operacion(self):
         self.asociacion.rol_en_cliente = "RESPONSABLE"
         self.asociacion.save()
@@ -108,7 +114,7 @@ class PagoServiceTests(TransactionTestCase):
                 self.assertEqual(pool.submit(leer).result(timeout=5), Pago.Estado.EN_PROCESO)
             return self.resultado(solicitud)
         self.provider.iniciar.side_effect = iniciar
-        respuesta = iniciar_pago(**self.argumentos(roles=["CAJERO"]))
+        respuesta = iniciar_pago(**self.argumentos(roles=["USUARIO"]))
         pago = Pago.objects.get(pk=respuesta.pago_id)
         solicitud = self.provider.iniciar.call_args.args[0]
         self.assertEqual((solicitud.monto, solicitud.moneda, solicitud.huella_solicitud),
@@ -148,7 +154,7 @@ class PagoServiceTests(TransactionTestCase):
 
     def test_permisos_identidad_rol_efectivo_y_contexto(self):
         for cambios in (
-            {"usuario_id": " "}, {"usuario_id": "ajeno"}, {"roles": []},
+            {"usuario_id": " "}, {"usuario_id": "ajeno"}, {"roles": []}, {"roles": ["CAJERO"]}, {"roles": ["CAJERO", "USUARIO"]},
             {"roles": ["ADMINISTRADOR", "CAJERO"]},
             {"roles": ["ANALISTA_CAMBIARIO", "USUARIO"]}, {"roles": "USUARIO"},
             {"cliente_seleccionado_id": self.cliente.pk + 1},

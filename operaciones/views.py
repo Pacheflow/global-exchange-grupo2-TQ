@@ -34,7 +34,7 @@ ROLES_HISTORIAL = ("ADMINISTRADOR", *ROLES_OPERADORES)
 
 
 @require_GET
-@requiere_alguno_de_roles(*ROLES_OPERADORES)
+@requiere_alguno_de_roles("CAJERO")
 def periodos_liquidacion_view(request, transaccion_id):
     """Catálogo informativo autorizado; no reserva fondos ni selecciona un período."""
     usuario_id, _ = _usuario_sesion(request)
@@ -112,7 +112,7 @@ def _error_liquidacion(error):
 
 
 @require_POST
-@requiere_alguno_de_roles(*ROLES_OPERADORES)
+@requiere_alguno_de_roles("CAJERO")
 def liquidar_transaccion_view(request, transaccion_id):
     """Frontera HTTP estricta; el coordinador controla autorización y atomicidad."""
     usuario_id, username = _usuario_sesion(request)
@@ -155,9 +155,8 @@ def inicio_operaciones(request):
     previsualizar, confirmar o cancelar una transacción.
     """
 
-    es_supervisor = rol_efectivo(
-        request.session.get(SESSION_ROLES, [])
-    ) == "ADMINISTRADOR"
+    rol = rol_efectivo(request.session.get(SESSION_ROLES, []))
+    es_supervisor = rol == "ADMINISTRADOR"
     cliente_operacion = None
     seleccion = request.session.get("selected_client", {})
     cliente_id = seleccion.get("id") if isinstance(seleccion, dict) else None
@@ -184,6 +183,9 @@ def inicio_operaciones(request):
             "monedas_activas": Moneda.objects.activas() if not es_supervisor else (),
             "metodos_activos": MetodoPago.objects.activos() if not es_supervisor else (),
             "es_supervisor": es_supervisor,
+            "puede_crear": rol == "USUARIO" and cliente_operacion is not None,
+            "puede_pagar": rol == "USUARIO" and cliente_operacion is not None,
+            "puede_liquidar": rol == "CAJERO" and cliente_operacion is not None,
         },
     )
 
@@ -358,7 +360,7 @@ def _serializar_transaccion(transaccion):
 
 
 @require_POST
-@requiere_alguno_de_roles(*ROLES_OPERADORES)
+@requiere_alguno_de_roles("USUARIO")
 def previsualizar_operacion_view(request):
     """Previsualiza una operación de cambio sin persistir nada (JSON)."""
 
@@ -400,7 +402,7 @@ def previsualizar_operacion_view(request):
 
 
 @require_POST
-@requiere_alguno_de_roles(*ROLES_OPERADORES)
+@requiere_alguno_de_roles("USUARIO")
 def crear_transaccion_view(request):
     """Confirma y persiste una operación de cambio (JSON).
 

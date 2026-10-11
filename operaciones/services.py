@@ -833,7 +833,7 @@ def liquidar_transaccion(
     if (
         not isinstance(roles, (list, tuple, set, frozenset))
         or not all(isinstance(rol, str) for rol in roles)
-        or rol_efectivo(roles) not in {"CAJERO", "USUARIO"}
+        or rol_efectivo(roles) != "CAJERO"
     ):
         raise ValidationError("El rol no permite liquidar operaciones.", code="ROL_NO_PERMITIDO")
 

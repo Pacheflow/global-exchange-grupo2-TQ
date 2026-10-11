@@ -86,7 +86,7 @@ class EscenarioLiquidacion:
         datos = dict(
             transaccion_id=operacion.pk, periodo_id=self.periodo_liquidacion.pk,
             usuario_id=self.usuario_id, username=self.usuario_username,
-            roles=["USUARIO"], cliente_seleccionado_id=self.cliente.pk,
+            roles=["CAJERO"], cliente_seleccionado_id=self.cliente.pk,
         )
         datos.update(cambios)
         return datos
@@ -220,7 +220,7 @@ class LiquidarTransaccionTests(EscenarioLiquidacion, TestCase):
         operacion = self.operacion_liquidacion("VENTA")
         for cambios in (
             {"usuario_id": ""}, {"usuario_id": "otro"}, {"roles": ["ADMINISTRADOR", "CAJERO"]},
-            {"roles": ["ANALISTA_CAMBIARIO"]}, {"roles": None},
+            {"roles": ["ANALISTA_CAMBIARIO"]}, {"roles": ["USUARIO"]}, {"roles": None},
             {"cliente_seleccionado_id": self.cliente.pk + 100},
         ):
             with self.subTest(cambios=cambios), self.assertRaises(ValidationError):
@@ -357,7 +357,7 @@ class EscenarioLiquidacionHTTP(EscenarioLiquidacion):
         sesion = cliente_http.session
         sesion[SESSION_AUTENTICADO] = True
         sesion[SESSION_EXPIRA_EN] = time.time() + 600
-        sesion[SESSION_ROLES] = ["USUARIO"]
+        sesion[SESSION_ROLES] = ["CAJERO"]
         sesion[SESSION_USUARIO] = {"sub": self.usuario_id, "preferred_username": self.usuario_username}
         sesion["selected_client"] = {"id": self.cliente.pk}
         sesion.save()
@@ -484,6 +484,15 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
                 self.assertEqual(respuesta.json(), {"error": "No se pudo liquidar la operación."})
                 self.assertNotContains(respuesta, "detalle privado", status_code=status)
 
+    def test_usuario_no_puede_liquidar_ni_invocar_coordinador(self):
+        sesion = self.client.session
+        sesion[SESSION_ROLES] = ["USUARIO"]
+        sesion.save()
+        with mock.patch("operaciones.views.liquidar_transaccion") as servicio:
+            self.assertEqual(self.post_liquidar().status_code, 403)
+        servicio.assert_not_called()
+        self.assertFalse(MovimientoCaja.objects.exists())
+
     def test_autenticacion_roles_metodo_y_csrf_se_conservan(self):
         anonimo = Client()
         self.assertEqual(anonimo.post(self.url_liquidar, {}, content_type="application/json").status_code, 401)
@@ -504,7 +513,7 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         servicio.assert_called_once_with(
             transaccion_id=self.operacion_http.pk, periodo_id=self.periodo_liquidacion.pk,
             usuario_id=self.usuario_id, username=self.usuario_username,
-            roles=["USUARIO"], cliente_seleccionado_id=self.cliente.pk,
+            roles=["CAJERO"], cliente_seleccionado_id=self.cliente.pk,
         )
         stripe_cliente.assert_not_called()
         proveedor.assert_not_called()
@@ -638,7 +647,7 @@ class PeriodosLiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
     def test_autenticacion_roles_y_metodo(self):
         self.assertEqual(Client().get(self.url_periodos).status_code, 401)
         self.assertEqual(self.client.post(self.url_periodos).status_code, 405)
-        for roles, status in ((["CAJERO"], 200), (["USUARIO"], 200),
+        for roles, status in ((["CAJERO"], 200), (["USUARIO"], 403),
                               (["ADMINISTRADOR", "CAJERO"], 403), (["ANALISTA_CAMBIARIO"], 403)):
             with self.subTest(roles=roles):
                 sesion = self.client.session
@@ -2121,6 +2130,38 @@ class OperacionesFrontendTests(BaseOperacionesTests):
         }
         session.pop("selected_client", None)
         session.save()
+
+    def test_capacidades_separadas_por_rol_efectivo(self):
+        for roles, crear, liquidar in ((["USUARIO"], True, False),
+                                      (["CAJERO", "USUARIO"], False, True),
+                                      (["ADMINISTRADOR", "CAJERO", "USUARIO"], False, False)):
+            with self.subTest(roles=roles):
+                self.autenticar()
+                sesion = self.client.session
+                sesion[SESSION_ROLES] = roles
+                sesion.save()
+                respuesta = self.client.get(reverse("operaciones_web:inicio"))
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual(respuesta.context["puede_crear"], crear)
+                self.assertEqual(respuesta.context["puede_pagar"], crear)
+                self.assertEqual(respuesta.context["puede_liquidar"], liquidar)
+                self.assertContains(respuesta, 'data-can-pay="' + str(crear).lower() + '"')
+                self.assertContains(respuesta, 'data-can-liquidate="' + str(liquidar).lower() + '"')
+                if crear:
+                    self.assertContains(respuesta, "Nueva operación")
+                else:
+                    self.assertNotContains(respuesta, "Nueva operación")
+                    self.assertNotContains(respuesta, "data-operation-form")
+                self.assertContains(respuesta, 'data-liquidation-error role="alert" hidden')
+                if not crear:
+                    with mock.patch("operaciones.views.crear_transaccion") as crear_servicio, mock.patch(
+                        "operaciones.views.previsualizar_operacion"
+                    ) as preview_servicio:
+                        for ruta in ("crear_transaccion", "previsualizar_operacion"):
+                            self.assertEqual(self.client.post(reverse("operaciones:" + ruta), {},
+                                                              content_type="application/json").status_code, 403)
+                    crear_servicio.assert_not_called()
+                    preview_servicio.assert_not_called()
 
     def test_pantalla_presenta_cliente_y_catalogos_activos(self):
         """Muestra el contexto autorizado y excluye opciones inactivas."""

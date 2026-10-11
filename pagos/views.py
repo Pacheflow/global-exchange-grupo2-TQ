@@ -95,7 +95,7 @@ def _ejecutar_post(request, transaccion_id, servicio):
 @transaction.non_atomic_requests
 @never_cache
 @_errores_controlados
-@requiere_alguno_de_roles("CAJERO", "USUARIO")
+@requiere_alguno_de_roles("USUARIO")
 @require_POST
 def iniciar(request, transaccion_id):
     return _ejecutar_post(request, transaccion_id, iniciar_pago)
@@ -104,7 +104,7 @@ def iniciar(request, transaccion_id):
 @transaction.non_atomic_requests
 @never_cache
 @_errores_controlados
-@requiere_alguno_de_roles("CAJERO", "USUARIO")
+@requiere_alguno_de_roles("USUARIO")
 @require_POST
 def reintentar(request, transaccion_id):
     return _ejecutar_post(request, transaccion_id, reintentar_pago)

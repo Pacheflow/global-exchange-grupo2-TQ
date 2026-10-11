@@ -18,7 +18,13 @@
     detailTransaction: null,
     detailVersion: 0,
     paymentVersion: 0,
-    paymentPending: {}
+    paymentPending: {},
+    paymentStatus: null,
+    liquidationVersion: 0,
+    liquidationLoading: false,
+    liquidationPending: {},
+    liquidationUncertain: {},
+    liquidationErrors: {}
   };
 
   function csrfToken() {
@@ -58,10 +64,15 @@
     return fetch(url, options).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         var authError = window.GEApp && window.GEApp.authenticationError(response);
-        if (authError) throw authError;
+        if (authError) {
+          authError.status = response.status;
+          authError.codigo = data.codigo;
+          throw authError;
+        }
         if (!response.ok) {
           var error = new Error(responseMessage(data, 'No se pudo completar la solicitud.'));
           error.status = response.status;
+          error.codigo = data.codigo;
           throw error;
         }
         return data;
@@ -326,7 +337,8 @@
     var messages = {
       PAGO_NO_INICIADO: 'Pago no iniciado',
       EN_PROCESO: 'Pago en proceso',
-      APROBADO: 'Pago aprobado. La operación continúa pendiente de procesamiento.',
+      APROBADO: transaction && transaction.estado === 'PENDIENTE'
+        ? 'Pago aprobado. La operación está pendiente de liquidación.' : 'Pago aprobado.',
       RECHAZADO: 'Pago rechazado',
       ERROR: 'No se pudo completar el pago.',
       INDETERMINADO: 'Pago pendiente de verificación.'
@@ -356,7 +368,7 @@
       EN_PROCESO: ['recover', 'Recuperar estado']
     };
     var action = options[status];
-    if (!action) return;
+    if (!action || (action[0] !== 'recover' && page.dataset.canPay !== 'true')) return;
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'ge-btn-primary';
@@ -378,6 +390,7 @@
       retry: page.dataset.paymentRetryUrl,
       recover: page.dataset.paymentRecoverUrl
     };
+    if (button.dataset.paymentAction !== 'recover' && page.dataset.canPay !== 'true') return;
     var url = urls[button.dataset.paymentAction];
     if (!url) return;
     state.paymentPending[id] = true;
@@ -390,6 +403,7 @@
         return;
       }
       renderPayment(data, state.detailTransaction);
+      if (data.estado === 'APROBADO') loadPayment(state.detailTransaction, version);
     }).catch(function () {
       if (!isCurrentDetail(id, version)) return;
       paymentError('No se pudo confirmar el resultado de la solicitud. Volvé a abrir el detalle para consultar el estado del pago.');
@@ -405,9 +419,11 @@
     });
   }
 
-  function loadPayment(transaction, version) {
+  function loadPayment(transaction, version, preserveLiquidationMessage) {
     var section = document.querySelector('[data-payment-section]');
     if (transaction.tipo !== 'COMPRA' || page.dataset.canViewPayment !== 'true') return;
+    state.paymentStatus = null;
+    if (!preserveLiquidationMessage) document.querySelector('[data-liquidation-section]').hidden = true;
     var paymentVersion = ++state.paymentVersion;
     section.hidden = false;
     document.querySelector('[data-payment-actions]').replaceChildren();
@@ -423,9 +439,16 @@
         return;
       }
       renderPayment(data, transaction);
+      state.paymentStatus = data.estado === 'APROBADO' && data.codigo === 'APROBADO' ? 'APROBADO' : null;
+      if (!preserveLiquidationMessage) loadLiquidation();
+      else {
+        document.querySelector('[data-liquidation-section]').hidden = !canLiquidate();
+        liquidationControls();
+      }
     }).catch(function () {
       if (!isCurrentDetail(transaction.id, version) || state.paymentVersion !== paymentVersion) return;
       paymentError('No se pudo consultar el estado del pago.');
+      if (preserveLiquidationMessage) liquidationControls();
     });
   }
 
@@ -433,6 +456,11 @@
     state.detailId = transaction.id;
     state.detailTransaction = transaction;
     var version = ++state.detailVersion;
+    state.paymentStatus = null;
+    ++state.liquidationVersion;
+    state.liquidationLoading = false;
+    document.querySelector('[data-liquidation-section]').hidden = true;
+    renderLiquidationError();
     document.querySelector('[data-payment-section]').hidden = true;
     document.querySelector('[data-payment-state]').textContent = '';
     document.querySelector('[data-payment-message]').textContent = '';
@@ -448,11 +476,156 @@
       }
       renderDetail(data.transaccion);
       state.detailTransaction = data.transaccion;
+      if (!state.liquidationPending[transaction.id]) delete state.liquidationUncertain[transaction.id];
       loadPayment(data.transaccion, version);
+      if (data.transaccion.tipo === 'VENTA') loadLiquidation();
     }).catch(function (error) {
       if (!isCurrentDetail(transaction.id, version)) return;
       container.innerHTML = '<p class="ge-operation-feedback is-error">' +
         escapeHtml(error.message) + '</p>';
+    });
+  }
+
+  function canLiquidate() {
+    var transaction = state.detailTransaction;
+    return transaction && transaction.id === state.detailId && transaction.estado === 'PENDIENTE' &&
+      page.dataset.canLiquidate === 'true' &&
+      (transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && state.paymentStatus === 'APROBADO'));
+  }
+
+  function liquidationControls() {
+    var busy = Boolean(state.liquidationPending[state.detailId] || state.liquidationUncertain[state.detailId]);
+    var select = document.querySelector('[data-liquidation-period]');
+    select.disabled = busy || state.liquidationLoading || select.options.length <= 1;
+    document.querySelector('[data-liquidation-submit]').disabled = busy || state.liquidationLoading ||
+      !canLiquidate() || !select.value;
+    document.querySelector('[data-liquidation-refresh]').disabled = state.liquidationLoading;
+  }
+
+  function liquidationMessage(message) {
+    document.querySelector('[data-liquidation-message]').textContent = message;
+  }
+
+  function renderLiquidationError() {
+    var container = document.querySelector('[data-liquidation-error]');
+    container.textContent = state.liquidationErrors[state.detailId] || '';
+    container.hidden = !container.textContent;
+  }
+
+  function setLiquidationError(message) {
+    if (message) state.liquidationErrors[state.detailId] = message;
+    else delete state.liquidationErrors[state.detailId];
+    renderLiquidationError();
+  }
+
+  function loadLiquidation() {
+    var section = document.querySelector('[data-liquidation-section]');
+    section.hidden = !canLiquidate();
+    renderLiquidationError();
+    if (section.hidden) return;
+    var id = state.detailId;
+    var version = state.detailVersion;
+    var requestVersion = ++state.liquidationVersion;
+    var select = document.querySelector('[data-liquidation-period]');
+    select.innerHTML = '<option value="">Seleccioná una Caja/Período</option>';
+    state.liquidationLoading = true;
+    liquidationMessage('Consultando cajas/períodos abiertos…');
+    liquidationControls();
+    apiRequest(resourceUrl(page.dataset.liquidationPeriodsUrl, id), { credentials: 'same-origin' }).then(function (data) {
+      if (!isCurrentDetail(id, version) || state.liquidationVersion !== requestVersion) return;
+      if (data.transaccion_id !== id || !Array.isArray(data.periodos) || data.periodos.some(function (period) {
+        return !Number.isSafeInteger(period.periodo_id) || period.periodo_id <= 0 || period.estado !== 'ABIERTO' || !period.caja;
+      })) throw new Error('Respuesta de períodos inválida.');
+      data.periodos.forEach(function (period) {
+        var option = document.createElement('option');
+        option.value = period.periodo_id;
+        option.textContent = period.caja.codigo + ' — ' + period.caja.nombre + ' · Período ' + period.periodo_id;
+        select.appendChild(option);
+      });
+      liquidationMessage(data.periodos.length ? 'Seleccioná explícitamente una Caja/Período. La disponibilidad de fondos se valida al liquidar.'
+        : 'No hay cajas/períodos abiertos disponibles para liquidar.');
+    }).catch(function (error) {
+      if (!isCurrentDetail(id, version) || state.liquidationVersion !== requestVersion) return;
+      setLiquidationError(liquidationError(error));
+    }).finally(function () {
+      if (!isCurrentDetail(id, version) || state.liquidationVersion !== requestVersion) return;
+      state.liquidationLoading = false;
+      liquidationControls();
+    });
+  }
+
+  function liquidationError(error) {
+    var messages = {
+      SALDO_INSUFICIENTE: 'Saldo insuficiente para liquidar la operación.',
+      PERIODO_NO_DISPONIBLE: 'El período de caja ya no está disponible. Actualizá el catálogo.',
+      PAGO_NO_APROBADO: 'La compra requiere un pago aprobado.',
+      OPERACION_NO_PENDIENTE: 'La operación ya no permite liquidación.',
+      MONEDA_NO_ADMITIDA: 'El período no admite las monedas de la operación.',
+      CONFLICTO_IDEMPOTENCIA: 'No se pudo liquidar por un conflicto de idempotencia.',
+      OBLIGACION_CAMBIADA: 'El pago no corresponde a la obligación de la operación.'
+    };
+    if (Object.prototype.hasOwnProperty.call(messages, error.codigo)) return messages[error.codigo];
+    if ([401, 403, 404].indexOf(error.status) !== -1) return 'No tenés acceso a esta operación o tu sesión ya no es válida.';
+    return 'No se pudo confirmar la liquidación. Consultá el estado de la operación antes de volver a intentar.';
+  }
+
+  function refreshLiquidationDetail(id, version, message) {
+    return apiRequest(resourceUrl(page.dataset.detailUrl, id), { credentials: 'same-origin' }).then(function (data) {
+      if (!isCurrentDetail(id, version)) return;
+      if (!data.transaccion || data.transaccion.id !== id) throw new Error('Detalle inválido.');
+      state.detailTransaction = data.transaccion;
+      renderDetail(data.transaccion);
+      delete state.liquidationUncertain[id];
+      document.querySelector('[data-liquidation-section]').hidden = !canLiquidate();
+      loadPayment(data.transaccion, version, true);
+      renderLiquidationError();
+      liquidationMessage(data.transaccion.estado === 'COMPLETADA' ? 'Operación completada.' : 'Estado de la operación actualizado.');
+    }).catch(function () {
+      if (!isCurrentDetail(id, version)) return;
+      state.liquidationUncertain[id] = true;
+      liquidationMessage('No se pudo verificar el estado. Actualizá el detalle antes de volver a intentar.');
+    });
+  }
+
+  function submitLiquidation() {
+    var id = state.detailId;
+    var version = state.detailVersion;
+    var select = document.querySelector('[data-liquidation-period]');
+    var periodId = Number(select.value);
+    if (!isCurrentDetail(id, version) || !canLiquidate() || state.liquidationLoading ||
+        state.liquidationPending[id] || state.liquidationUncertain[id] ||
+        !Number.isSafeInteger(periodId) || periodId <= 0 || select.disabled) return;
+    state.liquidationPending[id] = true;
+    state.liquidationUncertain[id] = true;
+    ++state.liquidationVersion;
+    liquidationControls();
+    setLiquidationError('');
+    liquidationMessage('Liquidando operación…');
+    post(resourceUrl(page.dataset.liquidationUrl, id), { periodo_id: periodId }).then(function (data) {
+      if (!isCurrentDetail(id, version)) return;
+      if (data.transaccion_id !== id || data.estado !== 'COMPLETADA' || typeof data.repetida !== 'boolean') {
+        throw new Error('Respuesta de liquidación inválida.');
+      }
+      setLiquidationError('');
+      state.detailTransaction = Object.assign({}, state.detailTransaction, { estado: data.estado });
+      document.querySelector('[data-liquidation-section]').hidden = true;
+      document.querySelector('[data-payment-actions]').replaceChildren();
+      if (state.paymentStatus === 'APROBADO') renderPayment({ estado: 'APROBADO', codigo: 'APROBADO' }, state.detailTransaction);
+      renderDetail(state.detailTransaction);
+      showFeedback('Transacción #' + id + ' completada.', 'success');
+      loadHistory();
+      return refreshLiquidationDetail(id, version, 'Operación completada.');
+    }).catch(function (error) {
+      if (!isCurrentDetail(id, version)) return;
+      state.liquidationUncertain[id] = true;
+      var message = liquidationError(error);
+      setLiquidationError(message);
+      liquidationMessage('Consultando el estado de la operación…');
+      loadHistory();
+      return refreshLiquidationDetail(id, version, message);
+    }).finally(function () {
+      delete state.liquidationPending[id];
+      if (isCurrentDetail(id, version)) liquidationControls();
     });
   }
 
@@ -536,6 +709,13 @@
 
   page.querySelector('[data-reload-history]').addEventListener('click', loadHistory);
   document.querySelector('[data-payment-actions]').addEventListener('click', submitPayment);
+  document.querySelector('[data-liquidation-period]').addEventListener('change', liquidationControls);
+  document.querySelector('[data-liquidation-submit]').addEventListener('click', submitLiquidation);
+  document.querySelector('[data-liquidation-refresh]').addEventListener('click', function () {
+    if (state.liquidationPending[state.detailId]) return;
+    if (state.liquidationUncertain[state.detailId]) showDetail(state.detailTransaction);
+    else loadLiquidation();
+  });
   document.querySelector('[data-confirm-operation]').addEventListener('click', confirmOperation);
   document.querySelector('[data-confirm-cancel]').addEventListener('click', confirmCancellation);
   loadHistory();

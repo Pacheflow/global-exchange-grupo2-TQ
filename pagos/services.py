@@ -75,14 +75,14 @@ def _bloquear(transaccion_id):
     return transaccion, pago
 
 
-def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id):
+def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, *, roles_permitidos=("CAJERO", "USUARIO")):
     if not isinstance(usuario_id, str) or not usuario_id.strip() or len(usuario_id) > 255:
         raise PermissionDenied("Identidad inválida.")
     if not isinstance(roles, (list, tuple, set, frozenset)) or not all(isinstance(r, str) for r in roles):
         raise PermissionDenied("Roles inválidos.")
     usuario_id = usuario_id.strip()
     if (
-        rol_efectivo(roles) not in {"CAJERO", "USUARIO"}
+        rol_efectivo(roles) not in roles_permitidos
         or type(cliente_seleccionado_id) is not int
         or cliente_seleccionado_id != transaccion.cliente_id
         or transaccion.cliente.estado != "ACTIVO"
@@ -284,7 +284,7 @@ def iniciar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, 
     _exigir_autocommit()
     with transaction.atomic(durable=True):
         transaccion, pago = _bloquear(transaccion_id)
-        identidad = _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id)
+        identidad = _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, roles_permitidos=("USUARIO",))
         _elegible(transaccion)
         if pago is not None:
             _validar_snapshots(transaccion, pago)
@@ -306,7 +306,7 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
     _exigir_autocommit()
     with transaction.atomic(durable=True):
         transaccion, pago = _bloquear(transaccion_id)
-        _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id)
+        _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, roles_permitidos=("USUARIO",))
         _elegible(transaccion)
         if pago is None:
             raise ValidationError("No existe un pago para reintentar.", code="PAGO_INEXISTENTE")

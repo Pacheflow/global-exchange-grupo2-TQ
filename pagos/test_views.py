@@ -128,6 +128,23 @@ class _EscenarioHTTP:
 
 
 class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
+    def test_cajero_consulta_pero_no_inicia_ni_reintenta_y_admin_no_opera(self):
+        pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)
+        for roles in (["CAJERO"], ["CAJERO", "USUARIO"], ["ADMINISTRADOR", "CAJERO", "USUARIO"]):
+            with self.subTest(roles=roles):
+                self.autenticar(roles=roles)
+                for accion in ("iniciar", "reintentar"):
+                    self.assertEqual(self.post(accion).status_code, 403)
+                consulta = self.client.get(self.url("consultar"))
+                self.assertEqual(consulta.status_code, 403 if "ADMINISTRADOR" in roles else 200)
+                if consulta.status_code == 200:
+                    self.assertEqual(consulta.json()["pago_id"], str(pago.pk))
+                    self.assertEqual(consulta.json()["estado"], "ERROR")
+        self.factory_mock.assert_not_called()
+        self.provider.iniciar.assert_not_called()
+        pago.refresh_from_db()
+        self.assertEqual(pago.estado, "ERROR")
+
     def test_inicio_valido_repetido_y_estados_persistidos_siempre_200(self):
         for estado in (EstadoPago.APROBADO, EstadoPago.RECHAZADO, EstadoPago.ERROR, EstadoPago.INDETERMINADO):
             with self.subTest(estado=estado):
