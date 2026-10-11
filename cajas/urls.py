@@ -12,4 +12,7 @@ urlpatterns = [
     path("periodos/<int:periodo_id>/saldo/", views.saldo, name="saldo"),
     path("periodos/<int:periodo_id>/movimientos/crear/", views.registrar_movimiento, name="registrar_movimiento"),
     path("<int:caja_id>/estado/", views.cambiar_estado, name="cambiar_estado"),
+    path("periodos/<int:periodo_id>/arqueo/", views.arqueo, name="arqueo"),
+    path("periodos/<int:periodo_id>/cierre/", views.cierre, name="cierre"),
+    path("<int:caja_id>/historial/", views.historial, name="historial"),
 ]

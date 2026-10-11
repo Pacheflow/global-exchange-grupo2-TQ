@@ -98,3 +98,59 @@ class MovimientoCajaForm(forms.Form):
         if not motivo:
             raise forms.ValidationError("El motivo es obligatorio.")
         return motivo
+class ArqueoCajaForm(forms.Form):
+    """Captura el saldo físico de cada moneda para realizar el arqueo."""
+
+    observacion = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": "ge-input",
+                "rows": 3,
+                "placeholder": "Observación si existe una diferencia",
+            }
+        ),
+    )
+
+    def __init__(self, saldos, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.saldos = list(saldos)
+
+        for saldo in self.saldos:
+            self.fields[f"monto_{saldo.moneda.id}"] = forms.CharField(
+                label=f"Saldo físico {saldo.moneda.codigo}",
+                widget=forms.TextInput(
+                    attrs={
+                        "class": "ge-input",
+                        "inputmode": "decimal",
+                        "autocomplete": "off",
+                    }
+                ),
+            )
+
+    def clean(self):
+        """Valida que todos los saldos físicos sean números no negativos."""
+        from .services import validar_importe_inicial
+
+        datos = super().clean()
+
+        for saldo in self.saldos:
+            campo = f"monto_{saldo.moneda.id}"
+
+            if campo in datos:
+                try:
+                    datos[campo] = validar_importe_inicial(datos[campo])
+                except forms.ValidationError as error:
+                    self.add_error(campo, error)
+
+        return datos
+
+    def saldos_fisicos(self):
+        """Devuelve los saldos físicos validados para el servicio de arqueo."""
+        return [
+            {
+                "moneda_id": saldo.moneda.id,
+                "monto": self.cleaned_data[f"monto_{saldo.moneda.id}"],
+            }
+            for saldo in self.saldos
+        ]

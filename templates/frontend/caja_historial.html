@@ -1,0 +1,176 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+
+{% block title %}Historial de caja · Global Exchange{% endblock %}
+
+{% block sidebar %}
+{% include 'frontend/partials/sidebar_for_role.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="ge-frontend-main-pad">
+
+  <div class="ge-frontend-section-head">
+    <div>
+      <h2 class="ge-frontend-h2">
+        Historial de caja{% if caja %} {{ caja.codigo }}{% endif %}
+      </h2>
+
+      {% if caja %}
+        <p class="ge-frontend-subtitle">
+          {{ caja.nombre }}
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="ge-error-banner" role="alert">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  {% if caja %}
+
+    {% for periodo in periodos %}
+      <div class="ge-card" style="padding:24px; margin-bottom:24px">
+
+        <h3>
+          Período {{ periodo.id }} · {{ periodo.get_estado_display }}
+        </h3>
+
+        <p>
+          <strong>Apertura:</strong>
+          {{ periodo.fecha_apertura|date:'d/m/Y H:i:s' }}
+          ·
+          <strong>Usuario:</strong>
+          {{ periodo.responsable_username|default:periodo.responsable_keycloak_id }}
+        </p>
+
+        <h4>Movimientos</h4>
+
+        <table class="ge-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Moneda</th>
+              <th>Monto</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for movimiento in periodo.movimientos.all %}
+              <tr>
+                <td>{{ movimiento.fecha_registro|date:'d/m/Y H:i:s' }}</td>
+                <td>{{ movimiento.get_tipo_display }}</td>
+                <td>{{ movimiento.moneda.codigo }}</td>
+                <td>{{ movimiento.monto|importe_inicial }}</td>
+                <td>
+                  {{ movimiento.registrado_por_username|default:movimiento.registrado_por_keycloak_id }}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5">No hay movimientos registrados.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <h4 style="margin-top:24px">Arqueos</h4>
+
+        {% for arqueo in periodo.arqueos.all %}
+          <p>
+            <strong>Fecha:</strong>
+            {{ arqueo.fecha_arqueo|date:'d/m/Y H:i:s' }}
+            ·
+            <strong>Usuario:</strong>
+            {{ arqueo.realizado_por_username|default:arqueo.realizado_por_keycloak_id }}
+          </p>
+
+          <table class="ge-table">
+            <thead>
+              <tr>
+                <th>Moneda</th>
+                <th>Saldo teórico</th>
+                <th>Saldo físico</th>
+                <th>Diferencia</th>
+                <th>Resultado</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for detalle in arqueo.detalles.all %}
+                <tr>
+                  <td>{{ detalle.moneda.codigo }}</td>
+                  <td>{{ detalle.saldo_teorico|importe_inicial }}</td>
+                  <td>{{ detalle.saldo_fisico|importe_inicial }}</td>
+                  <td>{{ detalle.diferencia|importe_inicial }}</td>
+                  <td>{{ detalle.get_resultado_display }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          {% if arqueo.observacion %}
+            <p>
+              <strong>Observación:</strong>
+              {{ arqueo.observacion }}
+            </p>
+          {% endif %}
+
+        {% empty %}
+          <p>No hay arqueos registrados.</p>
+        {% endfor %}
+
+        <h4 style="margin-top:24px">Cierre</h4>
+
+        {% if periodo.estado == "CERRADO" %}
+          <p>
+            <strong>Fecha:</strong>
+            {{ periodo.cierre.fecha_cierre|date:'d/m/Y H:i:s' }}
+            ·
+            <strong>Usuario:</strong>
+            {{ periodo.cierre.cerrado_por_username|default:periodo.cierre.cerrado_por_keycloak_id }}
+          </p>
+
+          <table class="ge-table">
+            <thead>
+              <tr>
+                <th>Moneda</th>
+                <th>Saldo teórico</th>
+                <th>Saldo físico</th>
+                <th>Diferencia</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for detalle in periodo.cierre.detalles.all %}
+                <tr>
+                  <td>{{ detalle.moneda.codigo }}</td>
+                  <td>{{ detalle.saldo_teorico|importe_inicial }}</td>
+                  <td>{{ detalle.saldo_fisico|importe_inicial }}</td>
+                  <td>{{ detalle.diferencia|importe_inicial }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+        {% else %}
+          <p>Este período todavía se encuentra abierto.</p>
+        {% endif %}
+
+      </div>
+
+    {% empty %}
+      <div class="ge-card" style="padding:24px">
+        No hay información disponible para esta caja.
+      </div>
+    {% endfor %}
+
+  {% endif %}
+
+</div>
+{% endblock %}

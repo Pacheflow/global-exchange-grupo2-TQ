@@ -149,3 +149,135 @@ class MovimientoCaja(models.Model):
     def __str__(self):
         """Identifica tipo, monto, moneda y período del movimiento."""
         return f"{self.tipo} {self.monto} {self.moneda.codigo} - período {self.periodo_id}"
+
+
+class ArqueoCaja(models.Model):
+    """Arqueo realizado sobre un período de caja abierto."""
+
+    periodo = models.ForeignKey(
+        PeriodoCaja,
+        on_delete=models.PROTECT,
+        related_name="arqueos",
+    )
+    realizado_por_keycloak_id = models.CharField(max_length=255, editable=False)
+    realizado_por_username = models.CharField(
+        max_length=150,
+        blank=True,
+        editable=False,
+    )
+    observacion = models.TextField(blank=True)
+    fecha_arqueo = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-fecha_arqueo", "-id")
+
+    def __str__(self):
+        """Identifica el arqueo y el período al que pertenece."""
+        return f"Arqueo {self.pk} - período {self.periodo_id}"
+
+
+class DetalleArqueoCaja(models.Model):
+    """Resultado del arqueo para una moneda específica."""
+
+    RESULTADOS = [
+        ("SOBRANTE", "Sobrante"),
+        ("FALTANTE", "Faltante"),
+        ("SIN_DIFERENCIA", "Sin diferencia"),
+    ]
+
+    arqueo = models.ForeignKey(
+        ArqueoCaja,
+        on_delete=models.PROTECT,
+        related_name="detalles",
+    )
+    moneda = models.ForeignKey(
+        "monedas.Moneda",
+        on_delete=models.PROTECT,
+        related_name="detalles_arqueo_caja",
+    )
+    saldo_teorico = models.DecimalField(max_digits=18, decimal_places=6)
+    saldo_fisico = models.DecimalField(max_digits=18, decimal_places=6)
+    diferencia = models.DecimalField(max_digits=18, decimal_places=6)
+    resultado = models.CharField(max_length=15, choices=RESULTADOS)
+
+    class Meta:
+        ordering = ("moneda__codigo",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["arqueo", "moneda"],
+                name="arqueo_moneda_unica",
+            ),
+            models.CheckConstraint(
+                condition=Q(saldo_fisico__gte=0),
+                name="arqueo_saldo_fisico_no_negativo",
+            ),
+        ]
+
+    def __str__(self):
+        """Identifica el resultado de una moneda dentro del arqueo."""
+        return (
+            f"{self.moneda.codigo}: "
+            f"{self.saldo_fisico} - {self.resultado}"
+        )
+class CierreCaja(models.Model):
+    """Cierre definitivo de un período de caja previamente arqueado."""
+
+    periodo = models.OneToOneField(
+        PeriodoCaja,
+        on_delete=models.PROTECT,
+        related_name="cierre",
+    )
+    arqueo = models.ForeignKey(
+        ArqueoCaja,
+        on_delete=models.PROTECT,
+        related_name="cierres",
+    )
+    cerrado_por_keycloak_id = models.CharField(max_length=255, editable=False)
+    cerrado_por_username = models.CharField(
+        max_length=150,
+        blank=True,
+        editable=False,
+    )
+    fecha_cierre = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-fecha_cierre", "-id")
+
+    def __str__(self):
+        """Identifica el cierre y el período correspondiente."""
+        return f"Cierre {self.pk} - período {self.periodo_id}"
+
+
+class DetalleCierreCaja(models.Model):
+    """Copia histórica de los valores finales de cada moneda al cerrar."""
+
+    cierre = models.ForeignKey(
+        CierreCaja,
+        on_delete=models.PROTECT,
+        related_name="detalles",
+    )
+    moneda = models.ForeignKey(
+        "monedas.Moneda",
+        on_delete=models.PROTECT,
+        related_name="detalles_cierre_caja",
+    )
+    saldo_teorico = models.DecimalField(max_digits=18, decimal_places=6)
+    saldo_fisico = models.DecimalField(max_digits=18, decimal_places=6)
+    diferencia = models.DecimalField(max_digits=18, decimal_places=6)
+
+    class Meta:
+        ordering = ("moneda__codigo",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cierre", "moneda"],
+                name="cierre_moneda_unica",
+            ),
+            models.CheckConstraint(
+                condition=Q(saldo_fisico__gte=0),
+                name="cierre_saldo_fisico_no_negativo",
+            ),
+        ]
+
+    def __str__(self):
+        """Identifica el valor final de una moneda en el cierre."""
+        return f"{self.moneda.codigo} - cierre {self.cierre_id}"

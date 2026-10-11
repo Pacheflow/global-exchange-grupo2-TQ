@@ -12,15 +12,18 @@ from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO
 
 from monedas.models import Moneda
 
-from .forms import AperturaCajaForm, CajaForm, EstadoCajaForm, MovimientoCajaForm
-from .models import Caja, PeriodoCaja
+from .forms import AperturaCajaForm, ArqueoCajaForm, CajaForm, EstadoCajaForm, MovimientoCajaForm
+from .models import ArqueoCaja, Caja, PeriodoCaja
 from .services import (
     abrir_caja,
     cambiar_estado_caja,
+    cerrar_caja,
+    consultar_historial_caja,
     consultar_saldos_caja,
     crear_caja,
     firmar_catalogo,
     leer_catalogo,
+    realizar_arqueo,
     registrar_movimiento_manual,
 )
 
@@ -286,4 +289,177 @@ def registrar_movimiento(request, periodo_id):
         "frontend/caja_movimiento_form.html",
         {"periodo": periodo, "form": formulario},
         status=400 if request.method == "POST" else 200,
+    )
+@requiere_roles_web("CAJERO")
+@require_http_methods(["GET", "POST"])
+def arqueo(request, periodo_id):
+    """Permite al cajero realizar y guardar el arqueo de una caja abierta."""
+
+    try:
+        periodo, saldos = consultar_saldos_caja(
+            periodo_id=periodo_id,
+            **_identidad(request),
+        )
+    except PermissionDenied:
+        raise
+    except ValidationError as error:
+        return render(
+            request,
+            "frontend/caja_arqueo.html",
+            {
+                "periodo": None,
+                "saldos": [],
+                "form": None,
+                "error": " ".join(error.messages),
+            },
+            status=400,
+        )
+
+    formulario = ArqueoCajaForm(
+        saldos,
+        request.POST if request.method == "POST" else None,
+    )
+
+    if request.method == "POST" and formulario.is_valid():
+        usuario = request.session.get(SESSION_USUARIO, {})
+
+        try:
+            realizar_arqueo(
+                periodo_id=periodo.id,
+                saldos_fisicos=formulario.saldos_fisicos(),
+                observacion=formulario.cleaned_data["observacion"],
+                username=usuario.get(
+                    "username",
+                    usuario.get("preferred_username", ""),
+                ),
+                **_identidad(request),
+            )
+        except PermissionDenied:
+            raise
+        except ValidationError as error:
+            formulario.add_error(None, " ".join(error.messages))
+        else:
+            messages.success(request, "Arqueo registrado correctamente.")
+            return redirect("cajas:saldo", periodo_id=periodo.id)
+
+    return render(
+        request,
+        "frontend/caja_arqueo.html",
+        {
+            "periodo": periodo,
+            "saldos": saldos,
+            "form": formulario,
+        },
+        status=400 if request.method == "POST" else 200,
+    )
+@requiere_roles_web("CAJERO")
+@require_http_methods(["GET", "POST"])
+def cierre(request, periodo_id):
+    """Muestra el último arqueo y permite confirmar el cierre de la caja."""
+
+    periodo = get_object_or_404(
+        PeriodoCaja.objects.select_related("caja"),
+        pk=periodo_id,
+    )
+
+    if periodo.estado != "ABIERTO":
+        return render(
+            request,
+            "frontend/caja_cierre.html",
+            {
+                "periodo": periodo,
+                "arqueo": None,
+                "error": "La caja debe encontrarse abierta para realizar el cierre.",
+            },
+            status=400,
+        )
+
+    arqueo = (
+        ArqueoCaja.objects
+        .filter(periodo=periodo)
+        .prefetch_related("detalles__moneda")
+        .order_by("-fecha_arqueo", "-id")
+        .first()
+    )
+
+    if arqueo is None:
+        return render(
+            request,
+            "frontend/caja_cierre.html",
+            {
+                "periodo": periodo,
+                "arqueo": None,
+                "error": "Debe realizarse un arqueo antes de cerrar la caja.",
+            },
+            status=400,
+        )
+
+    if request.method == "POST":
+        usuario = request.session.get(SESSION_USUARIO, {})
+
+        try:
+            cerrar_caja(
+                periodo_id=periodo.id,
+                username=usuario.get(
+                    "username",
+                    usuario.get("preferred_username", ""),
+                ),
+                **_identidad(request),
+            )
+        except PermissionDenied:
+            raise
+        except ValidationError as error:
+            return render(
+                request,
+                "frontend/caja_cierre.html",
+                {
+                    "periodo": periodo,
+                    "arqueo": arqueo,
+                    "error": " ".join(error.messages),
+                },
+                status=400,
+            )
+
+        messages.success(request, "Caja cerrada correctamente.")
+        return redirect("cajas:inicio")
+
+    return render(
+        request,
+        "frontend/caja_cierre.html",
+        {
+            "periodo": periodo,
+            "arqueo": arqueo,
+        },
+    )
+@requiere_roles_web("ADMINISTRADOR", "CAJERO")
+@require_GET
+def historial(request, caja_id):
+    """Muestra el historial completo de períodos de una caja."""
+
+    try:
+        caja, periodos = consultar_historial_caja(
+            caja_id=caja_id,
+            **_identidad(request),
+        )
+    except PermissionDenied:
+        raise
+    except ValidationError as error:
+        return render(
+            request,
+            "frontend/caja_historial.html",
+            {
+                "caja": None,
+                "periodos": [],
+                "error": " ".join(error.messages),
+            },
+            status=400,
+        )
+
+    return render(
+        request,
+        "frontend/caja_historial.html",
+        {
+            "caja": caja,
+            "periodos": periodos,
+        },
     )

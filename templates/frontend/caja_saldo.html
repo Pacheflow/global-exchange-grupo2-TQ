@@ -9,7 +9,30 @@
       <h2 class="ge-frontend-h2">Saldo de caja{% if periodo %} {{ periodo.caja.codigo }}{% endif %}</h2>
       {% if periodo %}<p class="ge-frontend-subtitle">Período {{ periodo.id }} · abierto desde {{ periodo.fecha_apertura|date:'d/m/Y H:i' }}</p>{% endif %}
     </div>
-    {% if periodo and kc_rol_efectivo == 'CAJERO' %}<a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' periodo.id %}">Nuevo movimiento</a>{% endif %}
+      {% if periodo and kc_rol_efectivo == 'CAJERO' %}
+    <div style="display:flex; gap:10px;">
+      <a
+        class="ge-btn-primary"
+        href="{% url 'cajas:registrar_movimiento' periodo.id %}"
+      >
+        Nuevo movimiento
+      </a>
+
+      <a
+        class="ge-btn-secondary"
+        href="{% url 'cajas:arqueo' periodo.id %}"
+      >
+        Realizar arqueo
+      </a>
+
+      <a
+        class="ge-btn-secondary"
+        href="{% url 'cajas:cierre' periodo.id %}"
+      >
+        Cerrar caja
+      </a>
+    </div>
+  {% endif %}
   </div>
   {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
   {% if periodo %}
