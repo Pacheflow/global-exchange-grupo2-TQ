@@ -1,17 +1,22 @@
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Event
 from unittest import mock
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
-from django.test import TestCase
+from django.db import IntegrityError, close_old_connections, connection, connections
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
+from pagos.models import Pago
+from pagos.providers import CodigoResultado, EstadoPago, PaymentProvider, ResultadoPago
+from pagos.services import iniciar_pago, reintentar_pago
 from tasas.models import TasaComercial
 from tasas.services import actualizar_tasa_comercial
 from usuarios.services.keycloak import (
@@ -621,6 +626,17 @@ class CrearTransaccionTests(BaseOperacionesTests):
         self.assertEqual(Transaccion.objects.count(), 0)
 
 
+def _crear_pago_cancelacion(transaccion, estado):
+    return Pago.objects.create(
+        transaccion=transaccion, metodo_pago=transaccion.metodo_pago, proveedor="stripe",
+        monto=transaccion.monto_origen, moneda_codigo=transaccion.moneda_origen.codigo,
+        base_importe=Pago.BaseImporte.ORIGEN, iniciado_por_keycloak_id=transaccion.creado_por_keycloak_id,
+        estado=estado,
+        referencia_externa="pi_" + uuid.uuid4().hex if estado in (Pago.Estado.APROBADO, Pago.Estado.RECHAZADO) else None,
+        aprobado_en=timezone.now() if estado == Pago.Estado.APROBADO else None,
+    )
+
+
 class CancelarTransaccionTests(BaseOperacionesTests):
     """Pruebas de la cancelación de transacciones pendientes de HU-25."""
 
@@ -635,49 +651,76 @@ class CancelarTransaccionTests(BaseOperacionesTests):
         Se espera que pase a CANCELADA, registre la auditoría y conserve
         los valores históricos de la operación.
         """
-        transaccion = self.crear_pendiente()
+        for tipo in ("COMPRA", "VENTA"):
+            with self.subTest(tipo=tipo):
+                transaccion = self.crear(tipo=tipo).transaccion
+                antes = Transaccion.objects.values().get(pk=transaccion.pk)
+                self.assertFalse(Pago.objects.filter(transaccion=transaccion).exists())
+                cancelada = cancelar_transaccion(
+                    transaccion_id=transaccion.id, usuario_id=self.usuario_id,
+                    usuario_username=self.usuario_username,
+                )
+                self.assertEqual(cancelada.estado, "CANCELADA")
+                self.assertEqual(cancelada.cancelado_por_keycloak_id, self.usuario_id)
+                self.assertEqual(cancelada.cancelado_por_username, self.usuario_username)
+                self.assertIsNotNone(cancelada.cancelado_en)
+                self.assertEqual(cancelada.motivo_cancelacion, "Cancelación solicitada por el usuario.")
+                despues = Transaccion.objects.values().get(pk=transaccion.pk)
+                cambiables = {
+                    "estado", "fecha_actualizacion", "cancelado_por_keycloak_id",
+                    "cancelado_por_username", "cancelado_en", "motivo_cancelacion",
+                }
+                self.assertEqual(
+                    {k: v for k, v in antes.items() if k not in cambiables},
+                    {k: v for k, v in despues.items() if k not in cambiables},
+                )
+                self.assertFalse(Pago.objects.filter(transaccion=transaccion).exists())
+        self.assertEqual(Transaccion.objects.count(), 2)
 
-        monto_destino_original = transaccion.monto_destino
-        tasa_aplicada_original = transaccion.tasa_aplicada
-        comision_original = transaccion.importe_comision
+    def test_pago_error_o_rechazado_permite_cancelar_sin_modificar_pago(self):
+        for estado in (Pago.Estado.ERROR, Pago.Estado.RECHAZADO):
+            with self.subTest(estado=estado):
+                transaccion = self.crear_pendiente()
+                pago = _crear_pago_cancelacion(transaccion, estado)
+                antes = Pago.objects.values().get(pk=pago.pk)
+                cancelada = cancelar_transaccion(
+                    transaccion_id=transaccion.pk, usuario_id=self.usuario_id,
+                    usuario_username=self.usuario_username,
+                )
+                self.assertEqual(cancelada.estado, "CANCELADA")
+                self.assertEqual(Pago.objects.values().get(pk=pago.pk), antes)
 
-        cancelada = cancelar_transaccion(
-            transaccion_id=transaccion.id,
-            usuario_id=self.usuario_id,
-            usuario_username=self.usuario_username,
-        )
-
-        self.assertEqual(cancelada.estado, "CANCELADA")
-        self.assertEqual(
-            cancelada.cancelado_por_keycloak_id,
-            self.usuario_id,
-        )
-        self.assertEqual(
-            cancelada.cancelado_por_username,
-            self.usuario_username,
-        )
-        self.assertIsNotNone(cancelada.cancelado_en)
-        self.assertEqual(
-            cancelada.motivo_cancelacion,
-            "Cancelación solicitada por el usuario.",
-        )
-
-        # La cancelación no debe modificar los valores históricos.
-        self.assertEqual(
-            cancelada.tasa_aplicada,
-            tasa_aplicada_original,
-        )
-        self.assertEqual(
-            cancelada.monto_destino,
-            monto_destino_original,
-        )
-        self.assertEqual(
-            cancelada.importe_comision,
-            comision_original,
-        )
-
-        # La transacción se conserva en la base de datos.
-        self.assertEqual(Transaccion.objects.count(), 1)
+    def test_pago_en_proceso_indeterminado_o_aprobado_impide_cancelar_sin_cambios(self):
+        for estado, codigo in (
+            (Pago.Estado.EN_PROCESO, "PAGO_EN_PROCESO"),
+            (Pago.Estado.INDETERMINADO, "PAGO_INDETERMINADO"),
+            (Pago.Estado.APROBADO, "PAGO_APROBADO"),
+            ("DESCONOCIDO", "PAGO_ESTADO_NO_CANCELABLE"),
+        ):
+            with self.subTest(estado=estado):
+                transaccion = self.crear_pendiente()
+                pago = _crear_pago_cancelacion(
+                    transaccion, Pago.Estado.EN_PROCESO if estado == "DESCONOCIDO" else estado,
+                )
+                antes_pago = Pago.objects.values().get(pk=pago.pk)
+                antes_transaccion = Transaccion.objects.values().get(pk=transaccion.pk)
+                # SQL impide estados desconocidos; simular la lectura defensiva.
+                if estado == "DESCONOCIDO":
+                    pago.estado = estado
+                    lectura = mock.patch("operaciones.services.Pago.objects.select_for_update")
+                else:
+                    lectura = mock.patch("operaciones.services.Pago.objects.select_for_update", wraps=Pago.objects.select_for_update)
+                with lectura as consulta:
+                    if estado == "DESCONOCIDO":
+                        consulta.return_value.filter.return_value.first.return_value = pago
+                    with self.assertRaises(ValidationError) as error:
+                        cancelar_transaccion(
+                            transaccion_id=transaccion.pk, usuario_id=self.usuario_id,
+                            usuario_username=self.usuario_username,
+                        )
+                self.assertEqual(error.exception.error_dict["pago"][0].code, codigo)
+                self.assertEqual(Pago.objects.values().get(pk=pago.pk), antes_pago)
+                self.assertEqual(Transaccion.objects.values().get(pk=transaccion.pk), antes_transaccion)
 
     def test_transaccion_inexistente_no_se_puede_cancelar(self):
         """Comprueba que una transacción inexistente sea rechazada.
@@ -750,6 +793,164 @@ class CancelarTransaccionTests(BaseOperacionesTests):
             primera.motivo_cancelacion,
             motivo_cancelacion,
         )
+
+
+class CancelacionPagoConcurrenciaTests(TransactionTestCase):
+    """Orden Tx -> Pago probado con conexiones PostgreSQL independientes."""
+
+    # Compartir únicamente fixtures, sin heredar ni duplicar pruebas existentes.
+    setUp = BaseOperacionesTests.setUp
+
+    def crear_pendiente(self):
+        return Transaccion.objects.create(
+            clave_idempotencia=str(uuid.uuid4()), cliente=self.cliente,
+            creado_por_keycloak_id=self.usuario_id, tipo="COMPRA",
+            moneda_origen=self.usd, moneda_destino=self.pyg,
+            monto_origen=Decimal("100"), monto_destino=Decimal("700000"),
+            tasa_comercial=self.tasa, tasa_aplicada=Decimal("7000"),
+            porcentaje_comision=Decimal("0"), importe_comision=Decimal("0"),
+            metodo_pago=self.metodo_activo, metodo_pago_nombre=self.metodo_activo.nombre,
+            estado="PENDIENTE",
+        )
+
+    def argumentos_pago(self, transaccion, provider):
+        return dict(
+            transaccion_id=transaccion.pk, usuario_id=self.usuario_id, roles=["USUARIO"],
+            cliente_seleccionado_id=self.cliente.pk, provider=provider,
+        )
+
+    def _ejecutar(self, funcion, argumentos, *, consulta_enviada=None, datos=None):
+        close_old_connections()
+        def observar(execute, sql, params, many, context):
+            if "FOR UPDATE" in sql and '"operaciones_transaccion"' in sql:
+                datos["pid"] = connection.connection.info.backend_pid
+                consulta_enviada.set()
+            return execute(sql, params, many, context)
+        try:
+            if consulta_enviada is not None:
+                with connection.execute_wrapper(observar):
+                    return funcion(**argumentos)
+            return funcion(**argumentos)
+        finally:
+            connections.close_all()
+
+    def _esperar_bloqueo_postgresql(self, bloqueado, dueno):
+        limite = time.monotonic() + 5
+        while time.monotonic() < limite:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT %s = ANY(pg_blocking_pids(%s))", [dueno, bloqueado])
+                if cursor.fetchone()[0]:
+                    return
+            # Poll de una condición observable del servidor, no orden por sleeps.
+            time.sleep(0.01)
+        self.fail("PostgreSQL no informó el bloqueo esperado entre las dos conexiones.")
+
+    def test_cancelacion_gana_antes_de_reserva_o_reintento_y_proveedor_no_se_invoca(self):
+        if connection.vendor != "postgresql":
+            self.skipTest("La verificación de pg_blocking_pids requiere PostgreSQL real.")
+        from . import services as operaciones_services
+        validar_acceso = operaciones_services._validar_acceso_usuario_cliente
+        for funcion in (iniciar_pago, reintentar_pago):
+            with self.subTest(funcion=funcion.__name__):
+                transaccion = self.crear_pendiente()
+                pago = _crear_pago_cancelacion(transaccion, Pago.Estado.ERROR) if funcion == reintentar_pago else None
+                antes_pago = Pago.objects.values().get(pk=pago.pk) if pago else None
+                provider = mock.Mock(spec=PaymentProvider)
+                cancelacion_bloqueada, liberar_cancelacion, pago_enviado = Event(), Event(), Event()
+                datos_cancelacion, datos_pago = {}, {}
+                def detener_despues_lock(cliente, usuario_id):
+                    validar_acceso(cliente, usuario_id)
+                    datos_cancelacion["pid"] = connection.connection.info.backend_pid
+                    cancelacion_bloqueada.set()
+                    if not liberar_cancelacion.wait(timeout=10):
+                        raise AssertionError("No se liberó la cancelación de prueba.")
+                with mock.patch.object(operaciones_services, "_validar_acceso_usuario_cliente", side_effect=detener_despues_lock):
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        futuro_cancelacion = pool.submit(self._ejecutar, cancelar_transaccion, dict(
+                            transaccion_id=transaccion.pk, usuario_id=self.usuario_id,
+                            usuario_username=self.usuario_username,
+                        ))
+                        try:
+                            self.assertTrue(cancelacion_bloqueada.wait(timeout=5))
+                            futuro_pago = pool.submit(
+                                self._ejecutar, funcion, self.argumentos_pago(transaccion, provider),
+                                consulta_enviada=pago_enviado, datos=datos_pago,
+                            )
+                            self.assertTrue(pago_enviado.wait(timeout=5))
+                            self._esperar_bloqueo_postgresql(datos_pago["pid"], datos_cancelacion["pid"])
+                        finally:
+                            liberar_cancelacion.set()
+                        self.assertEqual(futuro_cancelacion.result(timeout=5).estado, "CANCELADA")
+                        with self.assertRaises(ValidationError) as error:
+                            futuro_pago.result(timeout=5)
+                        self.assertEqual(error.exception.code, "OPERACION_NO_PENDIENTE")
+                provider.iniciar.assert_not_called()
+                if pago:
+                    self.assertEqual(Pago.objects.values().get(pk=pago.pk), antes_pago)
+                else:
+                    self.assertFalse(Pago.objects.filter(transaccion=transaccion).exists())
+
+    def test_pago_gana_cancelacion_espera_reserva_y_se_rechaza_durante_io(self):
+        if connection.vendor != "postgresql":
+            self.skipTest("La verificación de pg_blocking_pids requiere PostgreSQL real.")
+        guardar = Pago.save
+        for funcion in (iniciar_pago, reintentar_pago):
+            with self.subTest(funcion=funcion.__name__):
+                transaccion = self.crear_pendiente()
+                if funcion == reintentar_pago:
+                    _crear_pago_cancelacion(transaccion, Pago.Estado.ERROR)
+                antes_transaccion = Transaccion.objects.values().get(pk=transaccion.pk)
+                reserva_bloqueada, liberar_reserva = Event(), Event()
+                proveedor_en_io, liberar_io, cancelacion_enviada = Event(), Event(), Event()
+                datos_pago, datos_cancelacion = {}, {}
+                def detener_despues_reserva(pago, *args, **kwargs):
+                    resultado = guardar(pago, *args, **kwargs)
+                    if pago.transaccion_id == transaccion.pk and pago.estado == Pago.Estado.EN_PROCESO:
+                        datos_pago["pid"] = connection.connection.info.backend_pid
+                        datos_pago["pago"] = Pago.objects.values().get(pk=pago.pk)
+                        reserva_bloqueada.set()
+                        if not liberar_reserva.wait(timeout=10):
+                            raise AssertionError("No se liberó la reserva de prueba.")
+                    return resultado
+                def cobrar(solicitud):
+                    self.assertFalse(connection.in_atomic_block)
+                    proveedor_en_io.set()
+                    if not liberar_io.wait(timeout=10):
+                        raise AssertionError("La cancelación no respondió durante IO.")
+                    return ResultadoPago(
+                        EstadoPago.APROBADO, CodigoResultado.APROBADO,
+                        "pi_" + str(solicitud.pago_id), solicitud.monto, solicitud.moneda,
+                    )
+                provider = mock.Mock(spec=PaymentProvider)
+                provider.iniciar.side_effect = cobrar
+                with mock.patch.object(Pago, "save", autospec=True, side_effect=detener_despues_reserva):
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        futuro_pago = pool.submit(self._ejecutar, funcion, self.argumentos_pago(transaccion, provider))
+                        try:
+                            self.assertTrue(reserva_bloqueada.wait(timeout=5))
+                            futuro_cancelacion = pool.submit(
+                                self._ejecutar, cancelar_transaccion,
+                                dict(transaccion_id=transaccion.pk, usuario_id=self.usuario_id,
+                                     usuario_username=self.usuario_username),
+                                consulta_enviada=cancelacion_enviada, datos=datos_cancelacion,
+                            )
+                            self.assertTrue(cancelacion_enviada.wait(timeout=5))
+                            self._esperar_bloqueo_postgresql(datos_cancelacion["pid"], datos_pago["pid"])
+                            liberar_reserva.set()
+                            self.assertTrue(proveedor_en_io.wait(timeout=5))
+                            with self.assertRaises(ValidationError) as error:
+                                futuro_cancelacion.result(timeout=5)
+                            self.assertEqual(error.exception.error_dict["pago"][0].code, "PAGO_EN_PROCESO")
+                            self.assertFalse(liberar_io.is_set())
+                            self.assertEqual(Transaccion.objects.values().get(pk=transaccion.pk), antes_transaccion)
+                            self.assertEqual(Pago.objects.values().get(pk=datos_pago["pago"]["id"]), datos_pago["pago"])
+                        finally:
+                            liberar_reserva.set()
+                            liberar_io.set()
+                        self.assertEqual(futuro_pago.result(timeout=5).estado, EstadoPago.APROBADO)
+                self.assertEqual(provider.iniciar.call_count, 1)
+                transaccion.refresh_from_db()
+                self.assertEqual(transaccion.estado, "PENDIENTE")
 
 
 class IdempotenciaTests(BaseOperacionesTests):

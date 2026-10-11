@@ -11,6 +11,7 @@ from django.utils import timezone
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
+from pagos.models import Pago
 from tasas.models import TasaComercial
 from tasas.precision import normalizar_tasa
 
@@ -828,7 +829,7 @@ def cancelar_transaccion(
         try:
             transaccion_obj = (
                 Transaccion.objects
-                .select_for_update()
+                .select_for_update(of=("self",))
                 .select_related(
                     "cliente",
                     "moneda_origen",
@@ -851,6 +852,24 @@ def cancelar_transaccion(
             raise ValidationError(
                 {"estado": "Solo una transacción PENDIENTE puede cancelarse."}
             )
+
+        # Compartir el orden de locks de pagos: Transaccion -> Pago. La reserva
+        # EN_PROCESO queda confirmada antes de IO, por lo que tampoco se cancela
+        # mientras el proveedor trabaja fuera de la transacción de base de datos.
+        pago = (
+            Pago.objects.select_for_update(of=("self",))
+            .filter(transaccion_id=transaccion_obj.pk).first()
+        )
+        if pago is not None and pago.estado not in (Pago.Estado.ERROR, Pago.Estado.RECHAZADO):
+            mensajes = {
+                Pago.Estado.EN_PROCESO: ("El pago está en proceso.", "PAGO_EN_PROCESO"),
+                Pago.Estado.INDETERMINADO: ("El resultado del pago debe verificarse.", "PAGO_INDETERMINADO"),
+                Pago.Estado.APROBADO: ("La operación tiene un pago aprobado.", "PAGO_APROBADO"),
+            }
+            mensaje, codigo = mensajes.get(
+                pago.estado, ("El estado del pago no permite cancelar.", "PAGO_ESTADO_NO_CANCELABLE"),
+            )
+            raise ValidationError({"pago": ValidationError(mensaje, code=codigo)})
 
         # Se conserva la operacion y se registran los datos de cancelacion.
         transaccion_obj.estado = "CANCELADA"
