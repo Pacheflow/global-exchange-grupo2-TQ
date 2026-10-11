@@ -1,11 +1,14 @@
 """Pruebas esenciales de HU-23 Venta y HU-32/HU-24 Historial y detalle."""
 
+import json
 import time
+from decimal import Decimal
 
 from django.test import TestCase
 from django.urls import reverse
 
 from clientes.models import Cliente, UsuarioCliente
+from pagos.models import Pago
 from usuarios.services.keycloak import (
     SESSION_AUTENTICADO,
     SESSION_EXPIRA_EN,
@@ -56,14 +59,42 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         return cliente
 
     def test_venta_previsualiza_y_confirma_con_tasa_de_venta(self):
-        """Comprueba el flujo HU-23 con tasa de venta y estado COMPLETADA."""
+        """Comprueba el flujo HU-23 con tasa de venta y estado PENDIENTE."""
 
         preview = self.previsualizar(tipo="VENTA")
         resultado = self.crear(tipo="VENTA")
 
         self.assertEqual(preview.tasa, self.tasa.venta)
         self.assertEqual(resultado.transaccion.tasa_aplicada, self.tasa.venta)
-        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
+
+    def test_api_confirmacion_y_repeticion_registran_pendiente_sin_pago(self):
+        """COMPRA y VENTA se registran una sola vez sin iniciar pagos."""
+        self.autenticar()
+        for tipo in ("COMPRA", "VENTA"):
+            with self.subTest(tipo=tipo):
+                datos = json.dumps(self.parametros_crear(tipo=tipo), default=str)
+                nueva = self.client.post(
+                    reverse("operaciones:crear_transaccion"),
+                    data=datos, content_type="application/json",
+                )
+                self.assertEqual(nueva.status_code, 201)
+                self.assertFalse(nueva.json()["repetida"])
+                self.assertEqual(nueva.json()["transaccion"]["estado"], "PENDIENTE")
+
+                repetida = self.client.post(
+                    reverse("operaciones:crear_transaccion"),
+                    data=datos, content_type="application/json",
+                )
+                self.assertEqual(repetida.status_code, 200)
+                self.assertTrue(repetida.json()["repetida"])
+                original = nueva.json()["transaccion"]
+                recuperada = repetida.json()["transaccion"]
+                self.assertEqual(recuperada["id"], original["id"])
+                self.assertEqual(recuperada["estado"], "PENDIENTE")
+                for campo in ("monto_origen", "monto_destino", "tasa_aplicada", "porcentaje_comision", "importe_comision"):
+                    self.assertEqual(Decimal(recuperada[campo]), Decimal(original[campo]))
+                self.assertFalse(Pago.objects.exists())
 
     def test_metodos_expone_solo_activos_y_preselecciona_preferido(self):
         """Comprueba que HU-23 ofrezca solo métodos activos y el preferido."""
@@ -115,6 +146,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         ids = [item["id"] for item in response.json()["transacciones"]]
         self.assertIn(propia.id, ids)
         self.assertNotIn(ajena_al_contexto.id, ids)
+        self.assertEqual(response.json()["transacciones"][0]["estado"], "PENDIENTE")
 
     def test_detalle_de_otro_cliente_no_es_accesible(self):
         """Comprueba que HU-24 oculte transacciones ajenas al contexto actual."""
@@ -147,6 +179,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
 
         self.assertEqual(response.status_code, 200)
         detalle = response.json()["transaccion"]
+        self.assertEqual(detalle["estado"], "PENDIENTE")
         self.assertEqual(detalle["tasa_aplicada"], tasa_guardada)
         self.assertEqual(detalle["tasa_comercial"]["version"], 1)
         self.assertEqual(detalle["metodo_pago"]["nombre"], "Efectivo")

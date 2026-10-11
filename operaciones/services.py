@@ -595,7 +595,8 @@ def crear_transaccion(
     par), verifica si la cotización cambió comparando la versión de la
     tasa mostrada durante la previsualización contra la versión vigente y
     guarda los snapshots al crear una única Transaccion de forma atómica
-    e idempotente.
+    e idempotente, inicialmente PENDIENTE tanto para COMPRA como para VENTA.
+    La confirmación comercial no procesa pagos ni confirma la liquidación.
 
     La versión de tasa y la huella de categoría/comisión recibidas desde la
     previsualización solo se usan para detectar cambios. Los valores aplicados
@@ -778,7 +779,7 @@ def crear_transaccion(
                 importe_comision=importe_comision,
                 metodo_pago=metodo_pago,
                 metodo_pago_nombre=metodo_pago.nombre,
-                estado="COMPLETADA",
+                estado="PENDIENTE",
             )
 
             transaccion.full_clean()

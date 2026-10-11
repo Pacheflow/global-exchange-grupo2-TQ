@@ -221,8 +221,11 @@
     post(page.dataset.createUrl, payload).then(function (data) {
       window.GEApp.closeModal('confirmar-operacion');
       var repeated = data.repetida ? ' La solicitud ya había sido procesada.' : '';
-      showFeedback('Transacción #' + data.transaccion.id + ' completada correctamente.' + repeated, 'success');
-      window.GEApp.toast('Operación completada correctamente.', 'success');
+      var statusMessage = data.transaccion.estado === 'PENDIENTE'
+        ? ' registrada y pendiente de procesamiento.'
+        : ' registrada. Estado: ' + data.transaccion.estado + '.';
+      showFeedback('Transacción #' + data.transaccion.id + statusMessage + repeated, 'success');
+      window.GEApp.toast('Operación' + statusMessage, 'success');
       invalidatePreview();
       loadHistory();
     }).catch(function (error) {

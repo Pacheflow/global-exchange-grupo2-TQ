@@ -432,16 +432,16 @@ class ComisionPorCategoriaTests(BaseOperacionesTests):
 class CrearTransaccionTests(BaseOperacionesTests):
     """Pruebas de la confirmación y persistencia de operaciones."""
 
-    def test_confirmacion_crea_transaccion_completada(self):
-        """Comprueba que confirmar una operación cree una transacción COMPLETADA.
+    def test_confirmacion_crea_transaccion_pendiente(self):
+        """Comprueba que confirmar una operación cree una transacción PENDIENTE.
 
-        Se espera que la operación válida finalice automáticamente.
+        La confirmación comercial registra la operación sin completarla.
         """
         resultado = self.crear()
 
         self.assertFalse(resultado.repetida)
         self.assertFalse(resultado.cambio_cotizacion)
-        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
         self.assertEqual(Transaccion.objects.count(), 1)
 
     def test_confirmacion_guarda_snapshots(self):
@@ -469,11 +469,11 @@ class CrearTransaccionTests(BaseOperacionesTests):
     def test_confirmacion_venta_utiliza_tasa_de_venta(self):
         """Comprueba que confirmar una venta aplique la tasa de venta.
 
-        Se espera que la transacción quede completada con la tasa de venta.
+        Se espera que la transacción quede pendiente con la tasa de venta.
         """
         resultado = self.crear(tipo="VENTA")
 
-        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
         self.assertEqual(
             resultado.transaccion.tasa_aplicada,
             Decimal("7250.000000"),
@@ -515,7 +515,7 @@ class CrearTransaccionTests(BaseOperacionesTests):
         resultado = self.crear(version_preview=self.tasa.version)
 
         self.assertFalse(resultado.cambio_cotizacion)
-        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
         self.assertEqual(
             resultado.transaccion.tasa_aplicada,
             Decimal("7100.000000"),
@@ -598,7 +598,7 @@ class CrearTransaccionTests(BaseOperacionesTests):
         self.assertEqual(Transaccion.objects.count(), 0)
 
     def test_preview_sin_cambios_confirma_con_configuracion_vigente(self):
-        """La huella intacta permite recalcular y completar la operación."""
+        """La huella intacta permite registrar la operación pendiente."""
 
         preview = self.previsualizar()
         resultado = self.crear(
@@ -606,7 +606,7 @@ class CrearTransaccionTests(BaseOperacionesTests):
             porcentaje_comision_preview=preview.porcentaje_comision,
         )
 
-        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
         self.assertEqual(
             resultado.transaccion.porcentaje_comision,
             self.categoria.porcentaje_comision,
@@ -625,12 +625,9 @@ class CancelarTransaccionTests(BaseOperacionesTests):
     """Pruebas de la cancelación de transacciones pendientes de HU-25."""
 
     def crear_pendiente(self):
-        """Prepara un estado pendiente reservado para flujos futuros."""
+        """Usa el estado pendiente real de la confirmación comercial."""
 
-        transaccion = self.crear().transaccion
-        transaccion.estado = "PENDIENTE"
-        transaccion.save(update_fields=["estado"])
-        return transaccion
+        return self.crear().transaccion
 
     def test_transaccion_pendiente_se_puede_cancelar(self):
         """Comprueba que una transacción PENDIENTE pueda cancelarse.
@@ -780,7 +777,7 @@ class IdempotenciaTests(BaseOperacionesTests):
         """
         clave = self.clave_idempotencia()
         original = self.crear(clave_idempotencia=clave)
-        self.assertEqual(original.transaccion.estado, "COMPLETADA")
+        self.assertEqual(original.transaccion.estado, "PENDIENTE")
 
         version_original = original.transaccion.tasa_comercial.version
 
@@ -793,8 +790,39 @@ class IdempotenciaTests(BaseOperacionesTests):
         self.assertTrue(reintento.repetida)
         self.assertFalse(reintento.cambio_cotizacion)
         self.assertEqual(reintento.transaccion.id, original.transaccion.id)
-        self.assertEqual(original.transaccion.estado, "COMPLETADA")
+        self.assertEqual(original.transaccion.estado, "PENDIENTE")
         self.assertEqual(Transaccion.objects.count(), 1)
+
+    def test_reintento_conserva_estado_final_sin_reabrir_operacion(self):
+        """Una repetición comercial conserva completadas históricas y canceladas."""
+        campos = (
+            "estado", "monto_origen", "monto_destino", "tasa_aplicada",
+            "porcentaje_comision", "importe_comision", "metodo_pago_nombre",
+            "fecha_actualizacion", "cancelado_en", "motivo_cancelacion",
+        )
+        for estado in ("COMPLETADA", "CANCELADA"):
+            with self.subTest(estado=estado):
+                clave = self.clave_idempotencia()
+                original = self.crear(clave_idempotencia=clave).transaccion
+                if estado == "COMPLETADA":
+                    # Representa un registro histórico; no es el flujo de creación.
+                    original.estado = estado
+                    original.save(update_fields=["estado"])
+                else:
+                    original = cancelar_transaccion(
+                        transaccion_id=original.pk, usuario_id=self.usuario_id,
+                        usuario_username=self.usuario_username,
+                    )
+                original.refresh_from_db()
+                snapshots = {campo: getattr(original, campo) for campo in campos}
+
+                reintento = self.crear(clave_idempotencia=clave)
+                self.assertTrue(reintento.repetida)
+                self.assertEqual(reintento.transaccion.id, original.id)
+                self.assertEqual(
+                    {campo: getattr(reintento.transaccion, campo) for campo in campos},
+                    snapshots,
+                )
 
     def test_misma_clave_otro_usuario_es_rechazada_sin_revelar_operacion(self):
         """La clave no autoriza a otra identidad aunque comparta cliente."""
@@ -1005,7 +1033,7 @@ class PersistenciaSnapshotsTests(BaseOperacionesTests):
         self.assertEqual(transaccion.importe_comision, Decimal("70000.000000"))
         self.assertEqual(transaccion.porcentaje_comision, Decimal("10.00"))
         self.assertEqual(transaccion.metodo_pago_nombre, "Efectivo")
-        self.assertEqual(transaccion.estado, "COMPLETADA")
+        self.assertEqual(transaccion.estado, "PENDIENTE")
 
     def test_cambio_de_comision_solo_afecta_operaciones_nuevas(self):
         """Una nueva configuración no altera el snapshot histórico."""
