@@ -1,0 +1,13 @@
+{% load importes_caja %}
+    <div class="ge-card" style="overflow:hidden;margin-bottom:24px">
+      <table class="ge-table">
+        <thead><tr><th>Moneda</th><th>Saldo inicial</th><th>Ingresos</th><th>Egresos</th><th>Saldo actual</th></tr></thead>
+        <tbody>{% for saldo in saldos %}<tr>
+          <td><strong>{{ saldo.moneda.codigo }}</strong> · {{ saldo.moneda.nombre }}</td>
+          <td>{{ saldo.saldo_inicial|importe_inicial }}</td>
+          <td>{{ saldo.ingresos|importe_inicial }}</td>
+          <td>{{ saldo.egresos|importe_inicial }}</td>
+          <td><strong>{{ saldo.saldo_actual|importe_inicial }}</strong></td>
+        </tr>{% empty %}<tr><td colspan="5">Este período no tiene monedas registradas.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>

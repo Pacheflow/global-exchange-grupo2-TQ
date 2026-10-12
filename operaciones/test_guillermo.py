@@ -1,11 +1,14 @@
 """Pruebas esenciales de HU-23 Venta y HU-32/HU-24 Historial y detalle."""
 
+import json
 import time
+from decimal import Decimal
 
 from django.test import TestCase
 from django.urls import reverse
 
 from clientes.models import Cliente, UsuarioCliente
+from pagos.models import Pago
 from usuarios.services.keycloak import (
     SESSION_AUTENTICADO,
     SESSION_EXPIRA_EN,
@@ -55,15 +58,187 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         )
         return cliente
 
+    def test_bandeja_cajero_todos_asociados_sin_cliente_seleccionado(self):
+        otro = self.crear_cliente_asociado()
+        primero = self.crear().transaccion
+        segundo = self.crear(cliente_id=otro.pk).transaccion
+        self.autenticar(roles=("CAJERO", "USUARIO"))
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        url = reverse("operaciones:historial_transacciones")
+        datos = self.client.get(url).json()["transacciones"]
+        self.assertEqual({tx["id"] for tx in datos}, {primero.pk, segundo.pk})
+        self.assertTrue(all("pago_estado" in tx for tx in datos))
+        self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk])).status_code, 200)
+        pagina = self.client.get(reverse("operaciones_web:inicio"))
+        self.assertContains(pagina, "Bandeja operativa")
+        self.assertNotContains(pagina, "Nueva operación")
+        self.assertNotContains(pagina, "Seleccioná un cliente para operar")
+        UsuarioCliente.objects.filter(cliente=otro).update(activo=False)
+        datos = self.client.get(url).json()["transacciones"]
+        self.assertEqual({tx["id"] for tx in datos}, {primero.pk})
+        detalle = self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk]))
+        self.assertEqual(detalle.status_code, 404)
+        inexistente = self.client.get(reverse("operaciones:detalle_transaccion", args=[999999]))
+        self.assertEqual(detalle.json(), inexistente.json())
+
+    def test_usuario_sigue_requiriendo_cliente_para_historial_y_detalle(self):
+        tx = self.crear().transaccion
+        self.autenticar()
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        self.assertEqual(self.client.get(reverse("operaciones:historial_transacciones")).status_code, 400)
+        self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[tx.pk])).status_code, 400)
+
+    def test_bandeja_e_historial_cajero_separan_estados_y_clientes(self):
+        from django.utils import timezone
+        from .models import Transaccion
+        segundo = self.crear_cliente_asociado()
+        excluido = self.crear_cliente_asociado_documento("cliente-excluido")
+        esperados = {"PENDIENTE": set(), "COMPLETADA": set(), "CANCELADA": set()}
+        for cliente in (self.cliente, segundo, excluido):
+            for estado in esperados:
+                tx = self.crear(cliente_id=cliente.pk, clave_idempotencia=self.clave_idempotencia()).transaccion
+                campos = {"estado": estado}
+                if estado == "CANCELADA":
+                    campos.update(cancelado_por_keycloak_id=self.usuario_id,
+                        cancelado_por_username=self.usuario_username,
+                        cancelado_en=timezone.now(), motivo_cancelacion="Prueba histórica")
+                Transaccion.objects.filter(pk=tx.pk).update(**campos)
+                if cliente != excluido:
+                    esperados[estado].add(tx.pk)
+        UsuarioCliente.objects.filter(cliente=excluido).update(activo=False)
+        self.autenticar(roles=("CAJERO", "USUARIO"))
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion.save()
+        url = reverse("operaciones:historial_transacciones")
+        bandeja = self.client.get(url).json()["transacciones"]
+        historico = self.client.get(url, {"vista": "historial"}).json()["transacciones"]
+        self.assertEqual({tx["id"] for tx in bandeja}, esperados["PENDIENTE"])
+        self.assertEqual({tx["id"] for tx in historico}, esperados["COMPLETADA"] | esperados["CANCELADA"])
+        self.assertTrue(all("pago_estado" in tx for tx in bandeja + historico))
+
+    def crear_cliente_asociado_documento(self, documento):
+        cliente = Cliente.objects.create(nombre_razon_social=documento, tipo_persona="FISICA",
+            documento=documento, estado="ACTIVO", categoria=self.categoria)
+        UsuarioCliente.objects.create(cliente=cliente, keycloak_user_id=self.usuario_id,
+            username=self.usuario_username, activo=True)
+        return cliente
+
+    def test_historial_cajero_solo_lectura_y_sidebar_unico(self):
+        from html.parser import HTMLParser
+
+        class Sidebar(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.en_nav = False
+                self.activos = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "nav" and attrs.get("class") == "ge-frontend-nav":
+                    self.en_nav = True
+                if self.en_nav and tag == "a" and attrs.get("aria-current") == "page":
+                    self.activos.append(attrs["href"])
+            def handle_endtag(self, tag):
+                if tag == "nav":
+                    self.en_nav = False
+
+        self.autenticar(roles=("CAJERO",))
+        sesion = self.client.session
+        sesion["selected_client"] = {"id": "inválido"}
+        sesion.save()
+        for nombre in ("inicio", "historial"):
+            url = reverse(f"operaciones_web:{nombre}")
+            respuesta = self.client.get(url)
+            self.assertEqual(respuesta.status_code, 200)
+            parser = Sidebar()
+            parser.feed(respuesta.content.decode())
+            self.assertEqual(parser.activos, [url])
+            self.assertNotContains(respuesta, "Nueva operación")
+            if nombre == "historial":
+                for atributo in ('data-can-pay="false"', 'data-can-liquidate="false"',
+                                 'data-can-view-payment="false"', 'data-can-cancel="false"'):
+                    self.assertContains(respuesta, atributo)
+                self.assertContains(respuesta, '?vista=historial')
+            else:
+                self.assertContains(respuesta, 'data-can-liquidate="true"')
+
+    def test_historial_nuevo_no_altera_usuario_ni_admin(self):
+        tx = self.crear().transaccion
+        from .models import Transaccion
+        Transaccion.objects.filter(pk=tx.pk).update(estado="COMPLETADA")
+        pendiente = self.crear(clave_idempotencia=self.clave_idempotencia()).transaccion
+        for roles in (("USUARIO",), ("ADMINISTRADOR", "CAJERO")):
+            self.autenticar(roles=roles)
+            url = reverse("operaciones:historial_transacciones")
+            for query in ({}, {"vista": "historial"}):
+                datos = self.client.get(url, query).json()["transacciones"]
+                self.assertEqual({item["id"] for item in datos}, {tx.pk, pendiente.pk})
+            self.assertEqual(self.client.get(reverse("operaciones_web:historial")).status_code, 403)
+
+    def test_cajero_renderiza_bandeja_con_selected_client_invalido(self):
+        for roles in (("CAJERO",), ("CAJERO", "USUARIO")):
+            with self.subTest(roles=roles):
+                self.autenticar(roles=roles)
+                sesion = self.client.session
+                sesion["selected_client"] = {"id": "contexto-invalido"}
+                sesion.save()
+                respuesta = self.client.get(reverse("operaciones_web:inicio"))
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertContains(respuesta, "Bandeja operativa")
+                self.assertNotContains(respuesta, "Nueva operación")
+                self.assertIsNone(respuesta.context["cliente_operacion"])
+                self.assertContains(respuesta, "Historial de operaciones")
+
+    def test_usuario_con_contexto_invalido_conserva_comportamiento_previo(self):
+        self.autenticar()
+        sesion = self.client.session
+        sesion["selected_client"] = {"id": "contexto-invalido"}
+        sesion.save()
+        # Caracterización del comportamiento previo; no corregir USUARIO en este paso.
+        with self.assertRaises(ValueError):
+            self.client.get(reverse("operaciones_web:inicio"))
+
     def test_venta_previsualiza_y_confirma_con_tasa_de_venta(self):
-        """Comprueba el flujo HU-23 con tasa de venta y estado COMPLETADA."""
+        """Comprueba el flujo HU-23 con tasa de venta y estado PENDIENTE."""
 
         preview = self.previsualizar(tipo="VENTA")
         resultado = self.crear(tipo="VENTA")
 
         self.assertEqual(preview.tasa, self.tasa.venta)
         self.assertEqual(resultado.transaccion.tasa_aplicada, self.tasa.venta)
-        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
+        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
+
+    def test_api_confirmacion_y_repeticion_registran_pendiente_sin_pago(self):
+        """COMPRA y VENTA se registran una sola vez sin iniciar pagos."""
+        self.autenticar()
+        for tipo in ("COMPRA", "VENTA"):
+            with self.subTest(tipo=tipo):
+                datos = json.dumps(self.parametros_crear(tipo=tipo), default=str)
+                nueva = self.client.post(
+                    reverse("operaciones:crear_transaccion"),
+                    data=datos, content_type="application/json",
+                )
+                self.assertEqual(nueva.status_code, 201)
+                self.assertFalse(nueva.json()["repetida"])
+                self.assertEqual(nueva.json()["transaccion"]["estado"], "PENDIENTE")
+
+                repetida = self.client.post(
+                    reverse("operaciones:crear_transaccion"),
+                    data=datos, content_type="application/json",
+                )
+                self.assertEqual(repetida.status_code, 200)
+                self.assertTrue(repetida.json()["repetida"])
+                original = nueva.json()["transaccion"]
+                recuperada = repetida.json()["transaccion"]
+                self.assertEqual(recuperada["id"], original["id"])
+                self.assertEqual(recuperada["estado"], "PENDIENTE")
+                for campo in ("monto_origen", "monto_destino", "tasa_aplicada", "porcentaje_comision", "importe_comision"):
+                    self.assertEqual(Decimal(recuperada[campo]), Decimal(original[campo]))
+                self.assertFalse(Pago.objects.exists())
 
     def test_metodos_expone_solo_activos_y_preselecciona_preferido(self):
         """Comprueba que HU-23 ofrezca solo métodos activos y el preferido."""
@@ -115,6 +290,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         ids = [item["id"] for item in response.json()["transacciones"]]
         self.assertIn(propia.id, ids)
         self.assertNotIn(ajena_al_contexto.id, ids)
+        self.assertEqual(response.json()["transacciones"][0]["estado"], "PENDIENTE")
 
     def test_detalle_de_otro_cliente_no_es_accesible(self):
         """Comprueba que HU-24 oculte transacciones ajenas al contexto actual."""
@@ -147,6 +323,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
 
         self.assertEqual(response.status_code, 200)
         detalle = response.json()["transaccion"]
+        self.assertEqual(detalle["estado"], "PENDIENTE")
         self.assertEqual(detalle["tasa_aplicada"], tasa_guardada)
         self.assertEqual(detalle["tasa_comercial"]["version"], 1)
         self.assertEqual(detalle["metodo_pago"]["nombre"], "Efectivo")

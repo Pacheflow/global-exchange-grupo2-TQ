@@ -1,37 +1,56 @@
 # Pruebas — Global Exchange
 
-> Estado verificado el 02/10/2026.
+> Estado verificado el 11/10/2026.
 > Suite ejecutada en Docker con `python manage.py test`.
 
 ## Resumen
 
 | Métrica | Valor |
 |---|---|
-| Total de tests detectados | **203** |
-| Tests pasando | **203** |
+| Total de tests detectados | **452** |
+| Tests pasando | **452** |
 | Tests fallando | **0** |
 | Errores | **0** |
-| Duración última ejecución | 20.981 s |
+| Duración última ejecución | 72.980 s |
 
-La suite completa fue ejecutada después de incorporar los cambios de
-operaciones correspondientes a HU-22, HU-23, HU-25 y HU-32/HU-24.
+La suite completa fue ejecutada en Docker/PostgreSQL sobre el commit funcional `07ef6fd`, tras integrar HU-28, Caja/HU-40/HU-41 y navegación final de CAJERO. Se creó/eliminó la base temporal de tests; no se migró la base funcional.
 
-## Detalle por app
+## Tests coleccionados por app en el corte final
 
-| App | Archivo | Métodos `test_*` | Funcionalidad cubierta |
-|---|---|---:|---|
-| `usuarios` | `usuarios/tests.py`, `usuarios/test_production_settings.py` | 54 | Autenticación, sesión, Keycloak, prioridad multirrol, permisos, administración de usuarios y configuración productiva |
-| `clientes` | `clientes/tests.py` | 29 | Modelo, clientes, asociaciones Usuario–Cliente, selección, restricción del analista y validaciones |
-| `tasas` | `tasas/tests.py`, `test_reference_rates.py`, `test_simulator.py` | 36 | Proveedor y fallback, simulación, permisos, validación, versionado, histórico y baja lógica |
-| `monedas` | `monedas/tests.py` | 7 | Configuración de monedas, estados y validaciones |
-| `metodos_pago` | `metodos_pago/tests.py` | 6 | Configuración y administración de métodos de pago |
-| `operaciones` | `operaciones/tests.py`, `operaciones/test_guillermo.py` | 71 | Previsualización, compra, venta, huellas de comisión e idempotencia, confirmación, métodos, historial, detalle y cancelación |
-| **Total** | | **203** | |
+La distribución proviene de DiscoverRunner; la suite completa ejecutó los 452 casos sin fallos. No equivale a contar únicamente métodos de los archivos.
+
+| App | Casos coleccionados |
+|---|---:|
+| cajas | 92 |
+| clientes | 29 |
+| metodos_pago | 6 |
+| monedas | 7 |
+| operaciones | 128 |
+| pagos | 73 |
+| tasas | 58 |
+| usuarios | 59 |
+
+
+## HU-40 y HU-41 — Saldos y movimientos de caja
+
+Los diez escenarios nuevos de Guillermo comprueban saldo inicial, separación
+por moneda, ingresos, egresos, fondos insuficientes, períodos cerrados,
+permisos, trazabilidad inmutable, idempotencia automática y el flujo web.
+
+```bash
+python manage.py test cajas.test_saldos_movimientos
+```
+
+En el corte histórico de HU-40/HU-41, la validación conjunta ejecutó 82 tests correctamente; el corte final incluye 92 casos de Caja:
+
+```bash
+python manage.py test cajas.test_saldos_movimientos cajas.test_apertura cajas.tests
+```
 
 ## HU-23 y HU-32/HU-24 — Venta, historial y detalle
 
-Las ocho pruebas incorporadas para Guillermo verifican que Venta utilice la
-tasa comercial de venta y cree una transacción completada, que solo se ofrezcan
+Las pruebas incorporadas para Guillermo verifican que Venta utilice la
+tasa comercial de venta y cree una transacción PENDIENTE, que solo se ofrezcan
 métodos de pago activos, que el preferido inactivo no se preseleccione, que el
 historial quede limitado al cliente seleccionado, que un detalle ajeno no sea
 accesible, que los snapshots no se recalculen y que historial/detalle rechacen
@@ -41,7 +60,7 @@ escrituras.
 python manage.py test operaciones.test_guillermo
 ```
 
-Resultado verificado: 8 tests ejecutados correctamente.
+El primer corte histórico ejecutó 8 tests; el archivo se amplió posteriormente para bandeja, historial y autorización de CAJERO. La regresión final está detallada al final de este documento.
 
 ## HU-22 — Compra de divisas
 
@@ -59,7 +78,7 @@ Las pruebas verifican principalmente que:
 - una operación `COMPRA` utilice `TasaComercial.compra`;
 - la operación sea validada antes de confirmarse;
 - una compra válida pueda generar una transacción;
-- la transacción confirmada quede en estado `COMPLETADA`;
+- la transacción comercial creada quede en estado `PENDIENTE`; COMPLETADA requiere liquidación posterior;
 - los cálculos monetarios se realicen en el Backend.
 
 La lógica de tasa, comisión y resultado no se duplica en el Frontend.
@@ -78,7 +97,7 @@ Las pruebas de HU-25 verifican la cancelación definida en Jira:
 
 La cancelación solicitada por el usuario no depende de que cambie la cotización.
 Las pruebas de HU-25 preparan explícitamente una transacción `PENDIENTE`; el flujo
-normal de confirmación actual crea transacciones `COMPLETADA`.
+normal de creación comercial deja transacciones `PENDIENTE`, y la cancelación comprueba además el estado de Pago.
 
 La confirmación visual previa a cancelar corresponde a la integración de frontend.
 
@@ -276,3 +295,21 @@ No hay integración continua configurada actualmente para estas
 verificaciones.
 
 Las pruebas y checks se ejecutan manualmente antes de integrar los cambios.
+
+
+## Evidencia final HU-28 — 11/10/2026
+
+| Verificación | Resultado |
+|---|---|
+| `docker exec global-exchange-web python manage.py test --noinput` | 452 ejecutados, 452 aprobados, 0 fallos/errores; 72.980 s |
+| `node --test static/js/tests/operaciones.test.cjs` (todos los Node/DOM encontrados) | 3 ejecutados, 3 aprobados, 0 fallidos |
+| `node --check static/js/operaciones.js` | Correcto |
+| Django check | Sin issues |
+| makemigrations --check --dry-run | Sin cambios |
+| git diff --check | Correcto |
+
+Cobertura relevante: Pago/modelo/adapter offline, autorización, recuperación, reserva concurrente, cancelación vs pago, liquidación COMPRA/VENTA, rollback, movimiento concurrente/idempotente y Caja antes de Período; contrato HTTP, bandeja/historial y selector explícito. DOM verifica saldo insuficiente persistente, elegibilidad y capacidades por rol.
+
+QA Stripe real corresponde a evidencia previa, sin nuevas llamadas externas durante esta regresión. QA visual manual final aprobado por Axel Pacheco; no es una suite automatizada de navegador. Evidencias y DoD: [HU-28](HU-28_Realizar_Pago.md).
+
+Los resultados PUD de 02/10/2026 y los cortes focalizados anteriores se conservan como históricos; no se suman con esta ejecución final.

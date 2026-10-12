@@ -91,7 +91,9 @@
     document.body.appendChild(backdrop);
     function close() { backdrop.remove(); }
     backdrop.querySelector('[data-cancel]').addEventListener('click', close);
-    backdrop.addEventListener('click', function (event) { if (event.target === backdrop) close(); });
+    backdrop.addEventListener('click', function (event) {
+      if (event.target === backdrop && backdrop.dataset.saving !== 'true') close();
+    });
     backdrop.querySelector('[data-confirm]').addEventListener('click', function () {
       if (!onConfirm || onConfirm(backdrop, close) !== false) close();
     });
@@ -283,16 +285,38 @@
       field('PRECIO COMPRA', '<input class="ge-input ge-mono" type="number" min="0.0000000001" step="0.0000000001" name="compra" required value="' + esc(rate ? rate.compra : '') + '">') +
       field('PRECIO VENTA', '<input class="ge-input ge-mono" type="number" min="0.0000000001" step="0.0000000001" name="venta" required value="' + esc(rate ? rate.venta : '') + '">') + '</div></form>';
     dialog('ge-rate-form', rate ? 'Editar tasa comercial' : 'Nueva tasa comercial', content, rate ? 'Guardar nueva versión' : 'Crear tasa comercial', function (box, close) {
+      if (state.rateSaving || box.dataset.saving === 'true') return false;
       var form = box.querySelector('form');
       if (!form.reportValidity()) return false;
       if (form.elements.origen.value === form.elements.destino.value) {
         notify('Las monedas de origen y destino deben ser diferentes.', 'warning'); return false;
       }
+      box.dataset.saving = 'true';
+      state.rateSaving = true;
+      var guardar = box.querySelector('[data-confirm]');
+      var cancelar = box.querySelector('[data-cancel]');
+      guardar.disabled = true;
+      cancelar.disabled = true;
+      box.setAttribute('aria-busy', 'true');
       request(page.dataset.createUrl, { method: 'POST', body: JSON.stringify({
         moneda_origen_id: Number(form.elements.origen.value), moneda_destino_id: Number(form.elements.destino.value),
         compra: formValue(form, 'compra'), venta: formValue(form, 'venta')
-      }) }).then(function (data) { close(); notify(data.mensaje); loadRates(); }).catch(function (error) { notify(error.message, 'error'); });
+      }) }).then(function (data) {
+        close(); notify(data.mensaje, data.advertencia_notificaciones ? 'warning' : 'success'); loadRates();
+      }).catch(function (error) {
+        notify(error.message, 'error');
+      }).finally(function () {
+        box.dataset.saving = 'false';
+        state.rateSaving = false;
+        guardar.disabled = false;
+        cancelar.disabled = false;
+        box.removeAttribute('aria-busy');
+      });
       return false;
+    });
+    document.getElementById('ge-rate-form').querySelector('form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      document.getElementById('ge-rate-form').querySelector('[data-confirm]').click();
     });
   }
 

@@ -1,0 +1,108 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+
+{% block title %}Arqueo de caja · Global Exchange{% endblock %}
+
+{% block sidebar %}
+{% include 'frontend/partials/sidebar_for_role.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="ge-frontend-main-pad">
+
+  <div class="ge-frontend-section-head">
+    <div>
+      <h2 class="ge-frontend-h2">
+        Arqueo de caja{% if periodo %} {{ periodo.caja.codigo }}{% endif %}
+      </h2>
+
+      {% if periodo %}
+        <p class="ge-frontend-subtitle">
+          Período {{ periodo.id }}
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if periodo %}{% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo formato_fecha='d/m/Y H:i' only %}{% endif %}
+
+  {% if error %}
+    <div class="ge-error-banner" role="alert">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  {% if periodo and form %}
+    <div class="ge-card" style="padding:24px">
+
+      <h3>Saldo teórico</h3>
+
+      <table class="ge-table">
+        <thead>
+          <tr>
+            <th>Moneda</th>
+            <th>Saldo teórico</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for saldo in saldos %}
+            <tr>
+              <td>
+                <strong>{{ saldo.moneda.codigo }}</strong>
+                · {{ saldo.moneda.nombre }}
+              </td>
+              <td>
+                {{ saldo.saldo_actual|importe_inicial }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <form method="post" style="margin-top:24px">
+        {% csrf_token %}
+
+        {{ form.non_field_errors }}
+
+        <h3>Saldo físico encontrado</h3>
+
+        {% for field in form %}
+          {% if field.name != "observacion" %}
+            <div style="margin-bottom:16px">
+              <label for="{{ field.id_for_label }}">
+                {{ field.label }}
+              </label>
+
+              {{ field }}
+              {{ field.errors }}
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        <div style="margin-bottom:16px">
+          <label for="{{ form.observacion.id_for_label }}">
+            Observación
+          </label>
+
+          {{ form.observacion }}
+          {{ form.observacion.errors }}
+        </div>
+
+        <button class="ge-btn-primary" type="submit">
+          Registrar arqueo
+        </button>
+
+        <a
+          class="ge-btn-outline"
+          href="{% url 'cajas:saldo' periodo.id %}"
+        >
+          Volver
+        </a>
+      </form>
+
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

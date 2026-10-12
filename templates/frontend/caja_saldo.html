@@ -1,0 +1,21 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+{% block title %}Saldo de caja · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <div class="ge-frontend-section-head">
+    <div>
+      <h2 class="ge-frontend-h2">Saldo de caja</h2>
+    </div>
+  </div>
+  {% if error %}<div class="ge-error-banner" role="alert">{{ error }}</div>{% endif %}
+  {% if periodo %}
+    {% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo formato_fecha='d/m/Y H:i' only %}
+    {% include 'frontend/partials/caja_acciones_periodo.html' %}
+    <div class="ge-btn-row"><a class="ge-btn-outline" href="{% url 'cajas:saldos' %}?periodo_id={{ periodo.pk }}">Saldos</a><a class="ge-btn-outline" href="{% url 'cajas:movimientos' %}?periodo_id={{ periodo.pk }}">Movimientos</a><a class="ge-btn-outline" href="{% url 'cajas:historial' periodo.caja_id %}">Historial de Caja</a></div>
+    {% include 'frontend/partials/caja_saldos_tabla.html' %}
+    {% include 'frontend/partials/caja_movimientos_tabla.html' %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Crear caja · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h2 class="ge-frontend-h2">Crear caja</h2>
+  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+  <div class="ge-card"><form method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <button class="ge-btn-primary" type="submit">Registrar caja</button>
+    <a class="ge-btn-ghost" href="{% url 'cajas:inicio' %}">Cancelar</a>
+  </form></div>
+</div>
+{% endblock %}

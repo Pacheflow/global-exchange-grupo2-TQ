@@ -166,6 +166,15 @@ TASAS_VALIDITY_SECONDS = int(
     )
 )
 
+# HU-28: exclusivamente Stripe TEST. Vacía mantiene los cobros deshabilitados.
+# La validación se realiza al usar el adaptador, no al arrancar otras apps.
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_TIMEOUT_SECONDS = os.getenv("STRIPE_TIMEOUT_SECONDS", "5")
+try:
+    STRIPE_TIMEOUT_SECONDS = float(STRIPE_TIMEOUT_SECONDS)
+except ValueError:
+    STRIPE_TIMEOUT_SECONDS = None
+
 
 # ------------------------------------------------------------------
 # Sesión / Cookies
@@ -278,6 +287,8 @@ INSTALLED_APPS = [
     "tasas",
     "metodos_pago",
     "operaciones",
+    "cajas",
+    "pagos.apps.PagosConfig",
 ]
 
 
@@ -493,6 +504,14 @@ if DJANGO_ENVIRONMENT == "production":
     }
 
 
+# El SDK Stripe puede incluir errores externos en INFO y payloads en DEBUG.
+# Conservar el logging de Django y filtrar únicamente este logger del SDK.
+if DJANGO_ENVIRONMENT != "production":
+    LOGGING = {"version": 1, "disable_existing_loggers": False}
+LOGGING["loggers"] = {
+    "stripe": {"level": "WARNING", "handlers": [], "propagate": False},
+}
+
 # ------------------------------------------------------------------
 # Email
 # ------------------------------------------------------------------
@@ -525,6 +544,7 @@ MAILERS = {
                     "true",
                     "yes",
                 },
+                "timeout": 8,
             }
             if DJANGO_ENVIRONMENT == "production"
             else {}
@@ -538,3 +558,11 @@ if DJANGO_ENVIRONMENT == "production":
         "DEFAULT_FROM_EMAIL",
         "noreply@globalexchange.local",
     )
+else:
+    # HU-20: Django envía a Mailpit dentro de Compose, independientemente de Keycloak.
+    MAILERS["default"] = {
+        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "OPTIONS": {"host": "mailpit", "port": 1025, "username": "", "password": "",
+                    "use_tls": False, "use_ssl": False, "timeout": 8},
+    }
+    DEFAULT_FROM_EMAIL = "noreply@globalexchange.com"

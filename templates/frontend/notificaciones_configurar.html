@@ -1,0 +1,15 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Notificaciones de tasas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h2 class="ge-frontend-h2">Notificaciones de tasas</h2>
+  <p>Se envía un correo individual por cambios de compra o venta que alcancen este porcentaje,
+     acumulados desde la última notificación exitosa. Se incluyen subidas y bajadas.</p>
+  <p>El nuevo umbral se aplica a futuras actualizaciones; guardarlo no envía correos.</p>
+  <form method="post" class="ge-card" up-submit="false">{% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="ge-btn-primary">Guardar umbral</button>
+  </form>
+</div>
+{% endblock %}

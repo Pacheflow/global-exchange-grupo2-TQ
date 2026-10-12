@@ -1,0 +1,19 @@
+{% extends 'frontend/base.html' %}
+{% load importes_caja %}
+{% block title %}Caja abierta · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h2 class="ge-frontend-h2">Caja abierta correctamente</h2>
+  {% include 'frontend/partials/caja_contexto.html' with caja=periodo.caja periodo=periodo mostrar_identificador=True formato_fecha='d/m/Y H:i:s' only %}
+  <table class="ge-table"><thead><tr><th>Moneda</th><th>Saldo inicial registrado</th></tr></thead><tbody>
+    {% for saldo in periodo.saldos_iniciales.all %}<tr><td>{{ saldo.moneda.codigo }}</td><td>{{ saldo.monto|importe_inicial }}</td></tr>{% endfor %}
+  </tbody></table>
+  <p>El período está listo para consultar saldos y registrar movimientos.</p>
+  <div class="ge-inline-actions">
+    <a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' periodo.id %}">Registrar movimiento</a>
+    <a class="ge-btn-ghost" href="{% url 'cajas:saldo' periodo.id %}">Consultar saldo</a>
+    <a class="ge-btn-ghost" href="{% url 'cajas:operar' %}">Volver a cajas</a>
+  </div>
+</div>
+{% endblock %}
