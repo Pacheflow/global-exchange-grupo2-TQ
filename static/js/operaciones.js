@@ -238,7 +238,7 @@
       window.GEApp.closeModal('confirmar-operacion');
       var repeated = data.repetida ? ' La solicitud ya había sido procesada.' : '';
       var statusMessage = data.transaccion.estado === 'PENDIENTE'
-        ? ' registrada y pendiente de procesamiento.'
+        ? ' registrada y pendiente de liquidación; la disponibilidad futura no está garantizada.'
         : ' registrada. Estado: ' + data.transaccion.estado + '.';
       showFeedback('Transacción #' + data.transaccion.id + statusMessage + repeated, 'success');
       window.GEApp.toast('Operación' + statusMessage, 'success');
@@ -246,6 +246,7 @@
       loadHistory();
       if (data.transaccion.tipo === 'COMPRA') showDetail(data.transaccion);
     }).catch(function (error) {
+      if (error.codigo === 'DISPONIBILIDAD_INSUFICIENTE') window.GEApp.closeModal('confirmar-operacion');
       showFeedback(error.message, 'error');
       window.GEApp.toast(error.message, 'error');
     }).finally(function () {
@@ -415,8 +416,12 @@
       }
       renderPayment(data, state.detailTransaction);
       if (data.estado === 'APROBADO') loadPayment(state.detailTransaction, version);
-    }).catch(function () {
+    }).catch(function (error) {
       if (!isCurrentDetail(id, version)) return;
+      if (error.status === 400 && error.codigo === 'DISPONIBILIDAD_INSUFICIENTE') {
+        document.querySelector('[data-payment-message]').textContent = error.message;
+        return;
+      }
       paymentError('No se pudo confirmar el resultado de la solicitud. Volvé a abrir el detalle para consultar el estado del pago.');
     }).finally(function () {
       delete state.paymentPending[id];
@@ -426,7 +431,8 @@
         return;
       }
       var currentButton = document.querySelector('[data-payment-actions] [data-payment-action]');
-      if (currentButton) currentButton.disabled = false;
+      if (currentButton === button) setBusy(currentButton, false);
+      else if (currentButton) currentButton.disabled = false;
     });
   }
 

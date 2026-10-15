@@ -162,7 +162,7 @@
     <div class="ge-modal" role="dialog" aria-modal="true" aria-labelledby="confirmar-operacion-title">
       <h3 id="confirmar-operacion-title">Confirmar operación</h3>
       <p data-confirm-summary>Revisá los valores antes de registrar la transacción.</p>
-      <p>La confirmación registra la operación pendiente de procesamiento. No confirma un pago ni completa la operación.</p>
+      <p>La confirmación registra la operación pendiente de liquidación. No confirma un pago ni completa la operación. La comprobación de disponibilidad no reserva fondos ni garantiza disponibilidad futura.</p>
       <div class="ge-modal-actions">
         <button type="button" class="ge-btn-outline" data-ge-modal-close="confirmar-operacion">Volver</button>
         <button type="button" class="ge-btn-primary" data-confirm-operation>Confirmar</button>
@@ -212,4 +212,4 @@
     </div>
   </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/operaciones.js' %}"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/operaciones.js' %}?v=disponibilidad-2"></script>{% endblock %}

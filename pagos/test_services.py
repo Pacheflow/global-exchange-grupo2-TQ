@@ -46,6 +46,8 @@ class PagoServiceTests(TransactionTestCase):
             usuario_id="usuario-pagos", usuario_username="operador",
         )
         self.transaccion = self.crear_transaccion()
+        from cajas.test_utils import crear_fondos_prueba
+        crear_fondos_prueba((self.destino,))
         self.provider = Mock(spec=PaymentProvider)
         self.provider.iniciar.side_effect = lambda solicitud: self.resultado(solicitud)
         self.provider.consultar.side_effect = lambda solicitud, referencia: self.resultado(solicitud, referencia=referencia)

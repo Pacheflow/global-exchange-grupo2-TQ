@@ -54,6 +54,8 @@ class _EscenarioHTTP:
             usuario_id="http-usuario", usuario_username="operador",
         )
         self.transaccion = self.crear_transaccion()
+        from cajas.test_utils import crear_fondos_prueba
+        crear_fondos_prueba((self.destino,))
         self.provider = Mock(spec=PaymentProvider)
         self.provider.iniciar.side_effect = lambda s: self.resultado(s)
         self.provider.consultar.side_effect = lambda s, ref: self.resultado(s, referencia=ref)
@@ -128,6 +130,55 @@ class _EscenarioHTTP:
 
 
 class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
+    def test_inicio_sin_fondos_y_nuevo_intento_explicito_tras_reponer(self):
+        """Como en QA #21, el primer POST da 400 sin Pago/Stripe; reponer y pulsar otra vez aprueba un único Pago."""
+        from cajas.models import SaldoInicialCaja
+        SaldoInicialCaja.objects.update(monto=0)
+        primero = self.post("iniciar")
+        self.assertEqual(primero.status_code, 400)
+        self.assertEqual(primero.json()["codigo"], "DISPONIBILIDAD_INSUFICIENTE")
+        self.assertIn("No se realizó ningún cobro en este intento", primero.json()["error"])
+        self.assertFalse(Pago.objects.exists())
+        self.provider.iniciar.assert_not_called()
+        SaldoInicialCaja.objects.update(monto=self.transaccion.monto_destino)
+        segundo = self.post("iniciar")
+        self.assertEqual(segundo.status_code, 200)
+        self.assertEqual(segundo.json()["estado"], "APROBADO")
+        self.assertFalse(segundo.json()["reutilizado"])
+        pago = Pago.objects.get(transaccion=self.transaccion)
+        self.assertEqual(str(pago.pk), segundo.json()["pago_id"])
+        self.assertEqual([e["codigo"] for e in pago.trazabilidad], ["RESERVADO", "APROBADO"])
+        self.assertEqual(self.client.get(self.url("consultar")).json()["estado"], "APROBADO")
+        self.provider.iniciar.assert_called_once()
+
+    def test_disponibilidad_inicio_y_reintento_muestran_error_sin_cobro(self):
+        """HTTP sin fondos muestra aviso seguro, preserva Pago ERROR y no invoca Stripe; fallo técnico da 500."""
+        from cajas.models import SaldoInicialCaja
+        from django.db import DatabaseError
+        SaldoInicialCaja.objects.update(monto=0)
+        for accion in ("iniciar", "reintentar"):
+            if accion == "reintentar":
+                pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)
+                traza = list(pago.trazabilidad)
+            respuesta = self.post(accion)
+            self.assertEqual(respuesta.status_code, 400)
+            self.assertEqual(respuesta.json(), {
+                "codigo": "DISPONIBILIDAD_INSUFICIENTE",
+                "error": "No hay disponibilidad suficiente para procesar esta operación. "
+                         "No se realizó ningún cobro en este intento. Intenta más tarde.",
+            })
+            if accion == "iniciar":
+                self.assertFalse(Pago.objects.exists())
+            else:
+                pago.refresh_from_db()
+                self.assertEqual(pago.estado, "ERROR")
+                self.assertEqual(pago.trazabilidad, traza)
+        with patch("pagos.services.hay_disponibilidad", side_effect=DatabaseError("privado")):
+            respuesta = self.post("reintentar")
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertNotContains(respuesta, "disponibilidad", status_code=500)
+        self.provider.iniciar.assert_not_called()
+
     def test_cajero_consulta_pago_sin_selected_client_usuario_no(self):
         """Cajero sin asociaciones consulta localmente; USUARIO conserva selección y asociación obligatorias."""
         pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)

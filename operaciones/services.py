@@ -9,7 +9,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from cajas.models import Caja
-from cajas.services import registrar_movimiento_automatico
+from cajas.services import hay_disponibilidad, registrar_movimiento_automatico
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
@@ -735,6 +735,15 @@ def crear_transaccion(
                     {"cliente": "El cliente se encuentra inactivo."}
                 )
             _validar_acceso_usuario_cliente(cliente, usuario_id)
+            # Otra confirmación puede haber creado la misma clave mientras
+            # esperábamos el lock de Cliente. Reutilizar antes de leer fondos.
+            existente = Transaccion.objects.filter(clave_idempotencia=clave_idempotencia).first()
+            if existente is not None:
+                _validar_reintento_idempotente(
+                    existente, usuario_id=usuario_id, cliente=cliente,
+                    huella_solicitud=huella_idempotencia,
+                )
+                return ResultadoCrearTransaccion(transaccion=existente, repetida=True)
             porcentaje_comision = _validar_huella_comision(
                 cliente,
                 categoria_esperada,
@@ -795,6 +804,11 @@ def crear_transaccion(
             )
 
             transaccion.full_clean()
+            if not hay_disponibilidad(moneda_id=moneda_destino.pk, monto=monto_destino):
+                raise ValidationError(
+                    "No hay disponibilidad suficiente para atender esta operación. Intenta más tarde.",
+                    code="DISPONIBILIDAD_INSUFICIENTE",
+                )
             transaccion.save()
 
     except IntegrityError as exc:
