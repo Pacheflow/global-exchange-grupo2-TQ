@@ -43,6 +43,7 @@ from .views import _serializar_transaccion
 
 class EscenarioLiquidacion:
     """Fixtures locales de operación y Caja; no invocan proveedores externos."""
+    con_fondos_operacion = False
 
     def setUp(self):
         super().setUp()
@@ -726,6 +727,10 @@ class BaseOperacionesTests(TestCase):
             usuario_id=self.usuario_id,
             usuario_username=self.usuario_username,
         )
+
+        if getattr(self, "con_fondos_operacion", True):
+            from cajas.test_utils import crear_fondos_prueba
+            crear_fondos_prueba((self.usd, self.pyg, self.otra))
 
     def clave_idempotencia(self):
         """Devuelve una clave única de idempotencia para cada ejecución."""
@@ -2183,6 +2188,7 @@ class OperacionesFrontendTests(BaseOperacionesTests):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "frontend/operaciones.html")
+        self.assertContains(response, '/static/js/operaciones.js?v=disponibilidad-2')
         self.assertEqual(response.context["cliente_operacion"], self.cliente)
         self.assertIn(self.metodo_activo, response.context["metodos_activos"])
         self.assertNotIn(self.metodo_inactivo, response.context["metodos_activos"])

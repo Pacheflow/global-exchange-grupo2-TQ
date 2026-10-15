@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import F, Q, Sum
 
 from usuarios.services.keycloak import rol_efectivo
 from monedas.models import Moneda
@@ -242,31 +243,42 @@ def _obtener_periodo_abierto(periodo_id, *, bloquear=False):
     return periodo
 
 
-def _saldos_del_periodo(periodo):
-    """Calcula saldos exclusivamente desde la apertura y sus movimientos."""
+def _saldos_con_movimientos():
+    """Calcula apertura + ingresos - egresos por período/moneda en una consulta."""
+    return SaldoInicialCaja.objects.annotate(
+        ingresos=Sum("periodo__movimientos__monto", default=Decimal("0"), filter=Q(
+            periodo__movimientos__moneda_id=F("moneda_id"), periodo__movimientos__tipo="INGRESO",
+        )),
+        egresos=Sum("periodo__movimientos__monto", default=Decimal("0"), filter=Q(
+            periodo__movimientos__moneda_id=F("moneda_id"), periodo__movimientos__tipo="EGRESO",
+        )),
+    ).annotate(saldo_actual=F("monto") + F("ingresos") - F("egresos"))
 
-    iniciales = list(
-        periodo.saldos_iniciales.select_related("moneda").order_by("moneda__codigo")
-    )
-    acumulados = {
-        saldo.moneda_id: {"INGRESO": Decimal("0"), "EGRESO": Decimal("0")}
-        for saldo in iniciales
-    }
-    for movimiento in periodo.movimientos.all().only("moneda_id", "tipo", "monto"):
-        if movimiento.moneda_id in acumulados:
-            acumulados[movimiento.moneda_id][movimiento.tipo] += movimiento.monto
+
+def hay_disponibilidad(*, moneda_id, monto):
+    """Lectura informativa: una sola caja habilitada/abierta debe cubrir el destino.
+
+    El snapshot de esta consulta PostgreSQL no reserva fondos ni asigna Caja.
+    La liquidación debe volver a validar bajo bloqueo. Los fallos de consulta
+    se propagan: nunca se traducen a falta de fondos.
+    """
+    return _saldos_con_movimientos().filter(
+        moneda_id=moneda_id, periodo__estado="ABIERTO", periodo__caja__estado="HABILITADA",
+        saldo_actual__gte=monto,
+    ).exists()
+
+
+def _saldos_del_periodo(periodo):
+    """Reutiliza el cálculo por moneda sin mezclar períodos ni sumar otras monedas."""
+    iniciales = _saldos_con_movimientos().filter(periodo=periodo).select_related("moneda").order_by("moneda__codigo")
 
     return [
         SaldoMonedaCaja(
             moneda=saldo.moneda,
             saldo_inicial=saldo.monto,
-            ingresos=acumulados[saldo.moneda_id]["INGRESO"],
-            egresos=acumulados[saldo.moneda_id]["EGRESO"],
-            saldo_actual=(
-                saldo.monto
-                + acumulados[saldo.moneda_id]["INGRESO"]
-                - acumulados[saldo.moneda_id]["EGRESO"]
-            ),
+            ingresos=saldo.ingresos,
+            egresos=saldo.egresos,
+            saldo_actual=saldo.saldo_actual,
         )
         for saldo in iniciales
     ]

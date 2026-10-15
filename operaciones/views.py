@@ -447,6 +447,8 @@ def crear_transaccion_view(request):
             porcentaje_comision_preview=datos.get("porcentaje_comision_preview"),
         )
     except ValidationError as exc:
+        if getattr(exc, "code", None) == "DISPONIBILIDAD_INSUFICIENTE":
+            return JsonResponse({"error": exc.message, "codigo": exc.code}, status=400)
         return JsonResponse(
             {
                 "error": "No se pudo confirmar la operación.",
@@ -454,6 +456,9 @@ def crear_transaccion_view(request):
             },
             status=400,
         )
+
+    except Exception:
+        return JsonResponse({"error": "No se pudo confirmar la operación. Intenta más tarde."}, status=500)
 
     transaccion = resultado.transaccion
     payload = {
