@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from cajas.models import Caja
 from cajas.services import registrar_movimiento_automatico
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
@@ -821,15 +822,15 @@ def crear_transaccion(
 
 def liquidar_transaccion(
     *, transaccion_id, periodo_id, usuario_id, username="", roles,
-    cliente_seleccionado_id,
+    cliente_seleccionado_id=None,
 ):
     """Liquida snapshots de la operación y Caja en un único commit, sin IO externo.
 
     Locks: Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. La capa superior
     selecciona y autoriza el período explícito; no existen asignaciones Cajero–Caja.
     El cobro digital de COMPRA no representa un ingreso de efectivo.
-    El Cajero puede omitir cliente_seleccionado_id: se revalida la asociación
-    activa con el cliente de la operación bajo el lock de Transaccion.
+    El CAJERO efectivo actúa como personal operativo: no requiere asociación
+    UsuarioCliente ni contexto de cliente seleccionado.
     """
     usuario_id = _validar_identidad(usuario_id)
     if (
@@ -847,12 +848,7 @@ def liquidar_transaccion(
             )
         except (Transaccion.DoesNotExist, TypeError, ValueError):
             raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
-        if cliente_seleccionado_id is not None and (
-            type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != operacion.cliente_id
-        ):
-            raise ValidationError("El cliente seleccionado no corresponde a la operación.", code="CLIENTE_INCOHERENTE")
-        cliente = _obtener_cliente_activo(operacion.cliente_id)
-        _validar_acceso_usuario_cliente(cliente, usuario_id)
+        _obtener_cliente_activo(operacion.cliente_id)
         if operacion.estado == "COMPLETADA":
             return ResultadoLiquidarTransaccion(operacion, repetida=True)
         if operacion.estado != "PENDIENTE":
@@ -876,6 +872,13 @@ def liquidar_transaccion(
                 raise ValidationError("El pago no corresponde a la obligación.", code="OBLIGACION_CAMBIADA")
             pago.full_clean()
             referencia = pago.referencia_externa
+
+        try:
+            caja = Caja.objects.select_for_update(of=("self",)).get(periodos__pk=periodo_id)
+        except (Caja.DoesNotExist, TypeError, ValueError):
+            raise ValidationError("El período de caja no existe.") from None
+        if caja.estado != "HABILITADA":
+            raise ValidationError("La caja se encuentra deshabilitada.", code="CAJA_DESHABILITADA")
 
         datos = dict(
             periodo_id=periodo_id, usuario_id=usuario_id, username=username,
@@ -1006,17 +1009,19 @@ def listar_metodos_pago_operacion(*, usuario_id, cliente_id):
     return cliente, metodos, preferido
 
 
-def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
+def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None, roles=()):
     """Consulta el historial autorizado de transacciones.
 
-    Un usuario no administrador solo ve transacciones de los clientes
-    asociados con una asociación activa. Es una consulta de solo lectura
+    El CAJERO efectivo consulta globalmente como personal operativo. USUARIO
+    conserva sus asociaciones activas. Es una consulta de solo lectura
     que utiliza los snapshots guardados sin recalcular valores.
 
     Args:
         usuario_id (str): Identidad Keycloak del usuario que consulta.
         es_admin (bool): Indica si el usuario posee el rol de administrador.
         cliente_id (int | None): Limita el historial al cliente seleccionado.
+        roles (list): Roles autenticados; CAJERO efectivo ignora la selección
+            de cliente y consulta globalmente.
 
     Returns:
         list: Transacciones visibles para el usuario.
@@ -1038,12 +1043,15 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
 
     usuario_id = _validar_identidad(usuario_id)
 
+    es_cajero = rol_efectivo(roles) == "CAJERO"
+    if es_cajero:
+        cliente_id = None
     if cliente_id is not None:
         cliente = _obtener_cliente_activo(cliente_id)
         if not es_admin:
             _validar_acceso_usuario_cliente(cliente, usuario_id)
         transacciones = transacciones.filter(cliente=cliente)
-    elif not es_admin:
+    elif not es_admin and not es_cajero:
         transacciones = transacciones.filter(
             cliente__usuarios_asignados__keycloak_user_id=usuario_id,
             cliente__usuarios_asignados__activo=True,
@@ -1058,13 +1066,14 @@ def obtener_detalle_transaccion(
     usuario_id,
     cliente_id=None,
     es_admin=False,
-    permitir_clientes_asociados=False,
+    roles=(),
 ):
     """Obtiene una transacción del cliente seleccionado de forma segura.
 
     La consulta conserva los snapshots históricos y exige que la transacción
     pertenezca al cliente indicado. Para usuarios no administradores también
-    revalida la asociación activa con ese cliente.
+    revalida la asociación activa con ese cliente. El CAJERO efectivo consulta
+    globalmente sin asociación ni selección de cliente.
 
     Args:
         transaccion_id (int): Identificador de la transacción solicitada.
@@ -1072,8 +1081,8 @@ def obtener_detalle_transaccion(
         cliente_id (int | None): Cliente seleccionado y esperado para la
             transacción; el administrador global puede omitirlo.
         es_admin (bool): Permite consultar globalmente sin asociación.
-        permitir_clientes_asociados (bool): Habilita la consulta operativa de
-            Cajero sin cliente seleccionado, manteniendo la asociación activa.
+        roles (list): Roles del contexto autenticado; solo CAJERO efectivo
+            habilita consulta operativa global.
 
     Returns:
         Transaccion: Registro histórico solicitado con sus relaciones.
@@ -1086,12 +1095,15 @@ def obtener_detalle_transaccion(
     """
 
     usuario_id = _validar_identidad(usuario_id)
+    es_cajero = rol_efectivo(roles) == "CAJERO"
+    if es_cajero:
+        cliente_id = None
     cliente = None
     if cliente_id is not None:
         cliente = _obtener_cliente_activo(cliente_id)
         if not es_admin:
             _validar_acceso_usuario_cliente(cliente, usuario_id)
-    elif not es_admin and not permitir_clientes_asociados:
+    elif not es_admin and not es_cajero:
         raise ValidationError(
             {"cliente": "Debe seleccionar un cliente para consultar el detalle."}
         )
@@ -1107,11 +1119,6 @@ def obtener_detalle_transaccion(
                 "tasa_comercial",
                 "metodo_pago",
             )
-            .filter(**({
-                "cliente__usuarios_asignados__keycloak_user_id": usuario_id,
-                "cliente__usuarios_asignados__activo": True,
-                "cliente__estado": "ACTIVO",
-            } if permitir_clientes_asociados and not es_admin else {}))
             .get(
                 pk=transaccion_id,
                 **({"cliente": cliente} if cliente is not None else {}),

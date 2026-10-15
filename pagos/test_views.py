@@ -129,6 +129,7 @@ class _EscenarioHTTP:
 
 class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
     def test_cajero_consulta_pago_sin_selected_client_usuario_no(self):
+        """Cajero sin asociaciones consulta localmente; USUARIO conserva selección y asociación obligatorias."""
         pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)
         for roles, status in ((["CAJERO"], 200), (["USUARIO"], 400)):
             self.autenticar(roles=roles)
@@ -144,8 +145,24 @@ class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
         sesion.pop("selected_client", None)
         sesion[SESSION_USUARIO] = {"sub": "ajeno"}
         sesion.save()
+        UsuarioCliente.objects.all().delete()
+        self.assertEqual(self.client.get(self.url("consultar")).status_code, 200)
+        self.autenticar(roles=["USUARIO"])
         self.assertEqual(self.client.get(self.url("consultar")).status_code, 404)
         self.factory_mock.assert_not_called()
+
+    def test_lectura_cajero_no_amplia_recuperacion_externa(self):
+        """Sin asociación, CAJERO/USUARIO lee Pago pero no recupera externamente ni inicia cobros."""
+        self.crear_pago(self.transaccion, Pago.Estado.ERROR)
+        UsuarioCliente.objects.all().delete()
+        self.autenticar(roles=["CAJERO", "USUARIO"])
+        self.assertEqual(self.client.get(self.url("consultar")).status_code, 200)
+        self.assertEqual(self.post("recuperar").status_code, 404)
+        for accion in ("iniciar", "reintentar"):
+            self.assertEqual(self.post(accion).status_code, 403)
+        self.provider.consultar.assert_not_called()
+        self.provider.conciliar_sin_referencia.assert_not_called()
+        self.provider.iniciar.assert_not_called()
 
     def test_cajero_consulta_pero_no_inicia_ni_reintenta_y_admin_no_opera(self):
         pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)

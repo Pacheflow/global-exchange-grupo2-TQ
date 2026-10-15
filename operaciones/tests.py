@@ -216,21 +216,16 @@ class LiquidarTransaccionTests(EscenarioLiquidacion, TestCase):
         self.assertEqual(operacion.estado, "PENDIENTE")
         self.assertFalse(MovimientoCaja.objects.exists())
 
-    def test_identidad_roles_cliente_y_asociacion_se_validan(self):
+    def test_identidad_rol_efectivo_y_cliente_activo_se_validan(self):
+        """Sin identidad, rol operativo o cliente activo se rechaza sin movimientos."""
         operacion = self.operacion_liquidacion("VENTA")
         for cambios in (
-            {"usuario_id": ""}, {"usuario_id": "otro"}, {"roles": ["ADMINISTRADOR", "CAJERO"]},
+            {"usuario_id": ""}, {"roles": ["ADMINISTRADOR", "CAJERO"]},
             {"roles": ["ANALISTA_CAMBIARIO"]}, {"roles": ["USUARIO"]}, {"roles": None},
-            {"cliente_seleccionado_id": self.cliente.pk + 100},
+            {"roles": ["ANALISTA_CAMBIARIO", "CAJERO"]},
         ):
             with self.subTest(cambios=cambios), self.assertRaises(ValidationError):
                 liquidar_transaccion(**self.argumentos_liquidacion(operacion, **cambios))
-        self.asociacion.activo = False
-        self.asociacion.save()
-        with self.assertRaises(ValidationError):
-            liquidar_transaccion(**self.argumentos_liquidacion(operacion))
-        self.asociacion.activo = True
-        self.asociacion.save()
         self.cliente.estado = "INACTIVO"
         self.cliente.save()
         with self.assertRaises(ValidationError):
@@ -378,11 +373,35 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         })
 
     def test_venta_liquida_correctamente(self):
+        """Cajero sin asociaciones liquida VENTA ajena sin Stripe y repetir no duplica sus dos movimientos."""
         operacion = self.operacion_liquidacion("VENTA")
+        UsuarioCliente.objects.all().delete()
+        sesion = self.client.session
+        sesion.pop("selected_client", None)
+        sesion[SESSION_USUARIO] = {"sub": "cajero-operativo"}
+        sesion.save()
         self.url_liquidar = reverse("operaciones:liquidar_transaccion", args=[operacion.pk])
-        respuesta = self.post_liquidar()
+        with mock.patch("pagos.stripe_provider.StripePaymentProvider._cliente") as proveedor:
+            respuesta = self.post_liquidar()
+            self.assertTrue(self.post_liquidar().json()["repetida"])
+            proveedor.assert_not_called()
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.json(), {"transaccion_id": operacion.pk, "estado": "COMPLETADA", "repetida": False})
+        self.assertEqual(MovimientoCaja.objects.count(), 2)
+        self.assertFalse(Pago.objects.filter(transaccion=operacion).exists())
+
+    def test_caja_deshabilitada_rechaza_post_directo_sin_efectos(self):
+        """Aunque exista período abierto, una caja deshabilitada rechaza liquidación y conserva Pago y operación."""
+        UsuarioCliente.objects.all().delete()
+        Caja.objects.filter(pk=self.caja_liquidacion.pk).update(estado="DESHABILITADA")
+        respuesta = self.post_liquidar()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json()["codigo"], "CAJA_DESHABILITADA")
+        self.operacion_http.refresh_from_db()
+        self.pago_http.refresh_from_db()
+        self.assertEqual(self.operacion_http.estado, "PENDIENTE")
+        self.assertEqual(self.pago_http.estado, Pago.Estado.APROBADO)
+        self.assertFalse(MovimientoCaja.objects.exists())
 
     def test_repeticion_devuelve_repetida(self):
         self.assertEqual(self.post_liquidar().status_code, 200)
@@ -416,31 +435,23 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         servicio.assert_not_called()
 
     def test_cajero_liquida_sin_contexto_de_cliente_seleccionado(self):
+        """Cajero sin asociaciones ni cliente liquida una compra ajena aprobada una sola vez."""
+        UsuarioCliente.objects.all().delete()
         sesion = self.client.session
         sesion.pop("selected_client", None)
+        sesion[SESSION_USUARIO] = {"sub": "cajero-operativo", "preferred_username": "cajero"}
         sesion.save()
         self.assertEqual(self.post_liquidar().status_code, 200)
+        self.assertTrue(self.post_liquidar().json()["repetida"])
         self.assertEqual(MovimientoCaja.objects.count(), 1)
 
-    def test_no_autorizada_e_inexistente_devuelven_mismo_404(self):
-        sesion = self.client.session
-        sesion[SESSION_USUARIO] = {"sub": "sin-asociacion"}
-        sesion.save()
-        denegada = self.post_liquidar()
-        self.autenticar_liquidacion(self.client)
+    def test_inexistente_y_permiso_denegado_devuelven_error_controlado(self):
+        """Operación ausente o denegación del servicio producen el mismo 404 sin detalles internos."""
         inexistente = self.client.post(
             reverse("operaciones:liquidar_transaccion", args=[999999]),
             {"periodo_id": self.periodo_liquidacion.pk}, content_type="application/json",
         )
-        self.assertEqual(denegada.status_code, 404)
         self.assertEqual(inexistente.status_code, 404)
-        self.assertEqual(denegada.json(), inexistente.json())
-        sesion = self.client.session
-        sesion["selected_client"] = {"id": self.cliente.pk + 100}
-        sesion.save()
-        self.asociacion.activo = False
-        self.asociacion.save()
-        self.assertEqual(self.post_liquidar().json(), inexistente.json())
         with mock.patch("operaciones.views.liquidar_transaccion", side_effect=PermissionDenied("Interno")):
             self.assertEqual(self.post_liquidar().json(), inexistente.json())
 
@@ -493,13 +504,15 @@ class LiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         self.assertFalse(MovimientoCaja.objects.exists())
 
     def test_autenticacion_roles_metodo_y_csrf_se_conservan(self):
+        """Sin sesión, con rol superior o sin CSRF se rechaza POST; GET no liquida."""
         anonimo = Client()
         self.assertEqual(anonimo.post(self.url_liquidar, {}, content_type="application/json").status_code, 401)
         self.assertEqual(self.client.get(self.url_liquidar).status_code, 405)
-        sesion = self.client.session
-        sesion[SESSION_ROLES] = ["ADMINISTRADOR", "CAJERO"]
-        sesion.save()
-        self.assertEqual(self.post_liquidar().status_code, 403)
+        for roles in (["ADMINISTRADOR", "CAJERO"], ["ANALISTA_CAMBIARIO", "CAJERO"]):
+            sesion = self.client.session
+            sesion[SESSION_ROLES] = roles
+            sesion.save()
+            self.assertEqual(self.post_liquidar().status_code, 403)
         estricto = Client(enforce_csrf_checks=True)
         self.autenticar_liquidacion(estricto)
         self.assertEqual(estricto.post(self.url_liquidar, {"periodo_id": 1}, content_type="application/json").status_code, 403)
@@ -607,22 +620,19 @@ class PeriodosLiquidacionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
                 sesion.save()
                 self.assertEqual(self.client.get(self.url_periodos).status_code, 200)
 
-    def test_no_autorizada_e_inexistente_son_indistinguibles(self):
+    def test_catalogo_sin_asociacion_y_operacion_inexistente(self):
+        """Cajero sin asociaciones consulta períodos; una operación inexistente conserva su 404."""
         inexistente = self.client.get(reverse("operaciones:periodos_liquidacion", args=[999999]))
         self.assertEqual(inexistente.status_code, 404)
-        self.asociacion.activo = False
-        self.asociacion.save()
-        denegada = self.client.get(self.url_periodos)
-        self.assertEqual(denegada.status_code, 404)
-        self.assertEqual(denegada.json(), inexistente.json())
-        self.asociacion.activo = True
-        self.asociacion.save()
+        UsuarioCliente.objects.all().delete()
         sesion = self.client.session
         sesion[SESSION_USUARIO] = {"sub": "sin-asociacion"}
         sesion.save()
-        denegada = self.client.get(self.url_periodos)
-        self.assertEqual(denegada.status_code, 404)
-        self.assertEqual(denegada.json(), inexistente.json())
+        sesion.pop("selected_client", None)
+        sesion.save()
+        respuesta = self.client.get(self.url_periodos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()["periodos"][0]["periodo_id"], self.periodo_liquidacion.pk)
 
     def test_get_solo_lee_sin_locks_saldos_ni_proveedor(self):
         # Cero fondos no excluye un período: este catálogo no autoriza el egreso.
