@@ -58,10 +58,12 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         )
         return cliente
 
-    def test_bandeja_cajero_todos_asociados_sin_cliente_seleccionado(self):
+    def test_bandeja_y_detalle_cajero_sin_asociaciones_ni_cliente(self):
+        """Cajero sin asociaciones ni selección ve las operaciones y el detalle de todos los clientes."""
         otro = self.crear_cliente_asociado()
         primero = self.crear().transaccion
         segundo = self.crear(cliente_id=otro.pk).transaccion
+        UsuarioCliente.objects.all().delete()
         self.autenticar(roles=("CAJERO", "USUARIO"))
         sesion = self.client.session
         sesion.pop("selected_client", None)
@@ -75,13 +77,12 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertContains(pagina, "Bandeja operativa")
         self.assertNotContains(pagina, "Nueva operación")
         self.assertNotContains(pagina, "Seleccioná un cliente para operar")
-        UsuarioCliente.objects.filter(cliente=otro).update(activo=False)
         datos = self.client.get(url).json()["transacciones"]
-        self.assertEqual({tx["id"] for tx in datos}, {primero.pk})
+        self.assertEqual({tx["id"] for tx in datos}, {primero.pk, segundo.pk})
         detalle = self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk]))
-        self.assertEqual(detalle.status_code, 404)
+        self.assertEqual(detalle.status_code, 200)
         inexistente = self.client.get(reverse("operaciones:detalle_transaccion", args=[999999]))
-        self.assertEqual(detalle.json(), inexistente.json())
+        self.assertEqual(inexistente.status_code, 404)
 
     def test_usuario_sigue_requiriendo_cliente_para_historial_y_detalle(self):
         tx = self.crear().transaccion
@@ -93,6 +94,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[tx.pk])).status_code, 400)
 
     def test_bandeja_e_historial_cajero_separan_estados_y_clientes(self):
+        """Sin asociaciones, la bandeja incluye pendientes globales y el historial solo completadas/canceladas."""
         from django.utils import timezone
         from .models import Transaccion
         segundo = self.crear_cliente_asociado()
@@ -107,9 +109,8 @@ class FlujosGuillermoTests(BaseOperacionesTests):
                         cancelado_por_username=self.usuario_username,
                         cancelado_en=timezone.now(), motivo_cancelacion="Prueba histórica")
                 Transaccion.objects.filter(pk=tx.pk).update(**campos)
-                if cliente != excluido:
-                    esperados[estado].add(tx.pk)
-        UsuarioCliente.objects.filter(cliente=excluido).update(activo=False)
+                esperados[estado].add(tx.pk)
+        UsuarioCliente.objects.all().delete()
         self.autenticar(roles=("CAJERO", "USUARIO"))
         sesion = self.client.session
         sesion.pop("selected_client", None)

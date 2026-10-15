@@ -44,7 +44,7 @@ def periodos_liquidacion_view(request, transaccion_id):
     try:
         operacion = obtener_detalle_transaccion(
             transaccion_id=transaccion_id, usuario_id=usuario_id,
-            cliente_id=cliente_id, es_admin=False, permitir_clientes_asociados=True,
+            cliente_id=cliente_id, es_admin=False, roles=request.session.get(SESSION_ROLES, []),
         )
     except (ValidationError, PermissionDenied):
         return JsonResponse({"error": "La transacción solicitada no está disponible."}, status=404)
@@ -85,6 +85,7 @@ def _error_liquidacion(error):
         "PAGO_NO_APROBADO": "La compra requiere un pago aprobado.",
         "OPERACION_NO_PENDIENTE": "La operación no permite liquidación.",
         "OBLIGACION_CAMBIADA": "El pago no corresponde a la obligación de la operación.",
+        "CAJA_DESHABILITADA": "La caja se encuentra deshabilitada.",
     }
     if codigo in mensajes:
         return JsonResponse({"error": mensajes[codigo], "codigo": codigo}, status=400)
@@ -569,7 +570,7 @@ def metodos_pago_operacion_view(request):
 @require_GET
 @requiere_alguno_de_roles(*ROLES_HISTORIAL)
 def historial_transacciones_view(request):
-    """Consulta el historial del cliente o el historial global administrativo."""
+    """USUARIO consulta su cliente; ADMINISTRADOR y CAJERO tienen consulta global."""
 
     usuario_id, _ = _usuario_sesion(request)
     if not usuario_id:
@@ -594,6 +595,7 @@ def historial_transacciones_view(request):
             usuario_id=usuario_id,
             es_admin=es_admin,
             cliente_id=cliente_id,
+            roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -650,7 +652,7 @@ def detalle_transaccion_view(request, transaccion_id):
             usuario_id=usuario_id,
             cliente_id=cliente_id,
             es_admin=es_admin,
-            permitir_clientes_asociados=es_cajero,
+            roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
         return JsonResponse(

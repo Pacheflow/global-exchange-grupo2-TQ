@@ -83,6 +83,10 @@ def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, *, roles
     usuario_id = usuario_id.strip()
     rol = rol_efectivo(roles)
     consulta_cajero = permitir_sin_cliente and rol == "CAJERO"
+    # Solo la lectura local es operativa global. Recuperar externamente conserva
+    # el cliente seleccionado y la asociación RESPONSABLE/OPERADOR existentes.
+    if consulta_cajero and rol in roles_permitidos and transaccion.cliente.estado == "ACTIVO":
+        return usuario_id
     if (
         rol not in roles_permitidos
         or (not (consulta_cajero and cliente_seleccionado_id is None)

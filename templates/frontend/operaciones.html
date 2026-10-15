@@ -28,7 +28,7 @@
       <div>
         <span class="ge-frontend-eyebrow">{% if es_supervisor %}Supervisión global{% elif es_historial_cajero %}Consulta histórica{% elif puede_liquidar %}Procesamiento de operaciones{% else %}Compra y venta de divisas{% endif %}</span>
         <h2 class="ge-frontend-h2">{% if es_historial_cajero %}Historial de operaciones{% else %}Operaciones{% endif %}</h2>
-        <p class="ge-frontend-subtitle">{% if es_supervisor %}Consultá el historial completo y la trazabilidad de las operaciones registradas.{% elif es_historial_cajero %}COMPRA y VENTA completadas o canceladas de tus clientes asociados.{% elif puede_liquidar %}Consultá y liquidá las operaciones pendientes de tus clientes asociados.{% else %}Previsualizá los valores vigentes antes de confirmar y consultá las transacciones registradas.{% endif %}</p>
+        <p class="ge-frontend-subtitle">{% if es_supervisor %}Consultá el historial completo y la trazabilidad de las operaciones registradas.{% elif es_historial_cajero %}COMPRA y VENTA completadas o canceladas de los clientes de la casa de cambio.{% elif puede_liquidar %}Consultá y liquidá las operaciones pendientes de los clientes de la casa de cambio.{% else %}Previsualizá los valores vigentes antes de confirmar y consultá las transacciones registradas.{% endif %}</p>
       </div>
     </div>
 
@@ -40,7 +40,7 @@
         <p>No necesitás seleccionar un cliente. Este perfil permite consultar todas las operaciones, pero no crear compras o ventas.</p>
       </section>
     {% elif es_cajero %}
-      <section class="ge-card ge-card--pad24"><strong>{% if es_historial_cajero %}Historial de operaciones{% else %}Bandeja operativa{% endif %}</strong><p>{% if es_historial_cajero %}Operaciones finalizadas de todos tus clientes con asociación activa. Consulta de solo lectura.{% else %}Operaciones pendientes de todos tus clientes con asociación activa. Consultá el detalle para liquidar una operación elegible.{% endif %}</p></section>
+      <section class="ge-card ge-card--pad24"><strong>{% if es_historial_cajero %}Historial de operaciones{% else %}Bandeja operativa{% endif %}</strong><p>{% if es_historial_cajero %}Operaciones finalizadas de los clientes de la casa de cambio. Consulta de solo lectura.{% else %}Operaciones pendientes de los clientes de la casa de cambio. Consultá el detalle para liquidar una operación elegible.{% endif %}</p></section>
     {% elif cliente_operacion %}
       <section class="ge-client-context ge-card" aria-label="Cliente seleccionado">
         <div>
@@ -145,7 +145,7 @@
       <div class="ge-history-head">
         <div>
           <h3 id="historial-title">{% if es_historial_cajero %}Historial de operaciones{% elif es_cajero %}Operaciones pendientes{% else %}Historial de transacciones{% endif %}</h3>
-          <p>{% if es_supervisor %}Todas las operaciones registradas en la plataforma.{% else %}Operaciones disponibles para tus clientes asociados.{% endif %}</p>
+          <p>{% if es_supervisor %}Todas las operaciones registradas en la plataforma.{% elif es_cajero %}Operaciones de los clientes de la casa de cambio.{% else %}Operaciones disponibles para tus clientes asociados.{% endif %}</p>
         </div>
         <button type="button" class="ge-btn-ghost" data-reload-history>Actualizar</button>
       </div>
