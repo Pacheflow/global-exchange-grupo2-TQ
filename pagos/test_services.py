@@ -39,7 +39,7 @@ class PagoServiceTests(TransactionTestCase):
         self.destino, _ = Moneda.objects.get_or_create(
             codigo="PYG", defaults={"nombre": "Guaraní", "simbolo": "Gs"},
         )
-        self.metodo = MetodoPago.objects.create(nombre="Método servicio pagos")
+        self.metodo = MetodoPago.objects.create(nombre="Método servicio pagos", naturaleza="ELECTRONICO")
         self.tasa = TasaComercial.objects.create(
             moneda_origen=self.origen, moneda_destino=self.destino,
             compra=Decimal("7000"), venta=Decimal("7200"), vigente=True,
@@ -93,6 +93,43 @@ class PagoServiceTests(TransactionTestCase):
             self.provider.iniciar.side_effect = TimeoutError("contenido externo ficticio")
         iniciar_pago(**self.argumentos())
         return Pago.objects.get(transaccion=self.transaccion)
+
+    def test_naturaleza_bloquea_cobros_nuevos_pero_no_evidencia_ni_reutilizacion(self):
+        """Efectivo/sin clasificar nunca cobran; Pago existente conserva consulta, recuperación y reutilización."""
+        from .services import consultar_estado_pago
+        for naturaleza in ("EFECTIVO", "SIN_CLASIFICAR"):
+            with self.subTest(naturaleza=naturaleza):
+                MetodoPago.objects.filter(pk=self.metodo.pk).update(naturaleza=naturaleza)
+                with self.assertRaises(ValidationError) as error:
+                    iniciar_pago(**self.argumentos())
+                self.assertEqual(error.exception.code, "METODO_NO_ELECTRONICO")
+                self.assertFalse(Pago.objects.exists())
+                self.provider.iniciar.assert_not_called()
+        MetodoPago.objects.filter(pk=self.metodo.pk).update(naturaleza="ELECTRONICO")
+        aprobado = iniciar_pago(**self.argumentos())
+        MetodoPago.objects.filter(pk=self.metodo.pk).update(naturaleza="EFECTIVO", activo=False)
+        self.assertEqual(iniciar_pago(**self.argumentos()).pago_id, aprobado.pago_id)
+        self.assertEqual(reintentar_pago(**self.argumentos()).pago_id, aprobado.pago_id)
+        contexto = {k: v for k, v in self.argumentos().items() if k != "provider"}
+        self.assertEqual(consultar_estado_pago(**contexto).estado, EstadoPago.APROBADO)
+        self.assertEqual(recuperar_pago(**self.argumentos()).estado, EstadoPago.APROBADO)
+        self.provider.iniciar.assert_called_once()
+
+    def test_error_no_puede_reintentar_con_metodo_no_electronico(self):
+        """Un nuevo intento desde ERROR exige método electrónico; no altera Pago ni trazabilidad si no lo es."""
+        self.provider.iniciar.side_effect = None
+        self.provider.iniciar.return_value = ResultadoPago(EstadoPago.ERROR, CodigoResultado.ERROR_SIN_EJECUCION)
+        iniciar_pago(**self.argumentos())
+        pago = Pago.objects.get()
+        traza = list(pago.trazabilidad)
+        MetodoPago.objects.filter(pk=self.metodo.pk).update(naturaleza="SIN_CLASIFICAR")
+        with self.assertRaises(ValidationError) as error:
+            reintentar_pago(**self.argumentos())
+        self.assertEqual(error.exception.code, "METODO_NO_ELECTRONICO")
+        pago.refresh_from_db()
+        self.assertEqual(pago.trazabilidad, traza)
+        self.assertEqual(pago.estado, "ERROR")
+        self.provider.iniciar.assert_called_once()
 
     def test_cajero_no_puede_reintentar_sin_invocar_proveedor(self):
         for roles in (["CAJERO"], ["CAJERO", "USUARIO"], ["ADMINISTRADOR", "USUARIO"]):

@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from clientes.models import UsuarioCliente
 from cajas.services import hay_disponibilidad
+from metodos_pago.models import MetodoPago
 from operaciones.models import Transaccion
 from usuarios.services.keycloak import rol_efectivo
 
@@ -110,8 +111,18 @@ def _elegible(transaccion):
         raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
     if transaccion.estado != "PENDIENTE":
         raise ValidationError("La operación debe estar pendiente.", code="OPERACION_NO_PENDIENTE")
-    if not transaccion.metodo_pago.activo:
+
+
+def _validar_metodo_cobro(transaccion):
+    """Revalida un nuevo intento bajo lock, nunca reinterpreta un Pago existente."""
+    metodo = MetodoPago.objects.select_for_update().get(pk=transaccion.metodo_pago_id)
+    if not metodo.activo:
         raise ValidationError("El método de pago no está habilitado.", code="METODO_INACTIVO")
+    if metodo.naturaleza != MetodoPago.Naturaleza.ELECTRONICO:
+        mensaje = ("El procesamiento en efectivo todavía no está disponible."
+                   if metodo.naturaleza == MetodoPago.Naturaleza.EFECTIVO
+                   else "El método requiere clasificación antes de iniciar un pago electrónico.")
+        raise ValidationError(mensaje, code="METODO_NO_ELECTRONICO")
 
 
 def _validar_snapshots(transaccion, pago):
@@ -299,6 +310,7 @@ def iniciar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, 
         if pago is not None:
             _validar_snapshots(transaccion, pago)
             return _respuesta(pago, reutilizado=True)
+        _validar_metodo_cobro(transaccion)
         _validar_disponibilidad(transaccion)
         pago = Pago(
             transaccion=transaccion, metodo_pago=transaccion.metodo_pago, proveedor=PROVEEDOR_TEST,
@@ -326,6 +338,7 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
             return _respuesta(pago, reutilizado=True)
         if pago.referencia_externa is not None:
             raise ValidationError("El pago requiere recuperación.", code="REQUIERE_RECUPERACION")
+        _validar_metodo_cobro(transaccion)
         _validar_disponibilidad(transaccion)
         _asegurar_espacio(pago)
         pago.estado = Pago.Estado.EN_PROCESO
