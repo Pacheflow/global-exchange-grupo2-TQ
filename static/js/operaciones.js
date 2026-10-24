@@ -19,9 +19,15 @@
     detailVersion: 0,
     paymentVersion: 0,
     paymentPending: {},
+    methodsLoading: false,
+    methodsVersion: 0,
+    confirmationPending: false,
+    confirmationPayload: null,
+    selectedMethod: null,
     paymentStatus: null,
     liquidationVersion: 0,
     liquidationLoading: false,
+    liquidationPeriods: [],
     liquidationPending: {},
     liquidationUncertain: {},
     liquidationErrors: {}
@@ -156,6 +162,7 @@
     state.preview = null;
     state.payload = null;
     state.idempotencyKey = null;
+    state.confirmationPayload = null;
     if (previewCard) previewCard.hidden = true;
   }
 
@@ -171,21 +178,56 @@
     };
   }
 
-  function loadPaymentMethods() {
-    if (!form || !page.dataset.methodsUrl) return;
-    var select = form.elements.metodo_pago_id;
-    apiRequest(page.dataset.methodsUrl, { credentials: 'same-origin' }).then(function (data) {
+  function loadPaymentMethods(aviso) {
+    if (!page.dataset.methodsUrl) return;
+    var initial = document.querySelector('[data-new-method]');
+    var select = document.querySelector('[data-confirm-method]');
+    var button = document.querySelector('[data-confirm-operation]');
+    if (state.selectedMethod === null && initial && initial.value) state.selectedMethod = initial.value;
+    var version = ++state.methodsVersion;
+    state.methodsLoading = true;
+    select.disabled = true;
+    if (initial) initial.disabled = true;
+    button.disabled = true;
+    page.querySelector('[data-open-confirm]').disabled = true;
+    if (form) form.querySelector('[data-preview-button]').disabled = true;
+    document.querySelector('[data-confirm-message]').textContent = aviso || 'Consultando métodos disponibles…';
+    return apiRequest(page.dataset.methodsUrl, { credentials: 'same-origin' }).then(function (data) {
+      if (state.methodsVersion !== version) return;
       var preferred = data.metodo_pago_preferido && data.metodo_pago_preferido.id;
-      select.innerHTML = '<option value="">Seleccionar método</option>' +
-        (data.metodos_pago || []).map(function (method) {
-          var selected = method.id === preferred ? ' selected' : '';
-          var suffix = method.id === preferred ? ' · Preferido' : '';
-          return '<option value="' + escapeHtml(method.id) + '"' + selected + '>' +
-            escapeHtml(method.nombre + suffix) + '</option>';
-        }).join('');
+      var methods = data.metodos_pago || [];
+      var chosen = state.selectedMethod === null && !aviso ? String(preferred || '') : state.selectedMethod;
+      chosen = methods.some(function (method) { return String(method.id) === chosen; }) ? chosen : '';
+      select.innerHTML = '<option value="">Seleccionar método</option>' + methods.map(function (method) {
+        return '<option value="' + escapeHtml(method.id) + '"' + (String(method.id) === chosen ? ' selected' : '') + '>' + escapeHtml(method.nombre) + '</option>';
+      }).join('');
+      select.value = chosen;
+      state.selectedMethod = chosen;
+      if (initial) { initial.innerHTML = select.innerHTML; initial.value = chosen; }
+      state.methodsLoading = false;
+      select.disabled = !methods.length || state.confirmationPending;
+      if (initial) initial.disabled = select.disabled;
+      button.disabled = select.disabled || !select.value;
+      page.querySelector('[data-open-confirm]').disabled = button.disabled;
+      if (form) form.querySelector('[data-preview-button]').disabled = !methods.length;
+      document.querySelector('[data-confirm-message]').textContent = [aviso, !methods.length ? 'No hay métodos de pago habilitados disponibles.' : ''].filter(Boolean).join(' ');
+      if (initial) document.querySelector('[data-new-method-message]').textContent = document.querySelector('[data-confirm-message]').textContent;
     }).catch(function (error) {
-      showFeedback(error.message, 'error');
+      if (state.methodsVersion !== version) return;
+      state.methodsLoading = false;
+      document.querySelector('[data-confirm-message]').textContent = [aviso, error.message].filter(Boolean).join(' ');
     });
+  }
+
+  function syncMethodSelection(select) {
+    if (state.confirmationPending || state.confirmationPayload) return;
+    state.selectedMethod = select.value;
+    var initial = document.querySelector('[data-new-method]');
+    if (initial) initial.value = select.value;
+    document.querySelector('[data-confirm-method]').value = select.value;
+    var disabled = state.methodsLoading || !select.value;
+    document.querySelector('[data-confirm-operation]').disabled = disabled;
+    page.querySelector('[data-open-confirm]').disabled = disabled;
   }
 
   function renderPreview(preview) {
@@ -197,7 +239,12 @@
     setField('convertido', formatAmount(preview.monto_convertido, preview.moneda_destino.codigo));
     setField('comision', formatAmount(preview.importe_comision, preview.moneda_destino.codigo) + ' (' + formatNumber(preview.porcentaje_comision) + '%)');
     setField('destino', formatAmount(preview.monto_destino, preview.moneda_destino.codigo));
-    setField('metodo', preview.metodo_pago.nombre);
+    var initial = document.querySelector('[data-new-method]');
+    var select = document.querySelector('[data-confirm-method]');
+    select.innerHTML = initial.innerHTML;
+    select.disabled = initial.disabled;
+    syncMethodSelection(initial);
+    document.querySelector('[data-confirm-method-label]').textContent = preview.tipo === 'VENTA' ? 'Medio de recepción' : 'Método de pago';
     previewCard.hidden = false;
     previewCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -206,26 +253,30 @@
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
       return window.crypto.randomUUID();
     }
-    return 'web-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.floor(Math.random() * 16);
+      return (c === 'x' ? r : (r & 3) | 8).toString(16);
+    });
   }
 
   function openConfirmation() {
-    if (!state.preview || !state.payload) return;
+    if (!state.preview || !state.payload || state.methodsLoading || !document.querySelector('[data-confirm-method]').value) return;
     // La misma clave se conserva si el usuario reintenta esta confirmación.
     if (!state.idempotencyKey) state.idempotencyKey = createIdempotencyKey();
-    var summary = document.querySelector('[data-confirm-summary]');
-    summary.textContent = (state.preview.tipo === 'COMPRA' ? 'Compra' : 'Venta') + ': ' +
-      formatAmount(state.preview.monto_origen, state.preview.moneda_origen.codigo) + ' por ' +
-      formatAmount(state.preview.monto_destino, state.preview.moneda_destino.codigo) + '.';
+    document.querySelector('[data-confirm-method-label]').textContent = state.preview.tipo === 'VENTA' ? 'Medio de recepción' : 'Método de pago';
     window.GEApp.openModal('confirmar-operacion');
   }
 
   function confirmOperation(event) {
     var button = event.currentTarget;
-    if (!state.preview || !state.payload || button.disabled) return;
+    if (!state.preview || !state.payload || button.disabled || state.confirmationPending || state.methodsLoading) return;
     if (!state.idempotencyKey) state.idempotencyKey = createIdempotencyKey();
 
-    var payload = Object.assign({}, state.payload, {
+    var select = document.querySelector('[data-confirm-method]');
+    if (!state.confirmationPayload && !select.value) return;
+    var payload = state.confirmationPayload || Object.assign({}, state.payload, {
+      metodo_pago_id: Number(select.value),
+      firma_preview: state.preview.firma_preview,
       clave_idempotencia: state.idempotencyKey,
       version_preview: state.preview.tasa_comercial.version,
       tasa_preview: state.preview.tasa,
@@ -233,6 +284,12 @@
       porcentaje_comision_preview: state.preview.porcentaje_comision
     });
 
+    state.confirmationPayload = payload;
+    state.confirmationPending = true;
+    select.disabled = true;
+    var initial = document.querySelector('[data-new-method]');
+    if (initial) initial.disabled = true;
+    var recargarMetodos = null;
     setBusy(button, true, 'Confirmando…');
     post(page.dataset.createUrl, payload).then(function (data) {
       window.GEApp.closeModal('confirmar-operacion');
@@ -244,13 +301,22 @@
       window.GEApp.toast('Operación' + statusMessage, 'success');
       invalidatePreview();
       loadHistory();
-      if (data.transaccion.tipo === 'COMPRA') showDetail(data.transaccion);
+      showDetail(data.transaccion);
     }).catch(function (error) {
+      if (error.status === 400 && error.codigo === 'METODO_NO_DISPONIBLE') {
+        recargarMetodos = error.message;
+        state.confirmationPayload = null;
+        state.selectedMethod = '';
+      }
       if (error.codigo === 'DISPONIBILIDAD_INSUFICIENTE') window.GEApp.closeModal('confirmar-operacion');
       showFeedback(error.message, 'error');
       window.GEApp.toast(error.message, 'error');
     }).finally(function () {
+      state.confirmationPending = false;
       setBusy(button, false);
+      select.disabled = Boolean(state.confirmationPayload);
+      if (initial) initial.disabled = select.disabled;
+      if (recargarMetodos) loadPaymentMethods(recargarMetodos);
     });
   }
 
@@ -269,7 +335,8 @@
       if (page.dataset.operativeInbox === 'true') {
         var liquidable = transaction.estado === 'PENDIENTE' &&
           (transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && transaction.pago_estado === 'APROBADO'));
-        var payment = transaction.tipo === 'VENTA' ? 'No aplica' : (transaction.pago_estado || 'Pago no iniciado');
+        var payment = isCash(transaction) || transaction.liquidacion_efectivo ? cashPaymentLabel(transaction)
+          : transaction.tipo === 'VENTA' ? 'No aplica' : (transaction.pago_estado || 'Pago no iniciado');
         return '<tr><td>#' + escapeHtml(transaction.id) + '</td><td>' + escapeHtml(transaction.cliente.nombre_razon_social) +
           '</td><td>' + escapeHtml(transaction.tipo) + '</td><td>' + escapeHtml(formatAmount(transaction.monto_origen, transaction.moneda_origen.codigo)) +
           '</td><td>' + escapeHtml(formatAmount(transaction.monto_destino, transaction.moneda_destino.codigo)) +
@@ -318,10 +385,16 @@
       detailItem('Monto convertido', formatAmount(transaction.monto_convertido, transaction.moneda_destino.codigo)) +
       detailItem('Comisión', formatAmount(transaction.importe_comision, transaction.moneda_destino.codigo) + ' (' + formatNumber(transaction.porcentaje_comision) + '%)') +
       detailItem('Monto final', formatAmount(transaction.monto_destino, transaction.moneda_destino.codigo)) +
-      detailItem('Método de pago', transaction.metodo_pago.nombre) +
+      detailItem(transaction.tipo === 'VENTA' ? 'Medio de recepción' : 'Método de pago', transaction.metodo_pago.nombre) +
       detailItem('Creada por', transaction.creado_por.username || transaction.creado_por.keycloak_id) +
       detailItem('Fecha de creación', formatDate(transaction.fecha_creacion)) +
       detailItem('Última actualización', formatDate(transaction.fecha_actualizacion));
+    if (transaction.liquidacion_efectivo) {
+      var cash = transaction.liquidacion_efectivo;
+      html += detailItem('Intercambio físico simulado', cash.caja + ' · Período ' + cash.periodo_id) +
+        detailItem('Confirmado por', cash.confirmado_por) + detailItem('Fecha del intercambio', formatDate(cash.fecha)) +
+        detailItem('Movimientos', 'Ingreso #' + cash.ingreso_id + ' · Egreso #' + cash.egreso_id);
+    }
 
     if (transaction.estado === 'CANCELADA') {
       html += detailItem('Cancelada por', cancellation.cancelado_por_username || cancellation.cancelado_por_keycloak_id) +
@@ -365,14 +438,23 @@
       ERROR: 'ERROR_SIN_EJECUCION', INDETERMINADO: 'RESULTADO_DESCONOCIDO'
     };
     var known = Object.prototype.hasOwnProperty.call(messages, status) && data.codigo === codes[status];
-    document.querySelector('[data-payment-state]').textContent = known ? status : '';
+    document.querySelector('[data-payment-state]').textContent = known ? (status === 'PAGO_NO_INICIADO' ? 'Pago no iniciado' : status) : '';
     document.querySelector('[data-payment-message]').textContent = known
-      ? messages[status] : 'Estado de pago no disponible.';
+      ? (status === 'PAGO_NO_INICIADO' ? '' : messages[status]) : 'Estado de pago no disponible.';
     var actions = document.querySelector('[data-payment-actions]');
     actions.replaceChildren();
     actions.hidden = true;
     if (!known || !transaction || transaction.tipo !== 'COMPRA' ||
         transaction.estado !== 'PENDIENTE' || page.dataset.canViewPayment !== 'true') return;
+    if (status === 'PAGO_NO_INICIADO' && transaction.metodo_pago &&
+        (!transaction.metodo_pago.activo || transaction.metodo_pago.naturaleza !== 'ELECTRONICO')) {
+      document.querySelector('[data-payment-message]').textContent = !transaction.metodo_pago.activo
+        ? 'El método está inactivo. No se puede iniciar un nuevo pago para esta operación.'
+        : transaction.metodo_pago.naturaleza === 'EFECTIVO'
+          ? 'El procesamiento en efectivo todavía no está disponible.'
+          : 'El método requiere clasificación antes de iniciar un pago electrónico.';
+      return;
+    }
     var options = {
       PAGO_NO_INICIADO: ['start', 'Iniciar pago'],
       ERROR: ['retry', 'Reintentar pago'],
@@ -418,7 +500,7 @@
       if (data.estado === 'APROBADO') loadPayment(state.detailTransaction, version);
     }).catch(function (error) {
       if (!isCurrentDetail(id, version)) return;
-      if (error.status === 400 && error.codigo === 'DISPONIBILIDAD_INSUFICIENTE') {
+      if (error.status === 400 && ['DISPONIBILIDAD_INSUFICIENTE', 'METODO_INACTIVO', 'METODO_NO_ELECTRONICO'].indexOf(error.codigo) !== -1) {
         document.querySelector('[data-payment-message]').textContent = error.message;
         return;
       }
@@ -436,8 +518,24 @@
     });
   }
 
+  function isCash(transaction) {
+    return Boolean(transaction && transaction.metodo_pago && transaction.metodo_pago.naturaleza === 'EFECTIVO');
+  }
+
+  function cashPaymentLabel(transaction) {
+    return transaction.liquidacion_efectivo ? 'Aprobado' : 'Pendiente';
+  }
+
   function loadPayment(transaction, version, preserveLiquidationMessage) {
     var section = document.querySelector('[data-payment-section]');
+    if (isCash(transaction) || transaction.liquidacion_efectivo) {
+      section.hidden = false;
+      document.querySelector('[data-payment-actions]').replaceChildren();
+      document.querySelector('[data-payment-state]').textContent = cashPaymentLabel(transaction);
+      document.querySelector('[data-payment-message]').textContent = 'La recepción y entrega físicas se simulan únicamente al confirmar el intercambio. No utiliza Stripe.';
+      if (!preserveLiquidationMessage && transaction.tipo === 'COMPRA') loadLiquidation();
+      return;
+    }
     if (transaction.tipo !== 'COMPRA' || page.dataset.canViewPayment !== 'true') return;
     state.paymentStatus = null;
     if (!preserveLiquidationMessage) document.querySelector('[data-liquidation-section]').hidden = true;
@@ -507,15 +605,18 @@
     var transaction = state.detailTransaction;
     return transaction && transaction.id === state.detailId && transaction.estado === 'PENDIENTE' &&
       page.dataset.canLiquidate === 'true' &&
-      (transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && state.paymentStatus === 'APROBADO'));
+      (isCash(transaction) || transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && state.paymentStatus === 'APROBADO'));
   }
 
   function liquidationControls() {
     var busy = Boolean(state.liquidationPending[state.detailId] || state.liquidationUncertain[state.detailId]);
     var select = document.querySelector('[data-liquidation-period]');
+    var cash = isCash(state.detailTransaction);
+    var selectedPeriod = state.liquidationPeriods.find(function (period) { return String(period.periodo_id) === select.value; });
     select.disabled = busy || state.liquidationLoading || select.options.length <= 1;
     document.querySelector('[data-liquidation-submit]').disabled = busy || state.liquidationLoading ||
-      !canLiquidate() || !select.value;
+      !canLiquidate() || !select.value || (cash && (!selectedPeriod || !selectedPeriod.disponible));
+    if (!state.liquidationPending[state.detailId]) document.querySelector('[data-liquidation-submit]').textContent = cash ? 'Confirmar intercambio en efectivo' : 'Liquidar operación';
     document.querySelector('[data-liquidation-refresh]').disabled = state.liquidationLoading;
   }
 
@@ -540,12 +641,19 @@
     section.hidden = !canLiquidate();
     renderLiquidationError();
     if (section.hidden) return;
+    if (isCash(state.detailTransaction)) {
+      var tx = state.detailTransaction;
+      document.querySelector('[data-cash-summary]').hidden = false;
+      document.querySelector('[data-cash-summary]').textContent = 'Simulación: el cajero recibe ' + formatAmount(tx.monto_origen, tx.moneda_origen.codigo) +
+        ' y entrega ' + formatAmount(tx.monto_destino, tx.moneda_destino.codigo) + ' netos a ' + tx.cliente.nombre_razon_social + '.';
+    } else document.querySelector('[data-cash-summary]').hidden = true;
     var id = state.detailId;
     var version = state.detailVersion;
     var requestVersion = ++state.liquidationVersion;
     var select = document.querySelector('[data-liquidation-period]');
     select.innerHTML = '<option value="">Seleccioná una Caja/Período</option>';
     state.liquidationLoading = true;
+    state.liquidationPeriods = [];
     liquidationMessage('Consultando cajas/períodos abiertos…');
     liquidationControls();
     apiRequest(resourceUrl(page.dataset.liquidationPeriodsUrl, id), { credentials: 'same-origin' }).then(function (data) {
@@ -553,10 +661,15 @@
       if (data.transaccion_id !== id || !Array.isArray(data.periodos) || data.periodos.some(function (period) {
         return !Number.isSafeInteger(period.periodo_id) || period.periodo_id <= 0 || period.estado !== 'ABIERTO' || !period.caja;
       })) throw new Error('Respuesta de períodos inválida.');
+      state.liquidationPeriods = data.periodos;
       data.periodos.forEach(function (period) {
         var option = document.createElement('option');
         option.value = period.periodo_id;
         option.textContent = period.caja.codigo + ' — ' + period.caja.nombre + ' · Período ' + period.periodo_id;
+        if (isCash(state.detailTransaction) && period.disponible !== true) {
+          option.disabled = true;
+          option.textContent += ' · Sin disponibilidad o monedas no configuradas';
+        }
         select.appendChild(option);
       });
       liquidationMessage(data.periodos.length ? 'Seleccioná explícitamente una Caja/Período. La disponibilidad de fondos se valida al liquidar.'
@@ -579,7 +692,9 @@
       OPERACION_NO_PENDIENTE: 'La operación ya no permite liquidación.',
       MONEDA_NO_ADMITIDA: 'El período no admite las monedas de la operación.',
       CONFLICTO_IDEMPOTENCIA: 'No se pudo liquidar por un conflicto de idempotencia.',
-      OBLIGACION_CAMBIADA: 'El pago no corresponde a la obligación de la operación.'
+      OBLIGACION_CAMBIADA: 'El pago no corresponde a la obligación de la operación.',
+      PAGO_INCOMPATIBLE: 'La operación en efectivo tiene un Pago electrónico incompatible.',
+      METODO_INACTIVO: 'El método de efectivo está deshabilitado.'
     };
     if (Object.prototype.hasOwnProperty.call(messages, error.codigo)) return messages[error.codigo];
     if ([401, 403, 404].indexOf(error.status) !== -1) return 'No tenés acceso a esta operación o tu sesión ya no es válida.';
@@ -611,7 +726,8 @@
     var periodId = Number(select.value);
     if (!isCurrentDetail(id, version) || !canLiquidate() || state.liquidationLoading ||
         state.liquidationPending[id] || state.liquidationUncertain[id] ||
-        !Number.isSafeInteger(periodId) || periodId <= 0 || select.disabled) return;
+        !Number.isSafeInteger(periodId) || periodId <= 0 || select.disabled ||
+        document.querySelector('[data-liquidation-submit]').disabled) return;
     state.liquidationPending[id] = true;
     state.liquidationUncertain[id] = true;
     ++state.liquidationVersion;
@@ -673,6 +789,25 @@
   }
 
   if (form) {
+    if (page.dataset.presencial === 'true') {
+      var searchButton = document.querySelector('[data-client-search-button]');
+      var searchVersion = 0;
+      searchButton.addEventListener('click', function () {
+        var version = ++searchVersion;
+        var query = document.querySelector('[data-client-search]').value.trim();
+        if (query.length < 2) { document.querySelector('[data-client-search-message]').textContent = 'Ingresá al menos 2 caracteres.'; return; }
+        setBusy(searchButton, true, 'Buscando…');
+        apiRequest(page.dataset.clientSearchUrl + '?q=' + encodeURIComponent(query), { credentials: 'same-origin' }).then(function (data) {
+          if (version !== searchVersion) return;
+          form.elements.cliente_id.innerHTML = '<option value="">Seleccionar cliente</option>' + data.clientes.map(function (client) {
+            return '<option value="' + client.id + '">' + escapeHtml(client.nombre_razon_social) + ' · #' + client.id + '</option>';
+          }).join('');
+          invalidatePreview();
+          document.querySelector('[data-client-search-message]').textContent = data.clientes.length ? 'Seleccioná el cliente titular.' : 'No se encontraron clientes habilitados.';
+        }).catch(function (error) { document.querySelector('[data-client-search-message]').textContent = error.message; })
+          .finally(function () { setBusy(searchButton, false); });
+      });
+    }
     form.querySelectorAll('[data-operation-type]').forEach(function (button) {
       button.addEventListener('click', function () {
         form.querySelectorAll('[data-operation-type]').forEach(function (item) {
@@ -681,13 +816,18 @@
           item.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
         form.elements.tipo.value = button.dataset.operationType;
+        document.querySelector('[data-new-method-label]').textContent = button.dataset.operationType === 'VENTA' ? 'Medio de recepción' : 'Método de pago';
         invalidatePreview();
         clearFeedback();
       });
     });
 
-    form.addEventListener('input', invalidatePreview);
-    form.addEventListener('change', invalidatePreview);
+    function formChanged(event) {
+      if (event.target === form.elements.metodo_pago_id) syncMethodSelection(event.target);
+      else invalidatePreview();
+    }
+    form.addEventListener('input', formChanged);
+    form.addEventListener('change', formChanged);
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       clearFeedback();
@@ -703,6 +843,7 @@
         state.preview = preview;
         state.payload = payload;
         state.idempotencyKey = null;
+        state.confirmationPayload = null;
         renderPreview(preview);
       }).catch(function (error) {
         invalidatePreview();
@@ -726,6 +867,8 @@
 
   page.querySelector('[data-reload-history]').addEventListener('click', loadHistory);
   document.querySelector('[data-payment-actions]').addEventListener('click', submitPayment);
+  var reviewMethod = document.querySelector('[data-confirm-method]');
+  if (reviewMethod) reviewMethod.addEventListener('change', function () { syncMethodSelection(this); });
   document.querySelector('[data-liquidation-period]').addEventListener('change', liquidationControls);
   document.querySelector('[data-liquidation-submit]').addEventListener('click', submitLiquidation);
   document.querySelector('[data-liquidation-refresh]').addEventListener('click', function () {

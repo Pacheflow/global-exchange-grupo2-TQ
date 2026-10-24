@@ -291,11 +291,76 @@ class LiquidarTransaccionTests(EscenarioLiquidacion, TestCase):
 class LiquidarTransaccionConcurrenciaTests(EscenarioLiquidacion, TransactionTestCase):
     """Una Transacción serializa dos liquidadores reales antes de cualquier efecto."""
 
-    def test_dos_liquidaciones_concurrentes_compra_y_venta_no_duplican(self):
+    def test_creacion_presencial_concurrente_reutiliza_clave(self):
+        """Dos confirmaciones presenciales simultáneas crean una sola operación pendiente sin Pago ni movimientos."""
         self.assertEqual(connection.vendor, "postgresql")
-        for tipo in ("COMPRA", "VENTA"):
+        UsuarioCliente.objects.all().delete()
+        metodo = MetodoPago.objects.create(nombre="Efectivo creación concurrente", naturaleza="EFECTIVO")
+        datos = dict(usuario_id=self.usuario_id, cliente_id=self.cliente.pk, tipo="COMPRA",
+                     moneda_origen_id=self.usd.pk, moneda_destino_id=self.pyg.pk, monto="0.01",
+                     metodo_pago_id=metodo.pk, clave_idempotencia=str(uuid.uuid4()),
+                     version_preview=self.tasa.version, categoria_preview_id=self.cliente.categoria_id,
+                     porcentaje_comision_preview=self.categoria.porcentaje_comision, presencial=True, roles=["CAJERO"])
+        barrera = Barrier(2)
+        def confirmar():
+            close_old_connections()
+            try:
+                barrera.wait(timeout=5)
+                return crear_transaccion(**datos)
+            finally:
+                connections["default"].close()
+        with ThreadPoolExecutor(max_workers=2) as ejecutor:
+            resultados = list(ejecutor.map(lambda _: confirmar(), range(2)))
+        self.assertEqual(len({r.transaccion.pk for r in resultados}), 1)
+        self.assertCountEqual([r.repetida for r in resultados], [False, True])
+        self.assertEqual(Transaccion.objects.count(), 1)
+        self.assertFalse(Pago.objects.exists())
+        self.assertFalse(MovimientoCaja.objects.exists())
+
+    def test_dos_intercambios_efectivo_compiten_por_saldo_sin_parciales(self):
+        """Dos operaciones distintas compiten por fondos para una sola: una completa y la otra revierte su ingreso."""
+        from .models import LiquidacionEfectivo
+        self.assertEqual(connection.vendor, "postgresql")
+        metodo = MetodoPago.objects.create(nombre="Efectivo saldo concurrente", naturaleza="EFECTIVO")
+        operaciones = [self.operacion_liquidacion(tipo) for tipo in ("COMPRA", "VENTA")]
+        for operacion in operaciones:
+            operacion.metodo_pago = metodo
+            operacion.metodo_pago_nombre = metodo.nombre
+            operacion.save()
+        SaldoInicialCaja.objects.filter(periodo=self.periodo_liquidacion, moneda=self.pyg).update(monto=100)
+        barrera = Barrier(2)
+        def intercambiar(operacion):
+            close_old_connections()
+            try:
+                barrera.wait(timeout=5)
+                try:
+                    liquidar_transaccion(**self.argumentos_liquidacion(operacion))
+                    return "completada"
+                except ValidationError as error:
+                    self.assertIn("insuficiente", str(error))
+                    return "sin saldo"
+            finally:
+                connections["default"].close()
+        with ThreadPoolExecutor(max_workers=2) as ejecutor:
+            resultados = list(ejecutor.map(intercambiar, operaciones))
+        self.assertCountEqual(resultados, ["completada", "sin saldo"])
+        self.assertEqual(LiquidacionEfectivo.objects.count(), 1)
+        self.assertEqual(MovimientoCaja.objects.count(), 2)
+        self.assertEqual(Transaccion.objects.filter(estado="COMPLETADA").count(), 1)
+        self.assertEqual(Transaccion.objects.filter(estado="PENDIENTE").count(), 1)
+
+    def test_dos_liquidaciones_concurrentes_compra_y_venta_no_duplican(self):
+        """Dos cajeros concurrentes completan una vez COMPRA/VENTA electrónicas o efectivo, con evidencia única."""
+        self.assertEqual(connection.vendor, "postgresql")
+        for tipo in ("COMPRA", "VENTA", "COMPRA_EFECTIVO", "VENTA_EFECTIVO"):
             with self.subTest(tipo=tipo):
-                operacion = self.operacion_liquidacion(tipo)
+                efectivo = tipo.endswith("_EFECTIVO")
+                operacion = self.operacion_liquidacion(tipo.split("_")[0])
+                if efectivo:
+                    metodo = MetodoPago.objects.create(nombre=tipo, naturaleza="EFECTIVO")
+                    operacion.metodo_pago = metodo
+                    operacion.metodo_pago_nombre = metodo.nombre
+                    operacion.save()
                 if tipo == "COMPRA":
                     self.pago_liquidacion(operacion)
                 argumentos = self.argumentos_liquidacion(operacion)
@@ -335,10 +400,13 @@ class LiquidarTransaccionConcurrenciaTests(EscenarioLiquidacion, TransactionTest
                 operacion.refresh_from_db()
                 self.assertEqual(operacion.estado, "COMPLETADA")
                 claves = [f"ge:hu28:transaccion:{operacion.pk}:caja:egreso-destino:v1"]
-                if tipo == "VENTA":
+                if tipo == "VENTA" or efectivo:
                     claves.append(f"ge:hu28:transaccion:{operacion.pk}:caja:ingreso-origen:v1")
                 self.assertEqual(MovimientoCaja.objects.filter(clave_idempotencia__in=claves).count(), len(claves))
-        self.assertEqual(MovimientoCaja.objects.count(), 3)
+                if efectivo:
+                    from .models import LiquidacionEfectivo
+                    self.assertEqual(LiquidacionEfectivo.objects.filter(transaccion=operacion).count(), 1)
+        self.assertEqual(MovimientoCaja.objects.count(), 7)
 
 
 class EscenarioLiquidacionHTTP(EscenarioLiquidacion):
@@ -710,7 +778,7 @@ class BaseOperacionesTests(TestCase):
         )[0]
 
         self.metodo_activo = MetodoPago.objects.create(
-            nombre="Efectivo",
+            nombre="Tarjeta de prueba", naturaleza="ELECTRONICO",
             activo=True,
         )
         self.metodo_inactivo = MetodoPago.objects.create(
@@ -765,6 +833,14 @@ class BaseOperacionesTests(TestCase):
             "porcentaje_comision_preview",
             self.categoria.porcentaje_comision,
         )
+        return valores
+
+    def parametros_confirmacion_http(self, **datos):
+        """Prepara condiciones firmadas del servidor para confirmar mediante la API."""
+        from .views import _firmar_condiciones
+        valores = self.parametros_crear(**datos)
+        valores["tasa_preview"] = self.tasa.venta if valores["tipo"] == "VENTA" else self.tasa.compra
+        valores["firma_preview"] = _firmar_condiciones(valores, self.usuario_id)
         return valores
 
     def crear(self, **datos):
@@ -1107,7 +1183,7 @@ class CrearTransaccionTests(BaseOperacionesTests):
         self.assertEqual(transaccion.porcentaje_comision, Decimal("10.00"))
         self.assertEqual(transaccion.importe_comision, Decimal("70000.000000"))
         self.assertEqual(transaccion.metodo_pago_id, self.metodo_activo.id)
-        self.assertEqual(transaccion.metodo_pago_nombre, "Efectivo")
+        self.assertEqual(transaccion.metodo_pago_nombre, "Tarjeta de prueba")
         self.assertEqual(transaccion.creado_por_keycloak_id, self.usuario_id)
         self.assertEqual(transaccion.creado_por_username, self.usuario_username)
 
@@ -1873,7 +1949,7 @@ class PersistenciaSnapshotsTests(BaseOperacionesTests):
         self.assertEqual(transaccion.monto_destino, Decimal("630000.000000"))
         self.assertEqual(transaccion.importe_comision, Decimal("70000.000000"))
         self.assertEqual(transaccion.porcentaje_comision, Decimal("10.00"))
-        self.assertEqual(transaccion.metodo_pago_nombre, "Efectivo")
+        self.assertEqual(transaccion.metodo_pago_nombre, "Tarjeta de prueba")
         self.assertEqual(transaccion.estado, "PENDIENTE")
 
     def test_cambio_de_comision_solo_afecta_operaciones_nuevas(self):
@@ -2146,6 +2222,7 @@ class OperacionesFrontendTests(BaseOperacionesTests):
         session.save()
 
     def test_capacidades_separadas_por_rol_efectivo(self):
+        """Online conserva permisos previos; el cajero solo recibe acceso separado a creación presencial."""
         for roles, crear, liquidar in ((["USUARIO"], True, False),
                                       (["CAJERO", "USUARIO"], False, True),
                                       (["ADMINISTRADOR", "CAJERO", "USUARIO"], False, False)):
@@ -2164,8 +2241,11 @@ class OperacionesFrontendTests(BaseOperacionesTests):
                 if crear:
                     self.assertContains(respuesta, "Nueva operación")
                 else:
-                    self.assertNotContains(respuesta, "Nueva operación")
                     self.assertNotContains(respuesta, "data-operation-form")
+                    if liquidar:
+                        self.assertContains(respuesta, reverse("operaciones_web:presencial"))
+                    else:
+                        self.assertNotContains(respuesta, "Nueva operación en efectivo")
                 self.assertContains(respuesta, 'data-liquidation-error role="alert" hidden')
                 if not crear:
                     with mock.patch("operaciones.views.crear_transaccion") as crear_servicio, mock.patch(
@@ -2178,7 +2258,7 @@ class OperacionesFrontendTests(BaseOperacionesTests):
                     preview_servicio.assert_not_called()
 
     def test_pantalla_presenta_cliente_y_catalogos_activos(self):
-        """Muestra el contexto autorizado y excluye opciones inactivas."""
+        """Muestra revisión y aviso TEST previos, diálogo final breve y detalle sin edición ni métodos inactivos."""
 
         self.cliente.metodo_pago_preferido = self.metodo_activo
         self.cliente.save(update_fields=["metodo_pago_preferido"])
@@ -2188,11 +2268,24 @@ class OperacionesFrontendTests(BaseOperacionesTests):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "frontend/operaciones.html")
-        self.assertContains(response, '/static/js/operaciones.js?v=disponibilidad-2')
+        self.assertContains(response, '/static/js/operaciones.js?v=presencial-2')
+        dialogo = response.content.decode().split('id="confirmar-operacion"')[1].split('id="cancelar-operacion"')[0]
+        self.assertIn('¿Desea confirmar la operación?', dialogo)
+        self.assertIn('>Volver</button>', dialogo)
+        self.assertIn('>Confirmar operación</button>', dialogo)
+        self.assertNotIn('Entorno de pruebas', dialogo)
+        self.assertNotIn('data-confirm-summary', dialogo)
+        self.assertEqual(dialogo.count('<p>'), 1)
+        self.assertContains(response, 'Entorno de pruebas:', count=1)
+        self.assertNotContains(response, 'Actualizar selección')
         self.assertEqual(response.context["cliente_operacion"], self.cliente)
         self.assertIn(self.metodo_activo, response.context["metodos_activos"])
         self.assertNotIn(self.metodo_inactivo, response.context["metodos_activos"])
-        self.assertContains(response, "Preferido")
+        self.assertContains(response, 'data-confirm-method disabled', count=1)
+        self.assertNotContains(response, 'data-method-save')
+        self.assertContains(response, 'name="metodo_pago_id"', count=1)
+        self.assertContains(response, f'value="{self.metodo_activo.pk}" selected')
+        self.assertNotContains(response, 'data-method-selection-url')
         self.assertContains(
             response,
             f'data-methods-url="{reverse("operaciones:metodos_pago_operacion")}"',

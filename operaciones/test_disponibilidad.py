@@ -122,12 +122,12 @@ class DisponibilidadOperacionTests(escenarios.BaseOperacionesTests):
         from .test_guillermo import FlujosGuillermoTests
         FlujosGuillermoTests.autenticar(self)
         url = reverse("operaciones:crear_transaccion")
-        respuesta = self.client.post(url, self.parametros_crear(), content_type="application/json")
+        respuesta = self.client.post(url, self.parametros_confirmacion_http(), content_type="application/json")
         self.assertEqual(respuesta.status_code, 400)
         self.assertEqual(respuesta.json()["error"],
                          "No hay disponibilidad suficiente para atender esta operación. Intenta más tarde.")
         with mock.patch("operaciones.services.hay_disponibilidad", side_effect=DatabaseError("privado")):
-            respuesta = self.client.post(url, self.parametros_crear(), content_type="application/json")
+            respuesta = self.client.post(url, self.parametros_confirmacion_http(), content_type="application/json")
         self.assertEqual(respuesta.status_code, 500)
         self.assertNotIn("disponibilidad", respuesta.json()["error"])
         self.assertNotContains(respuesta, "privado", status_code=500)

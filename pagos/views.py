@@ -35,6 +35,8 @@ def _errores_controlados(view):
         except PermissionDenied:
             return _no_disponible()
         except ValidationError as error:
+            if getattr(error, "code", None) in {"METODO_INACTIVO", "METODO_NO_ELECTRONICO"}:
+                return _error(error.message, error.code, 400)
             if getattr(error, "code", None) == "DISPONIBILIDAD_INSUFICIENTE":
                 return _error(error.message, error.code, 400)
             if getattr(error, "code", None) == "OPERACION_INEXISTENTE":

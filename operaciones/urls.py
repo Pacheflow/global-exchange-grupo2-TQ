@@ -5,6 +5,10 @@ from . import views
 app_name = "operaciones"
 
 urlpatterns = [
+    path("presenciales/clientes/", views.clientes_presenciales, name="clientes_presenciales"),
+    path("presenciales/metodos/", views.metodos_presenciales, name="metodos_presenciales"),
+    path("presenciales/previsualizar/", views.previsualizar_operacion_view, {"presencial": True}, name="preview_presencial"),
+    path("presenciales/crear/", views.crear_transaccion_view, {"presencial": True}, name="crear_presencial"),
     path(
         "<int:transaccion_id>/periodos-liquidacion/",
         views.periodos_liquidacion_view,

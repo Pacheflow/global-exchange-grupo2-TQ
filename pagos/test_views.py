@@ -47,7 +47,7 @@ class _EscenarioHTTP:
         self.destino, _ = Moneda.objects.get_or_create(
             codigo="PYG", defaults={"nombre": "Guaraní", "simbolo": "Gs"},
         )
-        self.metodo = MetodoPago.objects.create(nombre="Método HTTP pagos")
+        self.metodo = MetodoPago.objects.create(nombre="Método HTTP pagos", naturaleza="ELECTRONICO")
         self.tasa = TasaComercial.objects.create(
             moneda_origen=self.origen, moneda_destino=self.destino,
             compra=Decimal("7000"), venta=Decimal("7200"), vigente=True,
