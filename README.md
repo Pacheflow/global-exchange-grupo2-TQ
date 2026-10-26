@@ -280,3 +280,19 @@ Para iniciar el entorno local en Windows, asegurate de tener Docker Desktop abie
 
 ```powershell
 .\scripts\levantar-dev.ps1
+```
+
+Compatible con Windows PowerShell 5.1. El script puede construir imágenes y
+crear o recrear servicios mediante `docker compose up -d --build`. El entrypoint
+de web aplica las migraciones al arrancar; no es una comprobación de solo lectura.
+
+Después de construir/levantar los servicios, espera hasta 360 segundos por la salud
+de web y consulta el estado cada 5 segundos, terminando antes si ya está listo.
+El presupuesto contempla 180 segundos de inicio y seis comprobaciones de hasta
+15 segundos de intervalo más 10 segundos de timeout, con 30 segundos de margen.
+Este límite no incluye el tiempo de construcción/arranque de Compose. Si cambia
+el healthcheck, debe revisarse también este presupuesto.
+
+Si falla Docker, Compose, una consulta de estado o el check de Django, informa
+la etapa y termina con código distinto de cero. Ante timeout o fallo de salud
+muestra los últimos logs disponibles de web; nunca anuncia éxito tras un fallo.
