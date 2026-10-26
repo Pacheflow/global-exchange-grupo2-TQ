@@ -273,3 +273,10 @@ Incluyen:
 - Registro mediante Keycloak.
 
 - Usuario creado correctamente.
+
+## Levantar entorno de desarrollo
+
+Para iniciar el entorno local en Windows, asegurate de tener Docker Desktop abierto y ejecutá desde la raíz del proyecto:
+
+```powershell
+.\scripts\levantar-dev.ps1
