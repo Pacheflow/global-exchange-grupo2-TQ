@@ -1,13 +1,16 @@
 import json
-from decimal import ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core import signing
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
 from cajas.models import PeriodoCaja
-from clientes.models import Cliente
+from cajas.services import consultar_saldos_caja
+from clientes.models import Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
 from pagos.models import Pago
@@ -24,7 +27,9 @@ from .services import (
     listar_metodos_pago_operacion,
     obtener_detalle_transaccion,
     previsualizar_operacion,
+    validar_medio_liquidacion,
 )
+from .models import LiquidacionEfectivo
 
 ROLES_OPERADORES = (
     "CAJERO",
@@ -44,7 +49,7 @@ def periodos_liquidacion_view(request, transaccion_id):
     try:
         operacion = obtener_detalle_transaccion(
             transaccion_id=transaccion_id, usuario_id=usuario_id,
-            cliente_id=cliente_id, es_admin=False, permitir_clientes_asociados=True,
+            cliente_id=cliente_id, es_admin=False, roles=request.session.get(SESSION_ROLES, []),
         )
     except (ValidationError, PermissionDenied):
         return JsonResponse({"error": "La transacción solicitada no está disponible."}, status=404)
@@ -53,21 +58,27 @@ def periodos_liquidacion_view(request, transaccion_id):
     try:
         if operacion.estado != "PENDIENTE" or operacion.tipo not in {"COMPRA", "VENTA"}:
             return JsonResponse({"error": "La operación no permite liquidación.", "codigo": "OPERACION_NO_PENDIENTE"}, status=400)
-        if operacion.tipo == "COMPRA" and not Pago.objects.filter(
-            transaccion_id=operacion.pk, estado=Pago.Estado.APROBADO,
-        ).exists():
-            return JsonResponse({"error": "La compra requiere un pago aprobado.", "codigo": "PAGO_NO_APROBADO"}, status=400)
+        efectivo, _ = validar_medio_liquidacion(operacion)
         periodos = PeriodoCaja.objects.filter(
             estado="ABIERTO", caja__estado="HABILITADA",
         ).select_related("caja").order_by("caja__codigo", "pk")
+        resultado = []
+        for periodo in periodos:
+            dato = {"periodo_id": periodo.pk, "estado": periodo.estado,
+                    "caja": {"id": periodo.caja_id, "codigo": periodo.caja.codigo, "nombre": periodo.caja.nombre}}
+            if efectivo:
+                _, saldos = consultar_saldos_caja(periodo_id=periodo.pk, usuario_id=usuario_id,
+                                                 roles=request.session.get(SESSION_ROLES, []))
+                por_moneda = {s.moneda.pk: s.saldo_actual for s in saldos}
+                dato["disponible"] = (operacion.moneda_origen_id in por_moneda
+                                      and por_moneda.get(operacion.moneda_destino_id, Decimal("-1")) >= operacion.monto_destino)
+            resultado.append(dato)
         return JsonResponse({
             "transaccion_id": operacion.pk,
-            "periodos": [
-                {"periodo_id": periodo.pk, "estado": periodo.estado,
-                 "caja": {"id": periodo.caja_id, "codigo": periodo.caja.codigo, "nombre": periodo.caja.nombre}}
-                for periodo in periodos
-            ],
+            "periodos": resultado,
         })
+    except ValidationError as error:
+        return _error_liquidacion(error)
     except Exception:
         return JsonResponse({"error": "No se pudieron consultar los períodos de liquidación."}, status=500)
 
@@ -85,9 +96,14 @@ def _error_liquidacion(error):
         "PAGO_NO_APROBADO": "La compra requiere un pago aprobado.",
         "OPERACION_NO_PENDIENTE": "La operación no permite liquidación.",
         "OBLIGACION_CAMBIADA": "El pago no corresponde a la obligación de la operación.",
+        "CAJA_DESHABILITADA": "La caja se encuentra deshabilitada.",
+        "PAGO_INCOMPATIBLE": "La operación en efectivo tiene un Pago electrónico incompatible.",
+        "METODO_INACTIVO": "El método de efectivo está deshabilitado.",
+        "CONFLICTO_IDEMPOTENCIA": "La liquidación ya fue registrada con otro período.",
+        "MONEDA_NO_ADMITIDA": "Las monedas de la operación deben estar activas y configuradas en el período.",
     }
     if codigo in mensajes:
-        return JsonResponse({"error": mensajes[codigo], "codigo": codigo}, status=400)
+        return JsonResponse({"error": mensajes[codigo], "codigo": codigo}, status=409 if codigo == "CONFLICTO_IDEMPOTENCIA" else 400)
     # Caja aún no define códigos para estas validaciones. Comparación cerrada
     # y localizada, sin devolver sus mensajes ni depender de fragmentos de texto.
     errores_caja = {
@@ -143,7 +159,7 @@ def liquidar_transaccion_view(request, transaccion_id):
 
 @requiere_roles_web(*ROLES_HISTORIAL)
 @require_GET
-def inicio_operaciones(request, *, historico=False):
+def inicio_operaciones(request, *, historico=False, presencial=False):
     """Presenta la interfaz de operaciones con catálogos activos.
 
     La consulta del cliente seleccionado respeta el mismo alcance que los
@@ -152,6 +168,8 @@ def inicio_operaciones(request, *, historico=False):
     """
 
     rol = rol_efectivo(request.session.get(SESSION_ROLES, []))
+    if presencial and rol != "CAJERO":
+        raise PermissionDenied
     es_supervisor = rol == "ADMINISTRADOR"
     cliente_operacion = None
     if rol == "USUARIO":
@@ -177,10 +195,18 @@ def inicio_operaciones(request, *, historico=False):
         {
             "cliente_operacion": cliente_operacion,
             "monedas_activas": Moneda.objects.activas() if not es_supervisor else (),
-            "metodos_activos": MetodoPago.objects.activos() if not es_supervisor else (),
+            "metodos_activos": (MetodoPago.objects.activos().filter(naturaleza="EFECTIVO") if presencial
+                                else MetodoPago.objects.activos() if not es_supervisor else ()),
+            "es_presencial": presencial,
             "es_supervisor": es_supervisor,
-            "puede_crear": rol == "USUARIO" and cliente_operacion is not None,
-            "puede_pagar": rol == "USUARIO" and cliente_operacion is not None,
+            "puede_crear": presencial or rol == "USUARIO" and cliente_operacion is not None and UsuarioCliente.objects.filter(
+                cliente=cliente_operacion, keycloak_user_id=_usuario_sesion(request)[0], activo=True,
+                rol_en_cliente__in=["RESPONSABLE", "OPERADOR"],
+            ).exists(),
+            "puede_pagar": rol == "USUARIO" and cliente_operacion is not None and UsuarioCliente.objects.filter(
+                cliente=cliente_operacion, keycloak_user_id=_usuario_sesion(request)[0], activo=True,
+                rol_en_cliente__in=["RESPONSABLE", "OPERADOR"],
+            ).exists(),
             "puede_liquidar": rol == "CAJERO" and not historico,
             "es_cajero": rol == "CAJERO",
             "es_historial_cajero": historico,
@@ -261,6 +287,44 @@ def _detalles_error(error):
     return {"error": error.messages}
 
 
+def _condiciones_preview(datos, usuario_id, *, presencial=False):
+    """Canonicaliza las condiciones firmadas; el método se elige en la revisión."""
+    return {
+        "usuario_id": usuario_id,
+        "contexto": "PRESENCIAL" if presencial else "ONLINE",
+        "tipo": datos.get("tipo"),
+        **{campo: int(datos[campo]) for campo in (
+            "cliente_id", "moneda_origen_id", "moneda_destino_id", "version_preview", "categoria_preview_id")},
+        **{campo: str(Decimal(str(datos[campo])).normalize()) for campo in (
+            "monto", "tasa_preview", "porcentaje_comision_preview")},
+    }
+
+
+def _firmar_condiciones(datos, usuario_id, *, presencial=False):
+    """Firma el resumen económico sin obligar a elegir aún el medio de pago."""
+    return signing.dumps(_condiciones_preview(datos, usuario_id, presencial=presencial), salt="operaciones.revision.v1")
+
+
+def _validar_cliente_revision(request, datos):
+    """Mantiene la revisión en el cliente seleccionado; el servicio revalida su asociación."""
+    try:
+        cliente_id = int(datos.get("cliente_id"))
+    except (ValueError, TypeError):
+        cliente_id = None
+    if cliente_id is None or cliente_id != _cliente_seleccionado_id(request):
+        raise ValidationError({"cliente": "Seleccioná el cliente de la operación antes de confirmar."})
+
+
+def _validar_condiciones(datos, usuario_id, *, presencial=False):
+    """Rechaza firmas ausentes, ajenas o condiciones manipuladas sin crear registros."""
+    try:
+        originales = signing.loads(datos.get("firma_preview", ""), salt="operaciones.revision.v1")
+        if originales != _condiciones_preview(datos, usuario_id, presencial=presencial):
+            raise ValueError
+    except (signing.BadSignature, ValueError, TypeError, KeyError, AttributeError, InvalidOperation):
+        raise ValidationError("La previsualización no es válida. Previsualizá nuevamente.", code="PREVIEW_INVALIDA") from None
+
+
 def _serializar_preview(resultado):
     """Convierte una previsualización en datos aptos para JSON."""
 
@@ -292,7 +356,7 @@ def _serializar_preview(resultado):
         "metodo_pago": {
             "id": resultado.metodo_pago.id,
             "nombre": resultado.metodo_pago.nombre,
-        },
+        } if resultado.metodo_pago else None,
     }
 
 
@@ -309,6 +373,7 @@ def _serializar_transaccion(transaccion):
         rounding=ROUND_HALF_UP,
     )
 
+    liquidacion = LiquidacionEfectivo.objects.filter(transaccion=transaccion).select_related("periodo__caja").first()
     return {
         "id": transaccion.id,
         "clave_idempotencia": transaccion.clave_idempotencia,
@@ -343,8 +408,15 @@ def _serializar_transaccion(transaccion):
         "metodo_pago": {
             "id": transaccion.metodo_pago.id,
             "nombre": transaccion.metodo_pago_nombre,
+            "activo": transaccion.metodo_pago.activo,
+            "naturaleza": transaccion.metodo_pago.naturaleza,
         },
         "estado": transaccion.estado,
+        "liquidacion_efectivo": ({
+            "periodo_id": liquidacion.periodo_id, "caja": liquidacion.periodo.caja.codigo,
+            "confirmado_por": liquidacion.confirmado_por_username or liquidacion.confirmado_por_keycloak_id,
+            "fecha": liquidacion.fecha.isoformat(), "ingreso_id": liquidacion.ingreso_id, "egreso_id": liquidacion.egreso_id,
+        } if liquidacion else None),
         "creado_por": {
             "keycloak_id": transaccion.creado_por_keycloak_id,
             "username": transaccion.creado_por_username,
@@ -365,10 +437,12 @@ def _serializar_transaccion(transaccion):
 
 
 @require_POST
-@requiere_alguno_de_roles("USUARIO")
-def previsualizar_operacion_view(request):
+@requiere_alguno_de_roles("USUARIO", "CAJERO")
+def previsualizar_operacion_view(request, *, presencial=False):
     """Previsualiza una operación de cambio sin persistir nada (JSON)."""
 
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != ("CAJERO" if presencial else "USUARIO"):
+        return JsonResponse({"error": "El rol no permite este contexto de operación."}, status=403)
     usuario_id, usuario_username = _usuario_sesion(request)
     if not usuario_id:
         return JsonResponse(
@@ -384,6 +458,8 @@ def previsualizar_operacion_view(request):
         )
 
     try:
+        if not presencial:
+            _validar_cliente_revision(request, datos)
         resultado = previsualizar_operacion(
             usuario_id=usuario_id,
             usuario_username=usuario_username,
@@ -393,6 +469,7 @@ def previsualizar_operacion_view(request):
             moneda_destino_id=datos.get("moneda_destino_id"),
             monto=datos.get("monto"),
             metodo_pago_id=datos.get("metodo_pago_id"),
+            presencial=presencial, roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -403,18 +480,28 @@ def previsualizar_operacion_view(request):
             status=400,
         )
 
-    return JsonResponse(_serializar_preview(resultado))
+    respuesta = _serializar_preview(resultado)
+    respuesta["firma_preview"] = _firmar_condiciones({
+        "tipo": resultado.tipo, "cliente_id": resultado.cliente.pk,
+        "moneda_origen_id": resultado.moneda_origen.pk, "moneda_destino_id": resultado.moneda_destino.pk,
+        "monto": resultado.monto_origen, "version_preview": resultado.tasa_comercial.version,
+        "categoria_preview_id": resultado.cliente.categoria_id, "tasa_preview": resultado.tasa,
+        "porcentaje_comision_preview": resultado.porcentaje_comision,
+    }, usuario_id, presencial=presencial)
+    return JsonResponse(respuesta)
 
 
 @require_POST
-@requiere_alguno_de_roles("USUARIO")
-def crear_transaccion_view(request):
+@requiere_alguno_de_roles("USUARIO", "CAJERO")
+def crear_transaccion_view(request, *, presencial=False):
     """Confirma y persiste una operación de cambio (JSON).
 
     Revalida la versión de la tasa vigente contra la versión mostrada en
     la previsualización. Si cambió, rechaza la solicitud sin crear registros.
     """
 
+    if rol_efectivo(request.session.get(SESSION_ROLES, [])) != ("CAJERO" if presencial else "USUARIO"):
+        return JsonResponse({"error": "El rol no permite este contexto de operación."}, status=403)
     usuario_id, usuario_username = _usuario_sesion(request)
     if not usuario_id:
         return JsonResponse(
@@ -430,6 +517,9 @@ def crear_transaccion_view(request):
         )
 
     try:
+        _validar_condiciones(datos, usuario_id, presencial=presencial)
+        if not presencial:
+            _validar_cliente_revision(request, datos)
         resultado = crear_transaccion(
             usuario_id=usuario_id,
             usuario_username=usuario_username,
@@ -444,8 +534,11 @@ def crear_transaccion_view(request):
             tasa_preview=datos.get("tasa_preview"),
             categoria_preview_id=datos.get("categoria_preview_id"),
             porcentaje_comision_preview=datos.get("porcentaje_comision_preview"),
+            presencial=presencial, roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
+        if getattr(exc, "code", None) in {"DISPONIBILIDAD_INSUFICIENTE", "METODO_NO_DISPONIBLE", "PREVIEW_INVALIDA"}:
+            return JsonResponse({"error": exc.message, "codigo": exc.code}, status=400)
         return JsonResponse(
             {
                 "error": "No se pudo confirmar la operación.",
@@ -453,6 +546,9 @@ def crear_transaccion_view(request):
             },
             status=400,
         )
+
+    except Exception:
+        return JsonResponse({"error": "No se pudo confirmar la operación. Intenta más tarde."}, status=500)
 
     transaccion = resultado.transaccion
     payload = {
@@ -465,6 +561,31 @@ def crear_transaccion_view(request):
         payload,
         status=200 if resultado.repetida else 201,
     )
+
+
+@require_GET
+@requiere_alguno_de_roles("CAJERO")
+def clientes_presenciales(request):
+    """Busca hasta veinte clientes activos; no expone contactos ni concede administración."""
+    if not _usuario_sesion(request)[0]:
+        return JsonResponse({"error": "No se encontró una identidad válida."}, status=401)
+    texto = request.GET.get("q", "").strip()[:100]
+    clientes = Cliente.objects.none()
+    if len(texto) >= 2:
+        clientes = Cliente.objects.filter(estado="ACTIVO").filter(
+            Q(nombre_razon_social__icontains=texto) | Q(documento__icontains=texto),
+        ).order_by("nombre_razon_social", "pk")[:20]
+    return JsonResponse({"clientes": list(clientes.values("id", "nombre_razon_social"))})
+
+
+@require_GET
+@requiere_alguno_de_roles("CAJERO")
+def metodos_presenciales(request):
+    """Devuelve solo efectivo activo; precarga exclusivamente cuando existe una única opción."""
+    if not _usuario_sesion(request)[0]:
+        return JsonResponse({"error": "No se encontró una identidad válida."}, status=401)
+    metodos = list(MetodoPago.objects.activos().filter(naturaleza="EFECTIVO").values("id", "nombre"))
+    return JsonResponse({"metodos_pago": metodos, "metodo_pago_preferido": metodos[0] if len(metodos) == 1 else None})
 
 
 @require_POST
@@ -569,7 +690,7 @@ def metodos_pago_operacion_view(request):
 @require_GET
 @requiere_alguno_de_roles(*ROLES_HISTORIAL)
 def historial_transacciones_view(request):
-    """Consulta el historial del cliente o el historial global administrativo."""
+    """USUARIO consulta su cliente; ADMINISTRADOR y CAJERO tienen consulta global."""
 
     usuario_id, _ = _usuario_sesion(request)
     if not usuario_id:
@@ -594,6 +715,7 @@ def historial_transacciones_view(request):
             usuario_id=usuario_id,
             es_admin=es_admin,
             cliente_id=cliente_id,
+            roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
         return JsonResponse(
@@ -650,7 +772,7 @@ def detalle_transaccion_view(request, transaccion_id):
             usuario_id=usuario_id,
             cliente_id=cliente_id,
             es_admin=es_admin,
-            permitir_clientes_asociados=es_cajero,
+            roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
         return JsonResponse(

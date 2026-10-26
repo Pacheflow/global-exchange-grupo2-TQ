@@ -8,7 +8,8 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from cajas.services import registrar_movimiento_automatico
+from cajas.models import Caja
+from cajas.services import hay_disponibilidad, registrar_movimiento_automatico
 from clientes.models import CategoriaCliente, Cliente, UsuarioCliente
 from metodos_pago.models import MetodoPago
 from monedas.models import Moneda
@@ -17,7 +18,7 @@ from tasas.models import TasaComercial
 from tasas.precision import normalizar_tasa
 from usuarios.services.keycloak import rol_efectivo
 
-from .models import Transaccion
+from .models import LiquidacionEfectivo, Transaccion
 
 
 PRECISION_MONTO = Decimal("0.000001")
@@ -41,7 +42,7 @@ class ResultadoPreviewOperacion:
         monto_destino (Decimal): Monto final después de la comisión.
         porcentaje_comision (Decimal): Porcentaje según la categoría del cliente.
         tasa_comercial (TasaComercial): Registro vigente de la tasa utilizada.
-        metodo_pago (MetodoPago): Método de pago seleccionado.
+        metodo_pago (MetodoPago | None): Método opcional; la interfaz lo elige en revisión.
     """
 
     tipo: str
@@ -55,7 +56,7 @@ class ResultadoPreviewOperacion:
     monto_destino: Decimal
     porcentaje_comision: Decimal
     tasa_comercial: TasaComercial
-    metodo_pago: MetodoPago
+    metodo_pago: MetodoPago | None
 
 
 @dataclass(frozen=True)
@@ -109,8 +110,8 @@ def _obtener_cliente_activo(cliente_id):
     return cliente
 
 
-def _validar_acceso_usuario_cliente(cliente, usuario_id):
-    """Comprueba la asociación activa entre un usuario Keycloak y su cliente.
+def _validar_acceso_usuario_cliente(cliente, usuario_id, *, escritura=False):
+    """Comprueba asociación activa; la creación exige RESPONSABLE/OPERADOR.
 
     Requisito relacionado: RNF-02.
     """
@@ -119,10 +120,28 @@ def _validar_acceso_usuario_cliente(cliente, usuario_id):
         cliente=cliente,
         keycloak_user_id=usuario_id,
         activo=True,
+        **({"rol_en_cliente__in": ["RESPONSABLE", "OPERADOR"]} if escritura else {}),
     ).exists():
         raise ValidationError(
             {"cliente": "El usuario no tiene acceso a este cliente."}
         )
+
+
+def _validar_contexto_creacion(cliente, usuario_id, roles, presencial, *, escritura=False):
+    """El cajero presencial opera clientes activos sin asociación; online conserva sus restricciones."""
+    if presencial:
+        if rol_efectivo(roles) != "CAJERO":
+            raise ValidationError("Solo el CAJERO efectivo puede crear operaciones presenciales.", code="ROL_NO_PERMITIDO")
+    else:
+        if roles and rol_efectivo(roles) != "USUARIO":
+            raise ValidationError("El rol no permite crear operaciones online.", code="ROL_NO_PERMITIDO")
+        _validar_acceso_usuario_cliente(cliente, usuario_id, escritura=escritura)
+
+
+def _validar_metodo_presencial(metodo, presencial):
+    """El contexto presencial exige un método activo clasificado explícitamente como efectivo."""
+    if presencial and (metodo is None or not metodo.activo or metodo.naturaleza != MetodoPago.Naturaleza.EFECTIVO):
+        raise ValidationError("Seleccioná un método de efectivo habilitado.", code="METODO_NO_DISPONIBLE")
 
 
 def _obtener_moneda_activa(moneda_id, campo):
@@ -315,6 +334,7 @@ def _construir_huella_idempotencia(
     version_preview,
     categoria_preview_id,
     porcentaje_comision_preview,
+    presencial=False,
 ):
     """Calcula el SHA-256 de la identidad lógica canónica de la solicitud.
 
@@ -343,6 +363,8 @@ def _construir_huella_idempotencia(
         "usuario_id": usuario_id,
         "version_tasa": int(version_preview),
     }
+    if presencial:
+        payload["contexto"] = "PRESENCIAL"
     serializado = json.dumps(
         payload,
         ensure_ascii=True,
@@ -417,12 +439,12 @@ def _obtener_metodo_pago_activo(metodo_pago_id):
         metodo = MetodoPago.objects.get(pk=metodo_pago_id)
     except (MetodoPago.DoesNotExist, ValueError, TypeError):
         raise ValidationError(
-            {"metodo_pago": "El método de pago seleccionado no existe."}
+            "El método seleccionado no está disponible. Revisá las opciones y confirmá nuevamente.", code="METODO_NO_DISPONIBLE"
         )
 
     if not metodo.activo:
         raise ValidationError(
-            {"metodo_pago": "El método de pago seleccionado está inactivo."}
+            "El método seleccionado está inactivo. Revisá las opciones y confirmá nuevamente.", code="METODO_NO_DISPONIBLE"
         )
 
     return metodo
@@ -497,12 +519,14 @@ def previsualizar_operacion(
     moneda_origen_id,
     moneda_destino_id,
     monto,
-    metodo_pago_id,
+    metodo_pago_id=None,
+    roles=(),
+    presencial=False,
 ):
     """Calcula la previsualización de una operación de compra o venta.
 
     Valida la identidad, el cliente, la asociación UsuarioCliente, las
-    monedas, la tasa comercial vigente, el método de pago y la categoría
+    monedas, la tasa comercial vigente, el método si se indicó y la categoría
     del cliente, y calcula la conversión y la comisión con Decimal sin
     persistir ninguna entidad.
 
@@ -514,7 +538,7 @@ def previsualizar_operacion(
         moneda_origen_id (int): Moneda que se entrega.
         moneda_destino_id (int): Moneda que se recibe.
         monto (str | int | Decimal): Monto de la operación en moneda origen.
-        metodo_pago_id (int): Método de pago del catálogo global seleccionado.
+        metodo_pago_id (int | None): Método opcional, elegido después en la revisión.
 
     Returns:
         ResultadoPreviewOperacion: Datos validados y valores calculados.
@@ -530,7 +554,7 @@ def previsualizar_operacion(
         )
 
     cliente = _obtener_cliente_activo(cliente_id)
-    _validar_acceso_usuario_cliente(cliente, usuario_id)
+    _validar_contexto_creacion(cliente, usuario_id, roles, presencial)
 
     moneda_origen = _obtener_moneda_activa(
         moneda_origen_id,
@@ -565,7 +589,8 @@ def previsualizar_operacion(
         porcentaje_comision,
     )
 
-    metodo_pago = _obtener_metodo_pago_activo(metodo_pago_id)
+    metodo_pago = _obtener_metodo_pago_activo(metodo_pago_id) if metodo_pago_id is not None else None
+    _validar_metodo_presencial(metodo_pago, presencial)
 
     return ResultadoPreviewOperacion(
         tipo=tipo,
@@ -598,6 +623,8 @@ def crear_transaccion(
     tasa_preview=None,
     categoria_preview_id=None,
     porcentaje_comision_preview=None,
+    roles=(),
+    presencial=False,
 ):
     """Crea y persiste una operación validando cotización y comisión.
 
@@ -666,7 +693,7 @@ def crear_transaccion(
     )
 
     cliente = _obtener_cliente_activo(cliente_id)
-    _validar_acceso_usuario_cliente(cliente, usuario_id)
+    _validar_contexto_creacion(cliente, usuario_id, roles, presencial)
     moneda_origen = _obtener_moneda_activa(
         moneda_origen_id,
         "moneda_origen",
@@ -691,6 +718,7 @@ def crear_transaccion(
         version_preview=version_esperada,
         categoria_preview_id=categoria_esperada,
         porcentaje_comision_preview=porcentaje_esperado,
+        presencial=presencial,
     )
 
     existente = (
@@ -712,7 +740,9 @@ def crear_transaccion(
             repetida=True,
         )
 
+    _validar_contexto_creacion(cliente, usuario_id, roles, presencial, escritura=True)
     metodo_pago = _obtener_metodo_pago_activo(metodo_pago_id)
+    _validar_metodo_presencial(metodo_pago, presencial)
 
     if _buscar_tasa_comercial_vigente(
         moneda_origen,
@@ -733,7 +763,22 @@ def crear_transaccion(
                 raise ValidationError(
                     {"cliente": "El cliente se encuentra inactivo."}
                 )
-            _validar_acceso_usuario_cliente(cliente, usuario_id)
+            _validar_contexto_creacion(cliente, usuario_id, roles, presencial, escritura=True)
+            # Otra confirmación puede haber creado la misma clave mientras
+            # esperábamos el lock de Cliente. Reutilizar antes de leer fondos.
+            existente = Transaccion.objects.filter(clave_idempotencia=clave_idempotencia).first()
+            if existente is not None:
+                _validar_reintento_idempotente(
+                    existente, usuario_id=usuario_id, cliente=cliente,
+                    huella_solicitud=huella_idempotencia,
+                )
+                return ResultadoCrearTransaccion(transaccion=existente, repetida=True)
+            # Comparte el bloqueo del catálogo con el inicio de cobro y evita
+            # que se deshabilite mientras se registra la elección confirmada.
+            metodo_pago = MetodoPago.objects.select_for_update().get(pk=metodo_pago.pk)
+            if not metodo_pago.activo:
+                raise ValidationError("El método seleccionado ya no está disponible. Revisá las opciones y confirmá nuevamente.", code="METODO_NO_DISPONIBLE")
+            _validar_metodo_presencial(metodo_pago, presencial)
             porcentaje_comision = _validar_huella_comision(
                 cliente,
                 categoria_esperada,
@@ -794,6 +839,11 @@ def crear_transaccion(
             )
 
             transaccion.full_clean()
+            if not hay_disponibilidad(moneda_id=moneda_destino.pk, monto=monto_destino):
+                raise ValidationError(
+                    "No hay disponibilidad suficiente para atender esta operación. Intenta más tarde.",
+                    code="DISPONIBILIDAD_INSUFICIENTE",
+                )
             transaccion.save()
 
     except IntegrityError as exc:
@@ -819,17 +869,48 @@ def crear_transaccion(
     )
 
 
+def validar_medio_liquidacion(operacion, *, bloquear=False):
+    """Distingue efectivo sin Pago de COMPRA electrónica aprobada, sin invocar proveedores."""
+    metodos = MetodoPago.objects
+    pagos = Pago.objects
+    if bloquear:
+        pagos = pagos.select_for_update(of=("self",))
+        metodos = metodos.select_for_update()
+    pago = pagos.filter(transaccion_id=operacion.pk).first()
+    metodo = metodos.get(pk=operacion.metodo_pago_id)
+    efectivo = metodo.naturaleza == MetodoPago.Naturaleza.EFECTIVO
+    if efectivo:
+        if pago is not None:
+            raise ValidationError("La operación en efectivo tiene un Pago electrónico incompatible.", code="PAGO_INCOMPATIBLE")
+        if not metodo.activo:
+            raise ValidationError("El método de efectivo está deshabilitado.", code="METODO_INACTIVO")
+        if operacion.moneda_origen.estado != "ACTIVA" or operacion.moneda_destino.estado != "ACTIVA":
+            raise ValidationError("Las monedas de la operación deben estar activas.", code="MONEDA_NO_ADMITIDA")
+    elif operacion.tipo == "COMPRA":
+        if pago is None or pago.estado != Pago.Estado.APROBADO:
+            raise ValidationError("La compra requiere un pago aprobado.", code="PAGO_NO_APROBADO")
+        if (
+            pago.metodo_pago_id != operacion.metodo_pago_id or pago.monto != operacion.monto_origen
+            or pago.moneda_codigo != operacion.moneda_origen.codigo or pago.base_importe != Pago.BaseImporte.ORIGEN
+            or pago.huella_solicitud != pago.calcular_huella()
+        ):
+            raise ValidationError("El pago no corresponde a la obligación.", code="OBLIGACION_CAMBIADA")
+        pago.full_clean()
+    return efectivo, pago
+
+
 def liquidar_transaccion(
     *, transaccion_id, periodo_id, usuario_id, username="", roles,
-    cliente_seleccionado_id,
+    cliente_seleccionado_id=None,
 ):
     """Liquida snapshots de la operación y Caja en un único commit, sin IO externo.
 
-    Locks: Transaccion → Pago (COMPRA) → Caja → PeriodoCaja. La capa superior
+    Locks: Transaccion → Pago → MetodoPago → Caja → PeriodoCaja. La capa superior
     selecciona y autoriza el período explícito; no existen asignaciones Cajero–Caja.
     El cobro digital de COMPRA no representa un ingreso de efectivo.
-    El Cajero puede omitir cliente_seleccionado_id: se revalida la asociación
-    activa con el cliente de la operación bajo el lock de Transaccion.
+    Efectivo registra recepción, entrega y evidencia en el mismo bloque atómico.
+    El CAJERO efectivo actúa como personal operativo: no requiere asociación
+    UsuarioCliente ni contexto de cliente seleccionado.
     """
     usuario_id = _validar_identidad(usuario_id)
     if (
@@ -847,35 +928,26 @@ def liquidar_transaccion(
             )
         except (Transaccion.DoesNotExist, TypeError, ValueError):
             raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
-        if cliente_seleccionado_id is not None and (
-            type(cliente_seleccionado_id) is not int or cliente_seleccionado_id != operacion.cliente_id
-        ):
-            raise ValidationError("El cliente seleccionado no corresponde a la operación.", code="CLIENTE_INCOHERENTE")
-        cliente = _obtener_cliente_activo(operacion.cliente_id)
-        _validar_acceso_usuario_cliente(cliente, usuario_id)
+        _obtener_cliente_activo(operacion.cliente_id)
         if operacion.estado == "COMPLETADA":
+            evidencia = LiquidacionEfectivo.objects.filter(transaccion=operacion).first()
+            if evidencia and evidencia.periodo_id != periodo_id:
+                raise ValidationError("La liquidación ya fue registrada con otro período.", code="CONFLICTO_IDEMPOTENCIA")
             return ResultadoLiquidarTransaccion(operacion, repetida=True)
         if operacion.estado != "PENDIENTE":
             raise ValidationError("La operación debe estar pendiente.", code="OPERACION_NO_PENDIENTE")
         if operacion.tipo not in {"COMPRA", "VENTA"}:
             raise ValidationError("El tipo de operación no permite liquidación.", code="TIPO_NO_ADMITIDO")
 
-        referencia = f"transaccion:{operacion.pk}"
-        if operacion.tipo == "COMPRA":
-            pago = Pago.objects.select_for_update(of=("self",)).filter(transaccion_id=operacion.pk).first()
-            if pago is None or pago.estado != Pago.Estado.APROBADO:
-                raise ValidationError("La compra requiere un pago aprobado.", code="PAGO_NO_APROBADO")
-            if (
-                pago.transaccion_id != operacion.pk
-                or pago.metodo_pago_id != operacion.metodo_pago_id
-                or pago.monto != operacion.monto_origen
-                or pago.moneda_codigo != operacion.moneda_origen.codigo
-                or pago.base_importe != Pago.BaseImporte.ORIGEN
-                or pago.huella_solicitud != pago.calcular_huella()
-            ):
-                raise ValidationError("El pago no corresponde a la obligación.", code="OBLIGACION_CAMBIADA")
-            pago.full_clean()
-            referencia = pago.referencia_externa
+        efectivo, pago = validar_medio_liquidacion(operacion, bloquear=True)
+        referencia = pago.referencia_externa if operacion.tipo == "COMPRA" and not efectivo else f"transaccion:{operacion.pk}"
+
+        try:
+            caja = Caja.objects.select_for_update(of=("self",)).get(periodos__pk=periodo_id)
+        except (Caja.DoesNotExist, TypeError, ValueError):
+            raise ValidationError("El período de caja no existe.") from None
+        if caja.estado != "HABILITADA":
+            raise ValidationError("La caja se encuentra deshabilitada.", code="CAJA_DESHABILITADA")
 
         datos = dict(
             periodo_id=periodo_id, usuario_id=usuario_id, username=username,
@@ -883,17 +955,24 @@ def liquidar_transaccion(
             referencia_externa=referencia,
         )
         prefijo = f"ge:hu28:transaccion:{operacion.pk}:caja:"
-        if operacion.tipo == "VENTA":
-            registrar_movimiento_automatico(
+        ingreso = None
+        if operacion.tipo == "VENTA" or efectivo:
+            ingreso = registrar_movimiento_automatico(
                 **datos, tipo="INGRESO", moneda_id=operacion.moneda_origen_id,
                 monto=operacion.monto_origen,
                 clave_idempotencia=f"{prefijo}ingreso-origen:v1",
             )
-        registrar_movimiento_automatico(
+        egreso = registrar_movimiento_automatico(
             **datos, tipo="EGRESO", moneda_id=operacion.moneda_destino_id,
             monto=operacion.monto_destino,
             clave_idempotencia=f"{prefijo}egreso-destino:v1",
         )
+        if efectivo:
+            LiquidacionEfectivo.objects.create(
+                transaccion=operacion, periodo_id=periodo_id,
+                ingreso=ingreso.movimiento, egreso=egreso.movimiento,
+                confirmado_por_keycloak_id=usuario_id, confirmado_por_username=username,
+            )
         operacion.estado = "COMPLETADA"
         operacion.full_clean()
         operacion.save(update_fields=["estado", "fecha_actualizacion"])
@@ -1006,17 +1085,19 @@ def listar_metodos_pago_operacion(*, usuario_id, cliente_id):
     return cliente, metodos, preferido
 
 
-def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
+def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None, roles=()):
     """Consulta el historial autorizado de transacciones.
 
-    Un usuario no administrador solo ve transacciones de los clientes
-    asociados con una asociación activa. Es una consulta de solo lectura
+    El CAJERO efectivo consulta globalmente como personal operativo. USUARIO
+    conserva sus asociaciones activas. Es una consulta de solo lectura
     que utiliza los snapshots guardados sin recalcular valores.
 
     Args:
         usuario_id (str): Identidad Keycloak del usuario que consulta.
         es_admin (bool): Indica si el usuario posee el rol de administrador.
         cliente_id (int | None): Limita el historial al cliente seleccionado.
+        roles (list): Roles autenticados; CAJERO efectivo ignora la selección
+            de cliente y consulta globalmente.
 
     Returns:
         list: Transacciones visibles para el usuario.
@@ -1038,12 +1119,15 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None):
 
     usuario_id = _validar_identidad(usuario_id)
 
+    es_cajero = rol_efectivo(roles) == "CAJERO"
+    if es_cajero:
+        cliente_id = None
     if cliente_id is not None:
         cliente = _obtener_cliente_activo(cliente_id)
         if not es_admin:
             _validar_acceso_usuario_cliente(cliente, usuario_id)
         transacciones = transacciones.filter(cliente=cliente)
-    elif not es_admin:
+    elif not es_admin and not es_cajero:
         transacciones = transacciones.filter(
             cliente__usuarios_asignados__keycloak_user_id=usuario_id,
             cliente__usuarios_asignados__activo=True,
@@ -1058,13 +1142,14 @@ def obtener_detalle_transaccion(
     usuario_id,
     cliente_id=None,
     es_admin=False,
-    permitir_clientes_asociados=False,
+    roles=(),
 ):
     """Obtiene una transacción del cliente seleccionado de forma segura.
 
     La consulta conserva los snapshots históricos y exige que la transacción
     pertenezca al cliente indicado. Para usuarios no administradores también
-    revalida la asociación activa con ese cliente.
+    revalida la asociación activa con ese cliente. El CAJERO efectivo consulta
+    globalmente sin asociación ni selección de cliente.
 
     Args:
         transaccion_id (int): Identificador de la transacción solicitada.
@@ -1072,8 +1157,8 @@ def obtener_detalle_transaccion(
         cliente_id (int | None): Cliente seleccionado y esperado para la
             transacción; el administrador global puede omitirlo.
         es_admin (bool): Permite consultar globalmente sin asociación.
-        permitir_clientes_asociados (bool): Habilita la consulta operativa de
-            Cajero sin cliente seleccionado, manteniendo la asociación activa.
+        roles (list): Roles del contexto autenticado; solo CAJERO efectivo
+            habilita consulta operativa global.
 
     Returns:
         Transaccion: Registro histórico solicitado con sus relaciones.
@@ -1086,12 +1171,15 @@ def obtener_detalle_transaccion(
     """
 
     usuario_id = _validar_identidad(usuario_id)
+    es_cajero = rol_efectivo(roles) == "CAJERO"
+    if es_cajero:
+        cliente_id = None
     cliente = None
     if cliente_id is not None:
         cliente = _obtener_cliente_activo(cliente_id)
         if not es_admin:
             _validar_acceso_usuario_cliente(cliente, usuario_id)
-    elif not es_admin and not permitir_clientes_asociados:
+    elif not es_admin and not es_cajero:
         raise ValidationError(
             {"cliente": "Debe seleccionar un cliente para consultar el detalle."}
         )
@@ -1107,11 +1195,6 @@ def obtener_detalle_transaccion(
                 "tasa_comercial",
                 "metodo_pago",
             )
-            .filter(**({
-                "cliente__usuarios_asignados__keycloak_user_id": usuario_id,
-                "cliente__usuarios_asignados__activo": True,
-                "cliente__estado": "ACTIVO",
-            } if permitir_clientes_asociados and not es_admin else {}))
             .get(
                 pk=transaccion_id,
                 **({"cliente": cliente} if cliente is not None else {}),

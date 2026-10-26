@@ -58,10 +58,12 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         )
         return cliente
 
-    def test_bandeja_cajero_todos_asociados_sin_cliente_seleccionado(self):
+    def test_bandeja_y_detalle_cajero_sin_asociaciones_ni_cliente(self):
+        """Cajero sin asociaciones ni selección ve las operaciones y el detalle de todos los clientes."""
         otro = self.crear_cliente_asociado()
         primero = self.crear().transaccion
         segundo = self.crear(cliente_id=otro.pk).transaccion
+        UsuarioCliente.objects.all().delete()
         self.autenticar(roles=("CAJERO", "USUARIO"))
         sesion = self.client.session
         sesion.pop("selected_client", None)
@@ -73,15 +75,15 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk])).status_code, 200)
         pagina = self.client.get(reverse("operaciones_web:inicio"))
         self.assertContains(pagina, "Bandeja operativa")
-        self.assertNotContains(pagina, "Nueva operación")
+        self.assertNotContains(pagina, 'data-operation-form')
+        self.assertContains(pagina, reverse("operaciones_web:presencial"))
         self.assertNotContains(pagina, "Seleccioná un cliente para operar")
-        UsuarioCliente.objects.filter(cliente=otro).update(activo=False)
         datos = self.client.get(url).json()["transacciones"]
-        self.assertEqual({tx["id"] for tx in datos}, {primero.pk})
+        self.assertEqual({tx["id"] for tx in datos}, {primero.pk, segundo.pk})
         detalle = self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk]))
-        self.assertEqual(detalle.status_code, 404)
+        self.assertEqual(detalle.status_code, 200)
         inexistente = self.client.get(reverse("operaciones:detalle_transaccion", args=[999999]))
-        self.assertEqual(detalle.json(), inexistente.json())
+        self.assertEqual(inexistente.status_code, 404)
 
     def test_usuario_sigue_requiriendo_cliente_para_historial_y_detalle(self):
         tx = self.crear().transaccion
@@ -93,6 +95,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[tx.pk])).status_code, 400)
 
     def test_bandeja_e_historial_cajero_separan_estados_y_clientes(self):
+        """Sin asociaciones, la bandeja incluye pendientes globales y el historial solo completadas/canceladas."""
         from django.utils import timezone
         from .models import Transaccion
         segundo = self.crear_cliente_asociado()
@@ -107,9 +110,8 @@ class FlujosGuillermoTests(BaseOperacionesTests):
                         cancelado_por_username=self.usuario_username,
                         cancelado_en=timezone.now(), motivo_cancelacion="Prueba histórica")
                 Transaccion.objects.filter(pk=tx.pk).update(**campos)
-                if cliente != excluido:
-                    esperados[estado].add(tx.pk)
-        UsuarioCliente.objects.filter(cliente=excluido).update(activo=False)
+                esperados[estado].add(tx.pk)
+        UsuarioCliente.objects.all().delete()
         self.autenticar(roles=("CAJERO", "USUARIO"))
         sesion = self.client.session
         sesion.pop("selected_client", None)
@@ -129,6 +131,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         return cliente
 
     def test_historial_cajero_solo_lectura_y_sidebar_unico(self):
+        """Historial es de solo lectura; bandeja ofrece acceso presencial sin mostrar el formulario online."""
         from html.parser import HTMLParser
 
         class Sidebar(HTMLParser):
@@ -157,7 +160,9 @@ class FlujosGuillermoTests(BaseOperacionesTests):
             parser = Sidebar()
             parser.feed(respuesta.content.decode())
             self.assertEqual(parser.activos, [url])
-            self.assertNotContains(respuesta, "Nueva operación")
+            self.assertNotContains(respuesta, 'data-operation-form')
+            if nombre == "historial":
+                self.assertNotContains(respuesta, 'Nueva operación en efectivo')
             if nombre == "historial":
                 for atributo in ('data-can-pay="false"', 'data-can-liquidate="false"',
                                  'data-can-view-payment="false"', 'data-can-cancel="false"'):
@@ -180,6 +185,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
             self.assertEqual(self.client.get(reverse("operaciones_web:historial")).status_code, 403)
 
     def test_cajero_renderiza_bandeja_con_selected_client_invalido(self):
+        """La bandeja y acceso presencial no requieren cliente en sesión ni asociaciones del cajero."""
         for roles in (("CAJERO",), ("CAJERO", "USUARIO")):
             with self.subTest(roles=roles):
                 self.autenticar(roles=roles)
@@ -189,7 +195,8 @@ class FlujosGuillermoTests(BaseOperacionesTests):
                 respuesta = self.client.get(reverse("operaciones_web:inicio"))
                 self.assertEqual(respuesta.status_code, 200)
                 self.assertContains(respuesta, "Bandeja operativa")
-                self.assertNotContains(respuesta, "Nueva operación")
+                self.assertNotContains(respuesta, 'data-operation-form')
+                self.assertContains(respuesta, reverse("operaciones_web:presencial"))
                 self.assertIsNone(respuesta.context["cliente_operacion"])
                 self.assertContains(respuesta, "Historial de operaciones")
 
@@ -217,7 +224,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.autenticar()
         for tipo in ("COMPRA", "VENTA"):
             with self.subTest(tipo=tipo):
-                datos = json.dumps(self.parametros_crear(tipo=tipo), default=str)
+                datos = json.dumps(self.parametros_confirmacion_http(tipo=tipo), default=str)
                 nueva = self.client.post(
                     reverse("operaciones:crear_transaccion"),
                     data=datos, content_type="application/json",
@@ -326,7 +333,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertEqual(detalle["estado"], "PENDIENTE")
         self.assertEqual(detalle["tasa_aplicada"], tasa_guardada)
         self.assertEqual(detalle["tasa_comercial"]["version"], 1)
-        self.assertEqual(detalle["metodo_pago"]["nombre"], "Efectivo")
+        self.assertEqual(detalle["metodo_pago"]["nombre"], "Tarjeta de prueba")
         self.assertIn("cancelacion", detalle)
 
     def test_historial_y_detalle_rechazan_escrituras(self):

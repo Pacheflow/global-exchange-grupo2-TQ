@@ -16,6 +16,8 @@ from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
 from clientes.models import UsuarioCliente
+from cajas.services import hay_disponibilidad
+from metodos_pago.models import MetodoPago
 from operaciones.models import Transaccion
 from usuarios.services.keycloak import rol_efectivo
 
@@ -83,6 +85,10 @@ def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, *, roles
     usuario_id = usuario_id.strip()
     rol = rol_efectivo(roles)
     consulta_cajero = permitir_sin_cliente and rol == "CAJERO"
+    # Solo la lectura local es operativa global. Recuperar externamente conserva
+    # el cliente seleccionado y la asociación RESPONSABLE/OPERADOR existentes.
+    if consulta_cajero and rol in roles_permitidos and transaccion.cliente.estado == "ACTIVO":
+        return usuario_id
     if (
         rol not in roles_permitidos
         or (not (consulta_cajero and cliente_seleccionado_id is None)
@@ -105,8 +111,18 @@ def _elegible(transaccion):
         raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
     if transaccion.estado != "PENDIENTE":
         raise ValidationError("La operación debe estar pendiente.", code="OPERACION_NO_PENDIENTE")
-    if not transaccion.metodo_pago.activo:
+
+
+def _validar_metodo_cobro(transaccion):
+    """Revalida un nuevo intento bajo lock, nunca reinterpreta un Pago existente."""
+    metodo = MetodoPago.objects.select_for_update().get(pk=transaccion.metodo_pago_id)
+    if not metodo.activo:
         raise ValidationError("El método de pago no está habilitado.", code="METODO_INACTIVO")
+    if metodo.naturaleza != MetodoPago.Naturaleza.ELECTRONICO:
+        mensaje = ("El procesamiento en efectivo todavía no está disponible."
+                   if metodo.naturaleza == MetodoPago.Naturaleza.EFECTIVO
+                   else "El método requiere clasificación antes de iniciar un pago electrónico.")
+        raise ValidationError(mensaje, code="METODO_NO_ELECTRONICO")
 
 
 def _validar_snapshots(transaccion, pago):
@@ -294,6 +310,8 @@ def iniciar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, 
         if pago is not None:
             _validar_snapshots(transaccion, pago)
             return _respuesta(pago, reutilizado=True)
+        _validar_metodo_cobro(transaccion)
+        _validar_disponibilidad(transaccion)
         pago = Pago(
             transaccion=transaccion, metodo_pago=transaccion.metodo_pago, proveedor=PROVEEDOR_TEST,
             monto=transaccion.monto_origen, moneda_codigo=transaccion.moneda_origen.codigo,
@@ -320,12 +338,24 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
             return _respuesta(pago, reutilizado=True)
         if pago.referencia_externa is not None:
             raise ValidationError("El pago requiere recuperación.", code="REQUIERE_RECUPERACION")
+        _validar_metodo_cobro(transaccion)
+        _validar_disponibilidad(transaccion)
         _asegurar_espacio(pago)
         pago.estado = Pago.Estado.EN_PROCESO
         pago.trazabilidad = pago.trazabilidad + [_evento(pago.estado, "REINTENTO")]
         pago.save()
         reserva = _reserva(transaccion, pago)
     return _invocar(provider, reserva, consulta=False, reutilizado=True)
+
+
+def _validar_disponibilidad(transaccion):
+    """Antes de autorizar un cobro nuevo, lee fondos sin reservar ni bloquear Caja."""
+    if not hay_disponibilidad(moneda_id=transaccion.moneda_destino_id, monto=transaccion.monto_destino):
+        raise ValidationError(
+            "No hay disponibilidad suficiente para procesar esta operación. "
+            "No se realizó ningún cobro en este intento. Intenta más tarde.",
+            code="DISPONIBILIDAD_INSUFICIENTE",
+        )
 
 
 def recuperar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, provider: PaymentProvider):

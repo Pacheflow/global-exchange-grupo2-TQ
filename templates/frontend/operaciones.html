@@ -5,10 +5,12 @@
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
   <div class="ge-frontend-main-pad ge-operations" data-operaciones-page
-       data-preview-url="{% url 'operaciones:previsualizar_operacion' %}"
-       data-create-url="{% url 'operaciones:crear_transaccion' %}"
+       data-preview-url="{% if es_presencial %}{% url 'operaciones:preview_presencial' %}{% else %}{% url 'operaciones:previsualizar_operacion' %}{% endif %}"
+       data-create-url="{% if es_presencial %}{% url 'operaciones:crear_presencial' %}{% else %}{% url 'operaciones:crear_transaccion' %}{% endif %}"
+       data-presencial="{{ es_presencial|yesno:'true,false' }}"
+       data-client-search-url="{% url 'operaciones:clientes_presenciales' %}"
        data-cancel-url="{% url 'operaciones:cancelar_transaccion' %}"
-       data-methods-url="{% url 'operaciones:metodos_pago_operacion' %}"
+       data-methods-url="{% if es_presencial %}{% url 'operaciones:metodos_presenciales' %}{% else %}{% url 'operaciones:metodos_pago_operacion' %}{% endif %}"
        data-history-url="{% url 'operaciones:historial_transacciones' %}{% if es_historial_cajero %}?vista=historial{% endif %}"
        data-detail-url="{% url 'operaciones:detalle_transaccion' 0 %}"
        data-liquidation-periods-url="{% url 'operaciones:periodos_liquidacion' 0 %}"
@@ -28,7 +30,7 @@
       <div>
         <span class="ge-frontend-eyebrow">{% if es_supervisor %}Supervisión global{% elif es_historial_cajero %}Consulta histórica{% elif puede_liquidar %}Procesamiento de operaciones{% else %}Compra y venta de divisas{% endif %}</span>
         <h2 class="ge-frontend-h2">{% if es_historial_cajero %}Historial de operaciones{% else %}Operaciones{% endif %}</h2>
-        <p class="ge-frontend-subtitle">{% if es_supervisor %}Consultá el historial completo y la trazabilidad de las operaciones registradas.{% elif es_historial_cajero %}COMPRA y VENTA completadas o canceladas de tus clientes asociados.{% elif puede_liquidar %}Consultá y liquidá las operaciones pendientes de tus clientes asociados.{% else %}Previsualizá los valores vigentes antes de confirmar y consultá las transacciones registradas.{% endif %}</p>
+        <p class="ge-frontend-subtitle">{% if es_supervisor %}Consultá el historial completo y la trazabilidad de las operaciones registradas.{% elif es_historial_cajero %}COMPRA y VENTA completadas o canceladas de los clientes de la casa de cambio.{% elif puede_liquidar %}Consultá y liquidá las operaciones pendientes de los clientes de la casa de cambio.{% else %}Previsualizá los valores vigentes antes de confirmar y consultá las transacciones registradas.{% endif %}</p>
       </div>
     </div>
 
@@ -39,16 +41,22 @@
         <strong>Modo supervisor global</strong>
         <p>No necesitás seleccionar un cliente. Este perfil permite consultar todas las operaciones, pero no crear compras o ventas.</p>
       </section>
-    {% elif es_cajero %}
-      <section class="ge-card ge-card--pad24"><strong>{% if es_historial_cajero %}Historial de operaciones{% else %}Bandeja operativa{% endif %}</strong><p>{% if es_historial_cajero %}Operaciones finalizadas de todos tus clientes con asociación activa. Consulta de solo lectura.{% else %}Operaciones pendientes de todos tus clientes con asociación activa. Consultá el detalle para liquidar una operación elegible.{% endif %}</p></section>
-    {% elif cliente_operacion %}
+    {% elif es_cajero and not es_presencial %}
+      <section class="ge-card ge-card--pad24"><strong>{% if es_historial_cajero %}Historial de operaciones{% else %}Bandeja operativa{% endif %}</strong><p>{% if es_historial_cajero %}Operaciones finalizadas de los clientes de la casa de cambio. Consulta de solo lectura.{% else %}Operaciones pendientes de los clientes de la casa de cambio. Consultá el detalle para liquidar una operación elegible.{% endif %}</p></section>
+      {% if not es_historial_cajero %}<a class="ge-btn-primary" href="{% url 'operaciones_web:presencial' %}">Nueva operación en efectivo</a>{% endif %}
+    {% elif cliente_operacion or es_presencial %}
       <section class="ge-client-context ge-card" aria-label="Cliente seleccionado">
+        {% if es_presencial %}
+        <div><strong>Atención presencial del cajero</strong><span>Simulación de recepción y entrega física de efectivo. Seleccioná un cliente registrado.</span></div>
+        <a class="ge-btn-ghost" href="{% url 'operaciones_web:inicio' %}">Volver a la bandeja</a>
+        {% else %}
         <div>
           <span class="ge-client-context-label">Cliente seleccionado</span>
           <strong>{{ cliente_operacion.nombre_razon_social }}</strong>
           <span>Documento {{ cliente_operacion.documento }} · Categoría {{ cliente_operacion.categoria.nombre|default:'Sin categoría' }}</span>
         </div>
         <a class="ge-btn-ghost" href="{% url 'consultar_clientes' %}">Cambiar cliente</a>
+        {% endif %}
       </section>
 
       {% if puede_crear %}
@@ -56,12 +64,21 @@
         <section class="ge-card ge-card--pad24" aria-labelledby="nueva-operacion-title">
           <div class="ge-operation-section-head">
             <div>
-              <h3 id="nueva-operacion-title">Nueva operación</h3>
+              <h3 id="nueva-operacion-title">{% if es_presencial %}Nueva operación en efectivo{% else %}Nueva operación{% endif %}</h3>
               <p>Los importes se calculan y validan en el servidor.</p>
             </div>
           </div>
           <form data-operation-form novalidate>
-            <input type="hidden" name="cliente_id" value="{{ cliente_operacion.id }}">
+            {% if es_presencial %}
+            <div class="ge-field">
+              <label for="buscar-cliente-efectivo">Buscar cliente registrado</label>
+              <input id="buscar-cliente-efectivo" type="search" data-client-search maxlength="100" placeholder="Nombre o documento (al menos 2 caracteres)">
+              <button type="button" class="ge-btn-outline" data-client-search-button>Buscar</button>
+              <label for="cliente-efectivo">Cliente titular</label>
+              <select id="cliente-efectivo" name="cliente_id" required><option value="">Seleccionar cliente</option></select>
+              <p data-client-search-message role="status"></p>
+            </div>
+            {% else %}<input type="hidden" name="cliente_id" value="{{ cliente_operacion.id }}">{% endif %}
             <div class="ge-operation-type" role="group" aria-label="Tipo de operación">
               <button type="button" class="is-active" data-operation-type="COMPRA" aria-pressed="true">Compra</button>
               <button type="button" data-operation-type="VENTA" aria-pressed="false">Venta</button>
@@ -91,16 +108,14 @@
             </div>
 
             <div class="ge-field">
-              <label for="metodo-pago">Método de pago</label>
-              <select id="metodo-pago" name="metodo_pago_id" required>
+              <label for="metodo-pago" data-new-method-label>Método de pago</label>
+              <select id="metodo-pago" name="metodo_pago_id" data-new-method required>
                 <option value="">Seleccionar método</option>
                 {% for metodo in metodos_activos %}
-                  <option value="{{ metodo.id }}"{% if cliente_operacion.metodo_pago_preferido_id == metodo.id %} selected{% endif %}>{{ metodo.nombre }}{% if cliente_operacion.metodo_pago_preferido_id == metodo.id %} · Preferido{% endif %}</option>
+                  <option value="{{ metodo.id }}"{% if cliente_operacion.metodo_pago_preferido_id == metodo.id %} selected{% endif %}>{{ metodo.nombre }}</option>
                 {% endfor %}
               </select>
-              {% if cliente_operacion.metodo_pago_preferido and not cliente_operacion.metodo_pago_preferido.activo %}
-                <small>El método preferido del cliente está inactivo. Seleccioná otro método disponible.</small>
-              {% endif %}
+              <p data-new-method-message role="status"></p>
             </div>
 
             <div class="ge-operation-actions">
@@ -125,8 +140,13 @@
             <div><dt>Monto convertido</dt><dd data-preview-field="convertido">—</dd></div>
             <div><dt>Comisión</dt><dd data-preview-field="comision">—</dd></div>
             <div class="ge-preview-total"><dt>Recibís</dt><dd data-preview-field="destino">—</dd></div>
-            <div><dt>Método de pago</dt><dd data-preview-field="metodo">—</dd></div>
           </dl>
+          <div class="ge-field">
+            <label for="resumen-metodo" data-confirm-method-label>Método de pago</label>
+            <select id="resumen-metodo" data-confirm-method disabled><option value="">Seleccionar método</option></select>
+          </div>
+          <p data-confirm-message role="status" aria-live="polite"></p>
+          <small>{% if es_presencial %}Simulación de intercambio físico de efectivo. La creación no recibe ni entrega dinero; el cajero confirma el intercambio al liquidar.{% else %}Entorno de pruebas: los métodos electrónicos se simulan mediante una tarjeta de prueba de Stripe. No se realizan cobros reales.{% endif %}</small>
           <p class="ge-preview-note">La cotización volverá a validarse al confirmar. Si cambió, la operación no se registrará.</p>
           <button class="ge-btn-primary ge-operation-confirm" type="button" data-open-confirm>Confirmar operación</button>
         </section>
@@ -145,7 +165,7 @@
       <div class="ge-history-head">
         <div>
           <h3 id="historial-title">{% if es_historial_cajero %}Historial de operaciones{% elif es_cajero %}Operaciones pendientes{% else %}Historial de transacciones{% endif %}</h3>
-          <p>{% if es_supervisor %}Todas las operaciones registradas en la plataforma.{% else %}Operaciones disponibles para tus clientes asociados.{% endif %}</p>
+          <p>{% if es_supervisor %}Todas las operaciones registradas en la plataforma.{% elif es_cajero %}Operaciones de los clientes de la casa de cambio.{% else %}Operaciones disponibles para tus clientes asociados.{% endif %}</p>
         </div>
         <button type="button" class="ge-btn-ghost" data-reload-history>Actualizar</button>
       </div>
@@ -161,11 +181,10 @@
   <div class="ge-modal-backdrop" id="confirmar-operacion" aria-hidden="true">
     <div class="ge-modal" role="dialog" aria-modal="true" aria-labelledby="confirmar-operacion-title">
       <h3 id="confirmar-operacion-title">Confirmar operación</h3>
-      <p data-confirm-summary>Revisá los valores antes de registrar la transacción.</p>
-      <p>La confirmación registra la operación pendiente de procesamiento. No confirma un pago ni completa la operación.</p>
+      <p>¿Desea confirmar la operación?</p>
       <div class="ge-modal-actions">
         <button type="button" class="ge-btn-outline" data-ge-modal-close="confirmar-operacion">Volver</button>
-        <button type="button" class="ge-btn-primary" data-confirm-operation>Confirmar</button>
+        <button type="button" class="ge-btn-primary" data-confirm-operation disabled>Confirmar operación</button>
       </div>
     </div>
   </div>
@@ -195,6 +214,7 @@
       </section>
       <section class="ge-card ge-card--pad24" data-liquidation-section hidden aria-labelledby="detalle-liquidacion-title">
         <h4 id="detalle-liquidacion-title">Liquidación</h4>
+        <p data-cash-summary hidden></p>
         <p class="ge-frontend-note" data-liquidation-message role="status" aria-live="polite"></p>
         <div class="ge-operation-feedback is-error" data-liquidation-error role="alert" hidden></div>
         <div class="ge-field">
@@ -212,4 +232,4 @@
     </div>
   </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/operaciones.js' %}"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/operaciones.js' %}?v=presencial-2"></script>{% endblock %}

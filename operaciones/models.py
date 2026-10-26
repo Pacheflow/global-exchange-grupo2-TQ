@@ -200,3 +200,33 @@ class Transaccion(models.Model):
             f"{self.get_tipo_display()} "
             f"{self.moneda_origen.codigo}/{self.moneda_destino.codigo}"
         )
+
+
+class CambioMetodoPago(models.Model):
+    """Auditoría histórica del flujo retirado; se conserva su migración ya aplicada."""
+
+    transaccion = models.ForeignKey(Transaccion, on_delete=models.PROTECT, related_name="cambios_metodo")
+    anterior = models.ForeignKey("metodos_pago.MetodoPago", on_delete=models.PROTECT, related_name="cambios_salientes")
+    nuevo = models.ForeignKey("metodos_pago.MetodoPago", on_delete=models.PROTECT, related_name="cambios_entrantes")
+    nombre_anterior = models.CharField(max_length=100)
+    nombre_nuevo = models.CharField(max_length=100)
+    actor_keycloak_id = models.CharField(max_length=255)
+    fecha = models.DateTimeField(auto_now_add=True)
+    clave_idempotencia = models.UUIDField()
+    huella_solicitud = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["transaccion", "clave_idempotencia"],
+                                               name="cambio_metodo_clave_unica")]
+
+
+class LiquidacionEfectivo(models.Model):
+    """Evidencia única del intercambio físico simulado, ligada a sus dos movimientos."""
+
+    transaccion = models.OneToOneField(Transaccion, on_delete=models.PROTECT, related_name="liquidacion_efectivo")
+    periodo = models.ForeignKey("cajas.PeriodoCaja", on_delete=models.PROTECT, related_name="liquidaciones_efectivo")
+    ingreso = models.OneToOneField("cajas.MovimientoCaja", on_delete=models.PROTECT, related_name="recepcion_efectivo")
+    egreso = models.OneToOneField("cajas.MovimientoCaja", on_delete=models.PROTECT, related_name="entrega_efectivo")
+    confirmado_por_keycloak_id = models.CharField(max_length=255)
+    confirmado_por_username = models.CharField(max_length=150, blank=True, default="")
+    fecha = models.DateTimeField(auto_now_add=True)

@@ -3,11 +3,7 @@
   <h3>Acciones de Caja</h3>
   <div class="ge-btn-row">
     <a class="ge-btn-outline" href="{% url 'cajas:arqueo' periodo.pk %}">Realizar arqueo</a>
-    {% if puede_cerrar %}
-      <a class="ge-btn-outline" href="{% url 'cajas:cierre' periodo.pk %}">Cerrar caja</a>
-    {% else %}
-      <button class="ge-btn-outline" type="button" disabled aria-describedby="motivo-no-cierre-{{ periodo.pk }}">Cerrar caja</button>
-    {% endif %}
+    <a class="ge-btn-outline" href="{% url 'cajas:cierre' periodo.pk %}"{% if not puede_cerrar %} aria-describedby="motivo-no-cierre-{{ periodo.pk }}"{% endif %}>Cerrar caja</a>
     <a class="ge-btn-primary" href="{% url 'cajas:registrar_movimiento' periodo.pk %}">Nuevo movimiento</a>
   </div>
   {% if not puede_cerrar %}<p class="ge-frontend-note" id="motivo-no-cierre-{{ periodo.pk }}">{{ motivo_no_cierre|default:'Consultá los requisitos de cierre del período.' }}</p>{% endif %}
