@@ -401,12 +401,39 @@ def arqueo(request, periodo_id):
 @requiere_roles_web("CAJERO")
 @require_http_methods(["GET", "POST"])
 def cierre(request, periodo_id):
-    """Muestra el último arqueo y permite confirmar el cierre de la caja."""
+    """Muestra un cierre elegible o informa el rechazo una sola vez mediante redirección a GET."""
 
     periodo = get_object_or_404(
         PeriodoCaja.objects.select_related("caja"),
         pk=periodo_id,
     )
+
+    avisos = {
+        "Debe realizarse un arqueo antes de cerrar la caja.":
+            "Debes realizar un arqueo antes de cerrar la caja.",
+        "Se registraron movimientos después del arqueo. Debe realizarse un nuevo arqueo antes de cerrar la caja.":
+            "La caja tiene movimientos posteriores al último arqueo. Realiza un nuevo arqueo antes de cerrarla.",
+    }
+
+    if request.method == "POST":
+        usuario = request.session.get(SESSION_USUARIO, {})
+        try:
+            cerrar_caja(
+                periodo_id=periodo.id,
+                username=usuario.get("username", usuario.get("preferred_username", "")),
+                **_identidad(request),
+            )
+        except PermissionDenied:
+            raise
+        except ValidationError as error:
+            motivo = " ".join(error.messages)
+            messages.error(request, avisos.get(motivo, motivo))
+            periodo.refresh_from_db(fields=["estado"])
+            if periodo.estado == "ABIERTO":
+                return redirect("cajas:saldo", periodo_id=periodo.pk)
+            return redirect("cajas:historial", caja_id=periodo.caja_id)
+        messages.success(request, "Caja cerrada correctamente.")
+        return redirect("cajas:historial", caja_id=periodo.caja_id)
 
     if periodo.estado != "ABIERTO":
         return render(
@@ -429,45 +456,11 @@ def cierre(request, periodo_id):
     )
 
     if arqueo is None:
-        return render(
-            request,
-            "frontend/caja_cierre.html",
-            {
-                "periodo": periodo,
-                "arqueo": None,
-                "error": "Debe realizarse un arqueo antes de cerrar la caja.",
-            },
-            status=400,
-        )
-
-    if request.method == "POST":
-        usuario = request.session.get(SESSION_USUARIO, {})
-
-        try:
-            cerrar_caja(
-                periodo_id=periodo.id,
-                username=usuario.get(
-                    "username",
-                    usuario.get("preferred_username", ""),
-                ),
-                **_identidad(request),
-            )
-        except PermissionDenied:
-            raise
-        except ValidationError as error:
-            return render(
-                request,
-                "frontend/caja_cierre.html",
-                {
-                    "periodo": periodo,
-                    "arqueo": arqueo,
-                    "error": " ".join(error.messages),
-                },
-                status=400,
-            )
-
-        messages.success(request, "Caja cerrada correctamente.")
-        return redirect("cajas:historial", caja_id=periodo.caja_id)
+        messages.error(request, avisos["Debe realizarse un arqueo antes de cerrar la caja."])
+        return redirect("cajas:saldo", periodo_id=periodo.pk)
+    if periodo.movimientos.filter(fecha_registro__gt=arqueo.fecha_arqueo).exists():
+        messages.error(request, avisos["Se registraron movimientos después del arqueo. Debe realizarse un nuevo arqueo antes de cerrar la caja."])
+        return redirect("cajas:saldo", periodo_id=periodo.pk)
 
     return render(
         request,
