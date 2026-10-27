@@ -163,6 +163,23 @@ que no requiere PostgreSQL ni Keycloak para importar los módulos.
 
 ## Producción en una VM
 
+### Factura Segura TEST (Sprint 5)
+
+La integración técnica permanece deshabilitada mientras el token o el RUC
+estén vacíos. Configurarlos únicamente en `.env` o `.env.production`, nunca en
+Git:
+
+```env
+FACTURA_SEGURA_API_URL=https://apitest.facturasegura.com.py/misife00/v1/esi
+FACTURA_SEGURA_TOKEN=
+FACTURA_SEGURA_RUC=
+FACTURA_SEGURA_TIMEOUT_SECONDS=30
+FACTURA_SEGURA_MAX_DOWNLOAD_BYTES=15728640
+```
+
+Después de desplegar la migración, consultar el contrato técnico en
+[`docs/HU-28_Integracion_Factura_Segura.md`](docs/HU-28_Integracion_Factura_Segura.md).
+
 Producción utiliza un Compose separado con Gunicorn, WhiteNoise, PostgreSQL
 persistente, Keycloak en modo `start` y Nginx como única entrada pública. Los
 servicios `web`, `keycloak` y `postgres` no publican puertos del host.

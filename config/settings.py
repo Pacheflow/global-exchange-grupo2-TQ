@@ -175,6 +175,26 @@ try:
 except ValueError:
     STRIPE_TIMEOUT_SECONDS = None
 
+# Sprint 5 / Guillermo: integracion tecnica ESI con Factura Segura TEST.
+# Los secretos permanecen vacios por defecto y se validan al construir el
+# cliente, de modo que el resto de la aplicacion pueda iniciar sin credenciales.
+FACTURA_SEGURA_API_URL = os.getenv(
+    "FACTURA_SEGURA_API_URL",
+    "https://apitest.facturasegura.com.py/misife00/v1/esi",
+).strip()
+FACTURA_SEGURA_TOKEN = os.getenv("FACTURA_SEGURA_TOKEN", "").strip()
+FACTURA_SEGURA_RUC = os.getenv("FACTURA_SEGURA_RUC", "").strip()
+try:
+    FACTURA_SEGURA_TIMEOUT_SECONDS = float(os.getenv("FACTURA_SEGURA_TIMEOUT_SECONDS", "30"))
+except ValueError:
+    FACTURA_SEGURA_TIMEOUT_SECONDS = None
+try:
+    FACTURA_SEGURA_MAX_DOWNLOAD_BYTES = int(
+        os.getenv("FACTURA_SEGURA_MAX_DOWNLOAD_BYTES", str(15 * 1024 * 1024))
+    )
+except ValueError:
+    FACTURA_SEGURA_MAX_DOWNLOAD_BYTES = None
+
 
 # ------------------------------------------------------------------
 # Sesión / Cookies
@@ -289,6 +309,7 @@ INSTALLED_APPS = [
     "operaciones",
     "cajas",
     "pagos.apps.PagosConfig",
+    "facturacion.apps.FacturacionConfig",
 ]
 
 

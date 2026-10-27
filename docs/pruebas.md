@@ -1,23 +1,38 @@
 # Pruebas — Global Exchange
 
-> Estado verificado el 11/10/2026.
+## Factura Segura (Sprint 5)
+
+```bash
+python manage.py test facturacion --noinput
+```
+
+No accede a la API real: usa sesiones HTTP simuladas y verifica autenticación,
+contrato, errores, timeout indeterminado, descargas e idempotencia persistente.
+El detalle está en
+[`HU-28_Integracion_Factura_Segura.md`](HU-28_Integracion_Factura_Segura.md).
+
+> Estado verificado el 26/10/2026.
 > Suite ejecutada en Docker con `python manage.py test`.
 
 ## Resumen
 
 | Métrica | Valor |
 |---|---|
-| Total de tests detectados | **452** |
-| Tests pasando | **452** |
+| Total de tests detectados | **530** |
+| Tests pasando | **530** |
 | Tests fallando | **0** |
 | Errores | **0** |
-| Duración última ejecución | 72.980 s |
+| Duración última ejecución | 40.655 s |
 
-La suite completa fue ejecutada en Docker/PostgreSQL sobre el commit funcional `07ef6fd`, tras integrar HU-28, Caja/HU-40/HU-41 y navegación final de CAJERO. Se creó/eliminó la base temporal de tests; no se migró la base funcional.
+La suite completa fue ejecutada en Docker/PostgreSQL sobre la rama de integración
+de Factura Segura, basada en `origin/develop` (`1a389a9`). Se creó y eliminó la
+base temporal de tests; no se alteró la base funcional.
 
-## Tests coleccionados por app en el corte final
+## Tests coleccionados por app en el corte histórico anterior
 
-La distribución proviene de DiscoverRunner; la suite completa ejecutó los 452 casos sin fallos. No equivale a contar únicamente métodos de los archivos.
+La siguiente distribución documenta el corte anterior de 452 casos. La corrida
+actual de 530 incorpora evoluciones posteriores y 15 casos de `facturacion`;
+se conserva la tabla solamente como evidencia histórica, no como conteo actual.
 
 | App | Casos coleccionados |
 |---|---:|
