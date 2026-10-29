@@ -54,9 +54,7 @@ Las consultas siguientes son síntesis de lo conversado, no transcripciones lite
 
 ### 7. ¿Qué sigue para probar lo implementado?
 
-**Respuesta resumida de la IA:** Aplicar las migraciones en desarrollo, revisar Mis facturas con los roles correspondientes y configurar el correo del cliente. Completar en paralelo los datos pendientes con Guillermo antes de validar la integración externa.
-
-**Estado registrado:** Las migraciones se verificaron en las bases aisladas de pruebas. No se acredita en este registro su aplicación sobre la base de desarrollo ni la revisión visual por el integrante. Los cambios quedaron locales, sin commit ni push al cierre de la implementación documentada.
+**Estado registrado:** Las migraciones se verificaron en las bases aisladas de pruebas. Se realizó una revisión visual parcial de “Mis facturas” y de la configuración del correo del cliente. No se completó la prueba visual del circuito de emisión, descarga y envío debido a que todavía falta configurar el contrato fiscal real. Los cambios quedaron locales, sin commit ni push al cierre de la implementación documentada.
 
 ## Verificación registrada
 
