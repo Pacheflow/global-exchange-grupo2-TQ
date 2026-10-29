@@ -308,6 +308,7 @@ INSTALLED_APPS = [
     "metodos_pago",
     "operaciones",
     "cajas",
+    "fondos",
     "pagos.apps.PagosConfig",
     "facturacion.apps.FacturacionConfig",
 ]

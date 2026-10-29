@@ -1,0 +1,7 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Movimientos · Fondos{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}<div class="ge-frontend-main-pad"><h2 class="ge-frontend-h2">Movimientos de Fondos</h2><a href="{% url 'fondos:inicio' %}">Volver a saldos</a>
+<div class="ge-card"><table class="ge-table"><thead><tr><th>Moneda</th><th>Tipo</th><th>Importe</th><th>Fecha</th><th>Referencia / motivo</th><th>Operación</th><th>Responsable</th></tr></thead><tbody>
+{% for m in movimientos %}<tr><td>{{ m.fondo.moneda.codigo }}</td><td>{{ m.get_tipo_display }}</td><td>{{ m.monto }}</td><td>{{ m.fecha }}</td><td>{{ m.referencia }} {{ m.motivo }}</td><td>{{ m.operacion_id|default_if_none:'—' }}</td><td>{{ m.responsable }}</td></tr>{% empty %}<tr><td colspan="7">Sin movimientos.</td></tr>{% endfor %}
+</tbody></table></div></div>{% endblock %}

@@ -19,7 +19,7 @@ class SeleccionMetodoTests(BaseOperacionesTests):
         """Prepara sesión autorizada y alternativa para la revisión."""
         super().setUp()
         interfaz.FlujosGuillermoTests.autenticar(self)
-        self.otro = MetodoPago.objects.create(nombre="Otra opción", naturaleza="EFECTIVO")
+        self.otro = MetodoPago.objects.create(nombre="Otra opción", naturaleza="ELECTRONICO")
         self.url = reverse("operaciones:crear_transaccion")
 
     def revision(self, tipo="COMPRA"):

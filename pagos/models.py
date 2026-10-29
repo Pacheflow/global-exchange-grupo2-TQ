@@ -1,4 +1,4 @@
-"""Registro del pago; no inicia cobros ni completa operaciones."""
+"""Evidencia persistida del pago; el modelo no inicia cobros."""
 
 import hashlib
 import json
@@ -11,6 +11,18 @@ from django.db import models
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_aware
+
+
+class EventoStripe(models.Model):
+    """Registro histórico inerte: conserva la tabla y FK de la migración ya aplicada.
+
+    No existe recepción, procesamiento ni recuperación periódica de eventos.
+    """
+    identificador = models.CharField(max_length=255, unique=True)
+    pago = models.ForeignKey("Pago", on_delete=models.PROTECT)
+    resultado = models.JSONField()
+    recibido_en = models.DateTimeField(auto_now_add=True)
+    procesado_en = models.DateTimeField(null=True)
 
 
 class Pago(models.Model):

@@ -295,7 +295,7 @@
       window.GEApp.closeModal('confirmar-operacion');
       var repeated = data.repetida ? ' La solicitud ya había sido procesada.' : '';
       var statusMessage = data.transaccion.estado === 'PENDIENTE'
-        ? ' registrada y pendiente de liquidación; la disponibilidad futura no está garantizada.'
+        ? (data.transaccion.canal === 'ONLINE' ? ' registrada y pendiente de pago.' : ' registrada y pendiente de intercambio físico.')
         : ' registrada. Estado: ' + data.transaccion.estado + '.';
       showFeedback('Transacción #' + data.transaccion.id + statusMessage + repeated, 'success');
       window.GEApp.toast('Operación' + statusMessage, 'success');
@@ -334,7 +334,7 @@
     historyBody.innerHTML = state.transactions.map(function (transaction, index) {
       if (page.dataset.operativeInbox === 'true') {
         var liquidable = transaction.estado === 'PENDIENTE' &&
-          (transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && transaction.pago_estado === 'APROBADO'));
+          transaction.canal === 'PRESENCIAL' && transaction.version_flujo === 1 && isCash(transaction);
         var payment = isCash(transaction) || transaction.liquidacion_efectivo ? cashPaymentLabel(transaction)
           : transaction.tipo === 'VENTA' ? 'No aplica' : (transaction.pago_estado || 'Pago no iniciado');
         return '<tr><td>#' + escapeHtml(transaction.id) + '</td><td>' + escapeHtml(transaction.cliente.nombre_razon_social) +
@@ -423,7 +423,7 @@
       PAGO_NO_INICIADO: 'Pago no iniciado',
       EN_PROCESO: 'Pago en proceso',
       APROBADO: transaction && transaction.estado === 'PENDIENTE'
-        ? 'Pago aprobado. La operación está pendiente de liquidación.' : 'Pago aprobado.',
+        ? 'Pago aprobado. Finalización automática pendiente de recuperación.' : 'Pago aprobado.',
       RECHAZADO: 'Pago rechazado',
       ERROR: 'No se pudo completar el pago.',
       INDETERMINADO: 'Pago pendiente de verificación.'
@@ -444,6 +444,10 @@
     var actions = document.querySelector('[data-payment-actions]');
     actions.replaceChildren();
     actions.hidden = true;
+    if (transaction && transaction.version_flujo === 0) {
+      document.querySelector('[data-payment-message]').textContent = 'Operación histórica pendiente de revisión. No se iniciarán nuevos cobros.';
+      return;
+    }
     if (!known || !transaction || transaction.tipo !== 'COMPRA' ||
         transaction.estado !== 'PENDIENTE' || page.dataset.canViewPayment !== 'true') return;
     if (status === 'PAGO_NO_INICIADO' && transaction.metodo_pago &&
@@ -497,7 +501,10 @@
         return;
       }
       renderPayment(data, state.detailTransaction);
-      if (data.estado === 'APROBADO') loadPayment(state.detailTransaction, version);
+      if (data.estado === 'APROBADO') {
+        refreshLiquidationDetail(id, version);
+        loadHistory();
+      }
     }).catch(function (error) {
       if (!isCurrentDetail(id, version)) return;
       if (error.status === 400 && ['DISPONIBILIDAD_INSUFICIENTE', 'METODO_INACTIVO', 'METODO_NO_ELECTRONICO'].indexOf(error.codigo) !== -1) {
@@ -604,6 +611,7 @@
   function canLiquidate() {
     var transaction = state.detailTransaction;
     return transaction && transaction.id === state.detailId && transaction.estado === 'PENDIENTE' &&
+      transaction.canal === 'PRESENCIAL' && transaction.version_flujo === 1 &&
       page.dataset.canLiquidate === 'true' &&
       (isCash(transaction) || transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && state.paymentStatus === 'APROBADO'));
   }
