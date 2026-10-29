@@ -59,7 +59,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         return cliente
 
     def test_bandeja_y_detalle_cajero_sin_asociaciones_ni_cliente(self):
-        """Cajero sin asociaciones ni selección ve las operaciones y el detalle de todos los clientes."""
+        """Cajero consulta detalles ajenos sin asociaciones; su bandeja excluye las operaciones online."""
         otro = self.crear_cliente_asociado()
         primero = self.crear().transaccion
         segundo = self.crear(cliente_id=otro.pk).transaccion
@@ -70,7 +70,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         sesion.save()
         url = reverse("operaciones:historial_transacciones")
         datos = self.client.get(url).json()["transacciones"]
-        self.assertEqual({tx["id"] for tx in datos}, {primero.pk, segundo.pk})
+        self.assertEqual(datos, [])
         self.assertTrue(all("pago_estado" in tx for tx in datos))
         self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk])).status_code, 200)
         pagina = self.client.get(reverse("operaciones_web:inicio"))
@@ -79,7 +79,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertContains(pagina, reverse("operaciones_web:presencial"))
         self.assertNotContains(pagina, "Seleccioná un cliente para operar")
         datos = self.client.get(url).json()["transacciones"]
-        self.assertEqual({tx["id"] for tx in datos}, {primero.pk, segundo.pk})
+        self.assertEqual(datos, [])
         detalle = self.client.get(reverse("operaciones:detalle_transaccion", args=[segundo.pk]))
         self.assertEqual(detalle.status_code, 200)
         inexistente = self.client.get(reverse("operaciones:detalle_transaccion", args=[999999]))
@@ -95,7 +95,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         self.assertEqual(self.client.get(reverse("operaciones:detalle_transaccion", args=[tx.pk])).status_code, 400)
 
     def test_bandeja_e_historial_cajero_separan_estados_y_clientes(self):
-        """Sin asociaciones, la bandeja incluye pendientes globales y el historial solo completadas/canceladas."""
+        """Sin asociaciones, la bandeja excluye pendientes online y el historial solo completadas/canceladas."""
         from django.utils import timezone
         from .models import Transaccion
         segundo = self.crear_cliente_asociado()
@@ -119,7 +119,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         url = reverse("operaciones:historial_transacciones")
         bandeja = self.client.get(url).json()["transacciones"]
         historico = self.client.get(url, {"vista": "historial"}).json()["transacciones"]
-        self.assertEqual({tx["id"] for tx in bandeja}, esperados["PENDIENTE"])
+        self.assertEqual(bandeja, [])
         self.assertEqual({tx["id"] for tx in historico}, esperados["COMPLETADA"] | esperados["CANCELADA"])
         self.assertTrue(all("pago_estado" in tx for tx in bandeja + historico))
 
@@ -210,14 +210,14 @@ class FlujosGuillermoTests(BaseOperacionesTests):
             self.client.get(reverse("operaciones_web:inicio"))
 
     def test_venta_previsualiza_y_confirma_con_tasa_de_venta(self):
-        """Comprueba el flujo HU-23 con tasa de venta y estado PENDIENTE."""
+        """VENTA previsualiza con tasa de venta y completa al confirmar sin Pago Stripe."""
 
         preview = self.previsualizar(tipo="VENTA")
         resultado = self.crear(tipo="VENTA")
 
         self.assertEqual(preview.tasa, self.tasa.venta)
         self.assertEqual(resultado.transaccion.tasa_aplicada, self.tasa.venta)
-        self.assertEqual(resultado.transaccion.estado, "PENDIENTE")
+        self.assertEqual(resultado.transaccion.estado, "COMPLETADA")
 
     def test_api_confirmacion_y_repeticion_registran_pendiente_sin_pago(self):
         """COMPRA y VENTA se registran una sola vez sin iniciar pagos."""
@@ -231,7 +231,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
                 )
                 self.assertEqual(nueva.status_code, 201)
                 self.assertFalse(nueva.json()["repetida"])
-                self.assertEqual(nueva.json()["transaccion"]["estado"], "PENDIENTE")
+                self.assertEqual(nueva.json()["transaccion"]["estado"], "COMPLETADA" if tipo == "VENTA" else "PENDIENTE")
 
                 repetida = self.client.post(
                     reverse("operaciones:crear_transaccion"),
@@ -242,7 +242,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
                 original = nueva.json()["transaccion"]
                 recuperada = repetida.json()["transaccion"]
                 self.assertEqual(recuperada["id"], original["id"])
-                self.assertEqual(recuperada["estado"], "PENDIENTE")
+                self.assertEqual(recuperada["estado"], "COMPLETADA" if tipo == "VENTA" else "PENDIENTE")
                 for campo in ("monto_origen", "monto_destino", "tasa_aplicada", "porcentaje_comision", "importe_comision"):
                     self.assertEqual(Decimal(recuperada[campo]), Decimal(original[campo]))
                 self.assertFalse(Pago.objects.exists())
@@ -297,7 +297,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
         ids = [item["id"] for item in response.json()["transacciones"]]
         self.assertIn(propia.id, ids)
         self.assertNotIn(ajena_al_contexto.id, ids)
-        self.assertEqual(response.json()["transacciones"][0]["estado"], "PENDIENTE")
+        self.assertEqual(response.json()["transacciones"][0]["estado"], "COMPLETADA")
 
     def test_detalle_de_otro_cliente_no_es_accesible(self):
         """Comprueba que HU-24 oculte transacciones ajenas al contexto actual."""
@@ -330,7 +330,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
 
         self.assertEqual(response.status_code, 200)
         detalle = response.json()["transaccion"]
-        self.assertEqual(detalle["estado"], "PENDIENTE")
+        self.assertEqual(detalle["estado"], "COMPLETADA")
         self.assertEqual(detalle["tasa_aplicada"], tasa_guardada)
         self.assertEqual(detalle["tasa_comercial"]["version"], 1)
         self.assertEqual(detalle["metodo_pago"]["nombre"], "Tarjeta de prueba")

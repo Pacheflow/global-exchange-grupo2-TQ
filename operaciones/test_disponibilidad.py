@@ -11,6 +11,8 @@ from django.utils import timezone
 from cajas.models import Caja, MovimientoCaja, PeriodoCaja, SaldoInicialCaja
 from cajas.services import hay_disponibilidad
 from cajas.test_utils import crear_fondos_prueba
+from fondos.test_utils import crear_fondos_prueba as crear_fondos_online
+from fondos.models import MovimientoFondo
 from pagos.models import Pago
 from . import tests as escenarios
 from .models import Transaccion
@@ -69,25 +71,25 @@ class DisponibilidadOperacionTests(escenarios.BaseOperacionesTests):
         self.assertFalse(hay_disponibilidad(moneda_id=self.pyg.pk, monto=Decimal("111")))
 
     def test_confirmacion_usa_destino_neto_y_no_cobra(self):
-        """El saldo exacto del destino recalculado tras comisión permite COMPRA/VENTA pendientes sin Pago."""
+        """El saldo exacto del destino recalculado tras comisión permite COMPRA pendiente y VENTA completada sin Pago."""
         for tipo in ("COMPRA", "VENTA"):
             with self.subTest(tipo=tipo):
                 preview = self.previsualizar(tipo=tipo)
-                crear_fondos_prueba((self.pyg,), preview.monto_destino)
+                crear_fondos_online((self.pyg,), preview.monto_destino)
                 with mock.patch("pagos.stripe_provider.StripePaymentProvider._cliente") as stripe:
                     tx = self.crear(tipo=tipo).transaccion
                 self.assertEqual(tx.monto_destino, preview.monto_destino)
-                self.assertEqual(tx.estado, "PENDIENTE")
+                self.assertEqual(tx.estado, "COMPLETADA" if tipo == "VENTA" else "PENDIENTE")
                 stripe.assert_not_called()
         self.assertFalse(Pago.objects.exists())
         self.assertFalse(MovimientoCaja.objects.exists())
 
     def test_idempotencia_con_fondos_agotados_conserva_registro_y_rechaza_otra_huella(self):
         """Tras crear, repetir la misma clave ignora fondos nuevos pero cambiar el importe sigue rechazado."""
-        crear_fondos_prueba((self.pyg,))
+        crear_fondos_online((self.pyg,))
         clave = self.clave_idempotencia()
         tx = self.crear(clave_idempotencia=clave).transaccion
-        SaldoInicialCaja.objects.update(monto=0)
+        MovimientoFondo.objects.filter(operacion__isnull=True).update(monto=0.000001)
         repetida = self.crear(clave_idempotencia=clave)
         self.assertTrue(repetida.repetida)
         self.assertEqual(repetida.transaccion.pk, tx.pk)
@@ -95,27 +97,15 @@ class DisponibilidadOperacionTests(escenarios.BaseOperacionesTests):
             self.crear(clave_idempotencia=clave, monto="101")
         self.assertEqual(Transaccion.objects.count(), 1)
 
-    def test_fondos_consumidos_despues_de_confirmar_impiden_liquidar_sin_parciales(self):
-        """La comprobación no reserva: un egreso posterior impide liquidar COMPRA/VENTA sin nuevos efectos."""
-        for tipo in ("COMPRA", "VENTA"):
-            with self.subTest(tipo=tipo):
-                destino = self.previsualizar(tipo=tipo).monto_destino
-                periodo = crear_fondos_prueba((self.usd, self.pyg), destino)
-                tx = self.crear(tipo=tipo).transaccion
-                if tipo == "COMPRA":
-                    Pago.objects.create(transaccion=tx, metodo_pago=self.metodo_activo, proveedor="stripe",
-                        monto=tx.monto_origen, moneda_codigo=self.usd.codigo, base_importe="ORIGEN",
-                        estado="APROBADO", referencia_externa=f"pi_disponibilidad{tx.pk}",
-                        aprobado_en=timezone.now(), iniciado_por_keycloak_id=self.usuario_id)
-                MovimientoCaja.objects.create(periodo=periodo, moneda=self.pyg, tipo="EGRESO", monto=1,
-                    motivo="Fondos utilizados", registrado_por_keycloak_id="otro-cajero")
-                movimientos = MovimientoCaja.objects.count()
-                with self.assertRaisesMessage(ValidationError, "insuficiente"):
-                    liquidar_transaccion(transaccion_id=tx.pk, periodo_id=periodo.pk,
-                                         usuario_id="cajero", roles=["CAJERO"])
-                tx.refresh_from_db()
-                self.assertEqual(tx.estado, "PENDIENTE")
-                self.assertEqual(MovimientoCaja.objects.count(), movimientos)
+    def test_online_no_puede_liquidarse_en_caja(self):
+        """Una COMPRA online rechaza liquidación física sin crear movimientos de Caja."""
+        crear_fondos_online((self.pyg,))
+        tx = self.crear().transaccion
+        periodo = crear_fondos_prueba((self.pyg,))
+        with self.assertRaises(ValidationError) as error:
+            liquidar_transaccion(transaccion_id=tx.pk, periodo_id=periodo.pk, usuario_id="cajero", roles=["CAJERO"])
+        self.assertEqual(error.exception.code, "REVISION_PENDIENTE")
+        self.assertFalse(MovimientoCaja.objects.exists())
 
     def test_http_distingue_falta_de_fondos_y_fallo_tecnico(self):
         """Confirmar sin fondos devuelve mensaje controlado; fallo técnico da 500 sin afirmar falta de fondos."""
@@ -126,7 +116,7 @@ class DisponibilidadOperacionTests(escenarios.BaseOperacionesTests):
         self.assertEqual(respuesta.status_code, 400)
         self.assertEqual(respuesta.json()["error"],
                          "No hay disponibilidad suficiente para atender esta operación. Intenta más tarde.")
-        with mock.patch("operaciones.services.hay_disponibilidad", side_effect=DatabaseError("privado")):
+        with mock.patch("fondos.services.hay_disponibilidad", side_effect=DatabaseError("privado")):
             respuesta = self.client.post(url, self.parametros_confirmacion_http(), content_type="application/json")
         self.assertEqual(respuesta.status_code, 500)
         self.assertNotIn("disponibilidad", respuesta.json()["error"])
