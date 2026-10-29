@@ -18,20 +18,20 @@ El detalle está en
 
 | Métrica | Valor |
 |---|---|
-| Total de tests detectados | **530** |
-| Tests pasando | **530** |
+| Total de tests detectados | **538** |
+| Tests pasando | **538** |
 | Tests fallando | **0** |
 | Errores | **0** |
-| Duración última ejecución | 40.655 s |
+| Duración última ejecución | 70.679 s |
 
 La suite completa fue ejecutada en Docker/PostgreSQL sobre la rama de integración
-de Factura Segura, basada en `origin/develop` (`1a389a9`). Se creó y eliminó la
+de Factura Segura, integrada con `origin/develop` (`1792f4c`). Se creó y eliminó la
 base temporal de tests; no se alteró la base funcional.
 
 ## Tests coleccionados por app en el corte histórico anterior
 
 La siguiente distribución documenta el corte anterior de 452 casos. La corrida
-actual de 530 incorpora evoluciones posteriores y 15 casos de `facturacion`;
+actual de 538 incorpora evoluciones posteriores y 15 casos de `facturacion`;
 se conserva la tabla solamente como evidencia histórica, no como conteo actual.
 
 | App | Casos coleccionados |
