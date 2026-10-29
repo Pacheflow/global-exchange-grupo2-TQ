@@ -36,8 +36,8 @@ class IntegracionArqueoMixin(EscenarioLiquidacion):
 
 class ArqueoLiquidacionTests(IntegracionArqueoMixin, TestCase):
     def test_movimientos_compra_y_venta_en_arqueo_y_copia_cierre(self):
+        """COMPRA y VENTA presenciales generan dos movimientos cada una, reflejados en arqueo y cierre."""
         compra = self.operacion_liquidacion()
-        pago = self.pago_liquidacion(compra)
         venta = self.operacion_liquidacion("VENTA")
         with mock.patch("pagos.stripe_provider.StripePaymentProvider.iniciar") as stripe:
             liquidar_transaccion(**self.argumentos_liquidacion(compra))
@@ -45,16 +45,14 @@ class ArqueoLiquidacionTests(IntegracionArqueoMixin, TestCase):
             arqueo = self.arqueo()
             cierre = self.cierre()
             stripe.assert_not_called()
-        for moneda, esperado in ((self.usd, Decimal("1100")), (self.pyg, Decimal("860"))):
+        for moneda, esperado in ((self.usd, Decimal("1200")), (self.pyg, Decimal("860"))):
             detalle = arqueo.detalles.get(moneda=moneda)
             copia = cierre.detalles.get(moneda=moneda)
             self.assertEqual(detalle.saldo_teorico, esperado)
             self.assertEqual(copia.saldo_teorico, esperado)
             self.assertEqual(copia.saldo_fisico, esperado)
             self.assertEqual(copia.diferencia, 0)
-        pago.refresh_from_db()
-        self.assertEqual(pago.estado, Pago.Estado.APROBADO)
-        self.assertEqual(MovimientoCaja.objects.count(), 3)
+        self.assertEqual(MovimientoCaja.objects.count(), 4)
 
 
 class CajaIntegracionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
@@ -72,9 +70,10 @@ class CajaIntegracionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
         self.assertEqual(self.periodo_liquidacion.estado, "CERRADO")
 
     def test_historial_automaticos_conserva_trazabilidad(self):
+        """El historial físico muestra referencia, motivo y origen de los movimientos presenciales."""
         liquidar_transaccion(**self.argumentos_liquidacion(self.operacion_http))
         respuesta = self.client.get(reverse("cajas:historial", args=[self.caja_liquidacion.pk]))
-        movimiento = MovimientoCaja.objects.get()
+        movimiento = MovimientoCaja.objects.get(tipo="EGRESO")
         self.assertContains(respuesta, movimiento.referencia_externa)
         self.assertContains(respuesta, movimiento.motivo)
         self.assertContains(respuesta, movimiento.get_origen_display())
@@ -112,6 +111,7 @@ class CajaIntegracionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
                 self.assertEqual(respuesta.content.count(b'aria-current="page"'), 1)
 
     def test_catalogo_previo_cierre_y_post_no_aplica_efectos(self):
+        """Cerrar el período después de consultarlo impide el intercambio y conserva la operación pendiente."""
         catalogo = self.client.get(reverse("operaciones:periodos_liquidacion", args=[self.operacion_http.pk]))
         self.assertEqual(catalogo.status_code, 200)
         self.arqueo()
@@ -120,9 +120,7 @@ class CajaIntegracionHTTPTests(EscenarioLiquidacionHTTP, TestCase):
             self.assertEqual(self.post_liquidar().status_code, 400)
             stripe.assert_not_called()
         self.operacion_http.refresh_from_db()
-        self.pago_http.refresh_from_db()
         self.assertEqual(self.operacion_http.estado, "PENDIENTE")
-        self.assertEqual(self.pago_http.estado, Pago.Estado.APROBADO)
         self.assertFalse(MovimientoCaja.objects.exists())
         catalogo = self.client.get(reverse("operaciones:periodos_liquidacion", args=[self.operacion_http.pk]))
         self.assertEqual(catalogo.json()["periodos"], [])
@@ -132,8 +130,6 @@ class CierreLiquidacionConcurrenciaTests(IntegracionArqueoMixin, TransactionTest
     def _competir(self, *, cierre_primero, tipo):
         self.assertEqual(connection.vendor, "postgresql")
         operacion = self.operacion_liquidacion(tipo)
-        if tipo == "COMPRA":
-            self.pago_liquidacion(operacion)
         self.arqueo()
         reservar, liberar, segundo_listo = Event(), Event(), Event()
         datos = {}
@@ -195,13 +191,12 @@ class CierreLiquidacionConcurrenciaTests(IntegracionArqueoMixin, TransactionTest
             self.assertEqual(operacion.estado, "PENDIENTE")
             self.assertEqual(self.periodo_liquidacion.estado, "CERRADO")
             self.assertFalse(MovimientoCaja.objects.exists())
-            if tipo == "COMPRA":
-                self.assertEqual(Pago.objects.get(transaccion=operacion).estado, Pago.Estado.APROBADO)
+            self.assertFalse(Pago.objects.filter(transaccion=operacion).exists())
         else:
             self.assertEqual(operacion.estado, "COMPLETADA")
             self.assertEqual(self.periodo_liquidacion.estado, "ABIERTO")
             self.assertFalse(CierreCaja.objects.exists())
-            self.assertEqual(MovimientoCaja.objects.count(), 1 if tipo == "COMPRA" else 2)
+            self.assertEqual(MovimientoCaja.objects.count(), 2)
             self.assertIn("nuevo arqueo", " ".join(error.messages))
 
     def test_cierre_primero_compra(self):

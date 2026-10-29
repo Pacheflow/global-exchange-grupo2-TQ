@@ -1,0 +1,10 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Fondos · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}<div class="ge-frontend-main-pad">
+<div class="ge-frontend-section-head"><h2 class="ge-frontend-h2">Fondos</h2><a class="ge-btn-primary" href="{% url 'fondos:cargar' %}">Cargar fondos</a><a class="ge-btn-outline" href="{% url 'fondos:movimientos' %}">Movimientos</a></div>
+<p class="ge-frontend-subtitle">Registro interno simulado por moneda. No representa saldos bancarios ni el saldo de Stripe; es independiente del efectivo de Caja.</p>
+{% for message in messages %}<div class="ge-success-banner" role="status">{{ message }}</div>{% endfor %}
+<div class="ge-card"><table class="ge-table"><thead><tr><th>Moneda</th><th>Registrado</th><th>Reservado</th><th>Disponible</th></tr></thead><tbody>
+{% for fondo, registrado, reservado, disponible in filas %}<tr><td>{{ fondo.moneda.codigo }}</td><td>{{ registrado }}</td><td>{{ reservado }}</td><td>{{ disponible }}</td></tr>{% empty %}<tr><td colspan="4">Todavía no hay fondos registrados. Cargá fondos para habilitar operaciones online.</td></tr>{% endfor %}
+</tbody></table></div></div>{% endblock %}

@@ -18,6 +18,7 @@ urlpatterns = [
     path("metodos-pago/", metodos_pago_views.inicio_metodos_pago, name="metodos_pago_pagina"),
     path("operaciones/", include("operaciones.web_urls")),
     path("cajas/", include("cajas.urls")),
+    path("fondos/", include("fondos.urls")),
     path("tasas/", include("tasas.web_urls")),
 
     path("", include("usuarios.urls")),

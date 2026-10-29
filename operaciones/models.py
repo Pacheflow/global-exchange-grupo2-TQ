@@ -5,6 +5,11 @@ from django.db.models import F, Q
 class Transaccion(models.Model):
     """Representa una operación de compra o venta realizada entre monedas."""
 
+    # Cero/ vacío identifica históricos sin inferir su canal desde el catálogo.
+    version_flujo = models.PositiveSmallIntegerField(default=0, editable=False)
+    canal = models.CharField(max_length=10, blank=True, default="", choices=[("ONLINE", "Online"), ("PRESENCIAL", "Presencial")])
+    naturaleza_metodo = models.CharField(max_length=14, blank=True, default="")
+
     TIPOS_TRANSACCION = [
         ("COMPRA", "Compra"),
         ("VENTA", "Venta"),
@@ -139,6 +144,12 @@ class Transaccion(models.Model):
         verbose_name_plural = "transacciones"
 
         constraints = [
+            models.CheckConstraint(
+                condition=(Q(version_flujo=0, canal="", naturaleza_metodo="")
+                    | Q(version_flujo=1, canal="ONLINE", naturaleza_metodo="ELECTRONICO")
+                    | Q(version_flujo=1, canal="PRESENCIAL", naturaleza_metodo="EFECTIVO")),
+                name="transaccion_flujo_coherente",
+            ),
             models.CheckConstraint(
                 condition=~Q(moneda_origen=F("moneda_destino")),
                 name="transaccion_monedas_distintas",

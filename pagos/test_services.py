@@ -46,7 +46,7 @@ class PagoServiceTests(TransactionTestCase):
             usuario_id="usuario-pagos", usuario_username="operador",
         )
         self.transaccion = self.crear_transaccion()
-        from cajas.test_utils import crear_fondos_prueba
+        from fondos.test_utils import crear_fondos_prueba
         crear_fondos_prueba((self.destino,))
         self.provider = Mock(spec=PaymentProvider)
         self.provider.iniciar.side_effect = lambda solicitud: self.resultado(solicitud)
@@ -55,6 +55,7 @@ class PagoServiceTests(TransactionTestCase):
 
     def crear_transaccion(self, **cambios):
         datos = {
+            "version_flujo": 1, "canal": "ONLINE", "naturaleza_metodo": "ELECTRONICO",
             "clave_idempotencia": str(uuid.uuid4()), "cliente": self.cliente,
             "creado_por_keycloak_id": "usuario-pagos", "tipo": "COMPRA",
             "moneda_origen": self.origen, "moneda_destino": self.destino,
@@ -137,7 +138,8 @@ class PagoServiceTests(TransactionTestCase):
                 reintentar_pago(**self.argumentos(roles=roles))
         self.provider.iniciar.assert_not_called()
 
-    def test_reserva_confirmada_y_aprobacion_no_completa_operacion(self):
+    def test_reserva_confirmada_y_aprobacion_completa_operacion(self):
+        """La reserva es durable antes del IO y la aprobación completa el intercambio online una vez."""
         self.asociacion.rol_en_cliente = "RESPONSABLE"
         self.asociacion.save()
         def iniciar(solicitud):
@@ -165,7 +167,7 @@ class PagoServiceTests(TransactionTestCase):
         self.assertIsNotNone(pago.aprobado_en)
         self.assertEqual([e["codigo"] for e in pago.trazabilidad], ["RESERVADO", "APROBADO"])
         self.transaccion.refresh_from_db()
-        self.assertEqual(self.transaccion.estado, "PENDIENTE")
+        self.assertEqual(self.transaccion.estado, "COMPLETADA")
 
     def test_venta_rechazada_por_inicio_y_reintento_sin_pago_ni_proveedor(self):
         self.transaccion.tipo = "VENTA"

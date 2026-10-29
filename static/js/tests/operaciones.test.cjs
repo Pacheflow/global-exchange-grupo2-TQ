@@ -29,7 +29,7 @@ class Element {
 
 const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(setImmediate); };
 const transaction = id => ({
-  id, tipo: 'VENTA', estado: 'PENDIENTE', cliente: { nombre_razon_social: 'QA' },
+  id, canal: 'ONLINE', version_flujo: 1, tipo: 'VENTA', estado: 'PENDIENTE', cliente: { nombre_razon_social: 'QA' },
   moneda_origen: { codigo: 'USD' }, moneda_destino: { codigo: 'PYG' },
   metodo_pago: { id: 1, nombre: 'QA', activo: true, naturaleza: 'ELECTRONICO' }, creado_por: { username: 'QA' }
 });
@@ -65,9 +65,9 @@ function runtime(canPay = false, canLiquidate = true) {
       if (url.startsWith('/liquidar/')) {
         status = 400;
         data = { error: 'Saldo insuficiente para liquidar la operación.', codigo: 'SALDO_INSUFICIENTE' };
-      } else if (url.startsWith('/detalle/')) data = { transaccion: transaction(id) };
+      } else if (url.startsWith('/detalle/')) data = { transaccion: canLiquidate && !canPay ? { ...transaction(id), canal: 'PRESENCIAL', metodo_pago: { id: 1, naturaleza: 'EFECTIVO', activo: true } } : transaction(id) };
       else if (url.startsWith('/periodos/')) data = {
-        transaccion_id: id, periodos: [{ periodo_id: 12, estado: 'ABIERTO', caja: { codigo: 'QA', nombre: 'Principal' } }]
+        transaccion_id: id, periodos: [{ periodo_id: 12, estado: 'ABIERTO', disponible: true, caja: { codigo: 'QA', nombre: 'Principal' } }]
       };
       else data = { transacciones: [] };
       return { ok: status === 200, status, json: async () => data };
@@ -158,7 +158,7 @@ test('QA #21: rechazo 400 visible y un segundo clic explícito aprueba después 
     if (opciones.method === 'POST' && ++solicitudes === 1) {
       return { ok: false, status: 400, json: async () => ({ codigo: 'DISPONIBILIDAD_INSUFICIENTE', error: mensaje }) };
     }
-    return { ok: true, status: 200, json: async () => aprobado };
+    return { ok: true, status: 200, json: async () => url.startsWith('/detalle/') ? { transaccion: { ...compra, estado: 'COMPLETADA' } } : url.startsWith('/historial/') ? { transacciones: [] } : aprobado };
   });
   const pulsar = () => app.ui.submitPayment({ target: { closest: () => boton } });
   pulsar();
@@ -171,7 +171,9 @@ test('QA #21: rechazo 400 visible y un segundo clic explícito aprueba después 
   await settle();
   assert.equal(solicitudes, 2);
   assert.equal(app.get('[data-payment-state]').textContent, 'APROBADO');
-  assert.match(app.get('[data-payment-message]').textContent, /pendiente de liquidación/);
+  assert.equal(app.get('[data-payment-message]').textContent, 'Pago aprobado.');
+  assert.equal(app.ui.state.detailTransaction.estado, 'COMPLETADA');
+  assert.equal(app.calls.some(call => /\/periodos\//.test(call.url)), false);
   assert.equal(app.get('[data-payment-actions]').children.length, 0);
 });
 
@@ -347,7 +349,7 @@ test('efectivo: detalle exige disponibilidad por Caja y confirma una sola simula
   /** En COMPRA/VENTA, sin fondos no se confirma; con fondos se envía un POST y el rechazo conserva la operación. */
   for (const tipo of ['COMPRA', 'VENTA']) {
     const app = runtime(false, true);
-    const tx = { ...transaction(1), tipo, monto_origen: '100', monto_destino: '70',
+    const tx = { ...transaction(1), canal: 'PRESENCIAL', tipo, monto_origen: '100', monto_destino: '70',
       metodo_pago: { nombre: 'Físico', naturaleza: 'EFECTIVO', activo: true } };
     let disponible = false;
     let posts = 0;
@@ -405,10 +407,10 @@ test('bandeja y detalle distinguen efectivo aprobado por evidencia, pendiente y 
   const app = runtime();
   app.get('[data-operaciones-page]').dataset.operativeInbox = 'true';
   for (const [tipo, estado, pago_estado, liquidable] of [
-    ['COMPRA', 'PENDIENTE', 'APROBADO', true],
+    ['COMPRA', 'PENDIENTE', 'APROBADO', false],
     ['COMPRA', 'PENDIENTE', 'ERROR', false],
     ['COMPRA', 'PENDIENTE', null, false],
-    ['VENTA', 'PENDIENTE', null, true],
+    ['VENTA', 'PENDIENTE', null, false],
     ['COMPRA', 'COMPLETADA', 'APROBADO', false],
     ['VENTA', 'CANCELADA', null, false]
   ]) {
@@ -428,7 +430,7 @@ test('bandeja y detalle distinguen efectivo aprobado por evidencia, pendiente y 
       ['COMPLETADA', { periodo_id: 12, caja: 'QA', confirmado_por: 'Cajero', ingreso_id: 1, egreso_id: 2 }, 'Aprobado']
     ]) {
       const tx = { ...transaction(1), tipo, estado, liquidacion_efectivo: evidencia,
-        metodo_pago: { naturaleza: 'EFECTIVO', nombre: 'Físico', activo: true }, pago_estado: null };
+        canal: 'PRESENCIAL', metodo_pago: { naturaleza: 'EFECTIVO', nombre: 'Físico', activo: true }, pago_estado: null };
       app.ui.state.transactions = [tx];
       app.ui.renderHistory();
       assert.ok(app.get('[data-history-body]').innerHTML.includes('<td>' + etiqueta + '</td>'));
@@ -461,4 +463,8 @@ test('capacidades UI: Cajero consulta sin iniciar/reintentar; Usuario no consult
   assert.equal(usuario.calls.some(call => /\/(periodos|liquidar)\//.test(call.url)), false);
   usuario.ui.renderPayment({ codigo: 'PAGO_NO_INICIADO', pago_id: null, estado: null }, compra);
   assert.equal(usuario.get('[data-payment-actions]').children[0].textContent, 'Iniciar pago');
+  // Un histórico conserva su información, sin habilitar cobros por inferencia del catálogo.
+  usuario.ui.renderPayment({ codigo: 'PAGO_NO_INICIADO', pago_id: null, estado: null }, { ...compra, version_flujo: 0 });
+  assert.equal(usuario.get('[data-payment-actions]').children.length, 0);
+  assert.match(usuario.get('[data-payment-message]').textContent, /histórica pendiente de revisión/);
 });

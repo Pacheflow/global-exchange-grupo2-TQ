@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.middleware.csrf import get_token
 from django.test import Client, RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
-from django.db import connection
+from django.db import transaction, connection
 from django.urls import resolve, reverse
 from django.utils import timezone
 
@@ -54,7 +54,7 @@ class _EscenarioHTTP:
             usuario_id="http-usuario", usuario_username="operador",
         )
         self.transaccion = self.crear_transaccion()
-        from cajas.test_utils import crear_fondos_prueba
+        from fondos.test_utils import crear_fondos_prueba
         crear_fondos_prueba((self.destino,))
         self.provider = Mock(spec=PaymentProvider)
         self.provider.iniciar.side_effect = lambda s: self.resultado(s)
@@ -77,6 +77,7 @@ class _EscenarioHTTP:
 
     def crear_transaccion(self, **cambios):
         datos = dict(
+            version_flujo=1, canal="ONLINE", naturaleza_metodo="ELECTRONICO",
             clave_idempotencia=str(uuid.uuid4()), cliente=self.cliente_pago,
             creado_por_keycloak_id="http-usuario", tipo="COMPRA",
             moneda_origen=self.origen, moneda_destino=self.destino,
@@ -89,6 +90,10 @@ class _EscenarioHTTP:
         return Transaccion.objects.create(**datos)
 
     def crear_pago(self, transaccion, estado, *, referencia=None):
+        if estado not in (Pago.Estado.ERROR, Pago.Estado.RECHAZADO):
+            from fondos.services import reservar
+            with transaction.atomic():
+                reservar(transaccion)
         return Pago.objects.create(
             transaccion=transaccion, metodo_pago=self.metodo, proveedor="stripe",
             monto=transaccion.monto_origen, moneda_codigo=self.origen.codigo,
@@ -132,15 +137,15 @@ class _EscenarioHTTP:
 class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
     def test_inicio_sin_fondos_y_nuevo_intento_explicito_tras_reponer(self):
         """Como en QA #21, el primer POST da 400 sin Pago/Stripe; reponer y pulsar otra vez aprueba un único Pago."""
-        from cajas.models import SaldoInicialCaja
-        SaldoInicialCaja.objects.update(monto=0)
+        from fondos.models import MovimientoFondo
+        MovimientoFondo.objects.filter(operacion__isnull=True).update(monto="0.000001")
         primero = self.post("iniciar")
         self.assertEqual(primero.status_code, 400)
         self.assertEqual(primero.json()["codigo"], "DISPONIBILIDAD_INSUFICIENTE")
         self.assertIn("No se realizó ningún cobro en este intento", primero.json()["error"])
         self.assertFalse(Pago.objects.exists())
         self.provider.iniciar.assert_not_called()
-        SaldoInicialCaja.objects.update(monto=self.transaccion.monto_destino)
+        MovimientoFondo.objects.filter(operacion__isnull=True).update(monto=self.transaccion.monto_destino * 10)
         segundo = self.post("iniciar")
         self.assertEqual(segundo.status_code, 200)
         self.assertEqual(segundo.json()["estado"], "APROBADO")
@@ -153,9 +158,9 @@ class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
 
     def test_disponibilidad_inicio_y_reintento_muestran_error_sin_cobro(self):
         """HTTP sin fondos muestra aviso seguro, preserva Pago ERROR y no invoca Stripe; fallo técnico da 500."""
-        from cajas.models import SaldoInicialCaja
+        from fondos.models import MovimientoFondo
         from django.db import DatabaseError
-        SaldoInicialCaja.objects.update(monto=0)
+        MovimientoFondo.objects.filter(operacion__isnull=True).update(monto="0.000001")
         for accion in ("iniciar", "reintentar"):
             if accion == "reintentar":
                 pago = self.crear_pago(self.transaccion, Pago.Estado.ERROR)
@@ -173,7 +178,7 @@ class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
                 pago.refresh_from_db()
                 self.assertEqual(pago.estado, "ERROR")
                 self.assertEqual(pago.trazabilidad, traza)
-        with patch("pagos.services.hay_disponibilidad", side_effect=DatabaseError("privado")):
+        with patch("pagos.services.reservar", side_effect=DatabaseError("privado")):
             respuesta = self.post("reintentar")
         self.assertEqual(respuesta.status_code, 500)
         self.assertNotContains(respuesta, "disponibilidad", status_code=500)
@@ -233,6 +238,7 @@ class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
         self.assertEqual(pago.estado, "ERROR")
 
     def test_inicio_valido_repetido_y_estados_persistidos_siempre_200(self):
+        """Repetir inicio reutiliza Pago; solo APROBADO completa y los demás estados conservan pendiente."""
         for estado in (EstadoPago.APROBADO, EstadoPago.RECHAZADO, EstadoPago.ERROR, EstadoPago.INDETERMINADO):
             with self.subTest(estado=estado):
                 tx = self.crear_transaccion()
@@ -246,7 +252,7 @@ class PagoHTTPFlujoTests(_EscenarioHTTP, TransactionTestCase):
                 self.assertEqual(self.provider.iniciar.call_count, llamadas + 1)
                 self.assertEqual(Pago.objects.filter(transaccion=tx).count(), 1)
                 tx.refresh_from_db()
-                self.assertEqual(tx.estado, "PENDIENTE")
+                self.assertEqual(tx.estado, "COMPLETADA" if estado == EstadoPago.APROBADO else "PENDIENTE")
 
     def test_venta_inicio_y_reintento_rechazados_sin_pago_ni_io(self):
         self.transaccion.tipo = "VENTA"

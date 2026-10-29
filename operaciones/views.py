@@ -93,6 +93,7 @@ def _error_liquidacion(error):
     ):
         return JsonResponse({"error": "La transacción solicitada no está disponible."}, status=404)
     mensajes = {
+        "REVISION_PENDIENTE": "La operación no admite liquidación física; requiere revisión del flujo.",
         "PAGO_NO_APROBADO": "La compra requiere un pago aprobado.",
         "OPERACION_NO_PENDIENTE": "La operación no permite liquidación.",
         "OBLIGACION_CAMBIADA": "El pago no corresponde a la obligación de la operación.",
@@ -196,7 +197,7 @@ def inicio_operaciones(request, *, historico=False, presencial=False):
             "cliente_operacion": cliente_operacion,
             "monedas_activas": Moneda.objects.activas() if not es_supervisor else (),
             "metodos_activos": (MetodoPago.objects.activos().filter(naturaleza="EFECTIVO") if presencial
-                                else MetodoPago.objects.activos() if not es_supervisor else ()),
+                                else MetodoPago.objects.activos().filter(naturaleza="ELECTRONICO") if not es_supervisor else ()),
             "es_presencial": presencial,
             "es_supervisor": es_supervisor,
             "puede_crear": presencial or rol == "USUARIO" and cliente_operacion is not None and UsuarioCliente.objects.filter(
@@ -376,6 +377,8 @@ def _serializar_transaccion(transaccion):
     liquidacion = LiquidacionEfectivo.objects.filter(transaccion=transaccion).select_related("periodo__caja").first()
     return {
         "id": transaccion.id,
+        "canal": transaccion.canal,
+        "version_flujo": transaccion.version_flujo,
         "clave_idempotencia": transaccion.clave_idempotencia,
         "tipo": transaccion.tipo,
         "cliente": {
@@ -409,7 +412,7 @@ def _serializar_transaccion(transaccion):
             "id": transaccion.metodo_pago.id,
             "nombre": transaccion.metodo_pago_nombre,
             "activo": transaccion.metodo_pago.activo,
-            "naturaleza": transaccion.metodo_pago.naturaleza,
+            "naturaleza": transaccion.naturaleza_metodo or transaccion.metodo_pago.naturaleza,
         },
         "estado": transaccion.estado,
         "liquidacion_efectivo": ({
@@ -729,6 +732,8 @@ def historial_transacciones_view(request):
     if es_cajero:
         estados = {"COMPLETADA", "CANCELADA"} if request.GET.get("vista") == "historial" else {"PENDIENTE"}
         transacciones = [tx for tx in transacciones if tx.estado in estados]
+        if request.GET.get("vista") != "historial":
+            transacciones = [tx for tx in transacciones if tx.version_flujo == 1 and tx.canal == "PRESENCIAL"]
 
     return JsonResponse(
         {

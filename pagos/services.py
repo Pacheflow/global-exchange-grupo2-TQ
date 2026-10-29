@@ -1,6 +1,6 @@
 """Orquestación interna: reserva local, proveedor fuera de locks y recuperación.
 
-No completa operaciones. La cancelación comparte el orden Transaccion -> Pago
+Completa el flujo online desde evidencia validada. La cancelación comparte el orden Transaccion -> Pago
 y protege los estados que pueden tener ejecución externa. El proveedor se
 inyecta desde una capa de confianza configurada exclusivamente para TEST.
 """
@@ -16,7 +16,7 @@ from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
 from clientes.models import UsuarioCliente
-from cajas.services import hay_disponibilidad
+from fondos.services import exigir_flujo, reservar, liberar, finalizar
 from metodos_pago.models import MetodoPago
 from operaciones.models import Transaccion
 from usuarios.services.keycloak import rol_efectivo
@@ -107,6 +107,9 @@ def _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, *, roles
 
 
 def _elegible(transaccion):
+    exigir_flujo(transaccion)
+    if transaccion.naturaleza_metodo != "ELECTRONICO":
+        raise ValidationError("La operación no es electrónica.", code="METODO_NO_ELECTRONICO")
     if transaccion.tipo != "COMPRA":
         raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
     if transaccion.estado != "PENDIENTE":
@@ -297,7 +300,27 @@ def _invocar(provider, reserva, *, consulta, referencia=None, reutilizado=False)
     except Exception:
         # Nunca serializar el mensaje, payload o traceback externo.
         resultado = _incierto()
-    return _persistir(reserva, resultado, consulta=consulta, reutilizado=reutilizado)
+    respuesta = _persistir(reserva, resultado, consulta=consulta, reutilizado=reutilizado)
+    if not respuesta.anomalia:
+        sincronizar_resultado_local(reserva.solicitud.transaccion_id)
+    return respuesta
+
+
+def sincronizar_resultado_local(transaccion_id):
+    """Reanuda efectos sin IO; aprobar queda durable aunque falle la finalización."""
+    try:
+        with transaction.atomic():
+            op, pago = _bloquear(transaccion_id)
+            exigir_flujo(op)
+            if pago is None:
+                return
+            if pago.estado == Pago.Estado.APROBADO:
+                finalizar(op, pago)
+            elif pago.estado in (Pago.Estado.RECHAZADO, Pago.Estado.ERROR):
+                liberar(op)
+    except Exception:
+        logger.error("FINALIZACION_ONLINE_PENDIENTE operacion=%s", transaccion_id)
+        raise PersistenciaPagoError("La evidencia se conserva; finalización pendiente de recuperación.") from None
 
 
 def iniciar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, provider: PaymentProvider):
@@ -306,10 +329,12 @@ def iniciar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, 
     with transaction.atomic(durable=True):
         transaccion, pago = _bloquear(transaccion_id)
         identidad = _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, roles_permitidos=("USUARIO",))
-        _elegible(transaccion)
+        exigir_flujo(transaccion)
         if pago is not None:
             _validar_snapshots(transaccion, pago)
+            sincronizar_resultado_local(transaccion_id)
             return _respuesta(pago, reutilizado=True)
+        _elegible(transaccion)
         _validar_metodo_cobro(transaccion)
         _validar_disponibilidad(transaccion)
         pago = Pago(
@@ -330,12 +355,14 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
     with transaction.atomic(durable=True):
         transaccion, pago = _bloquear(transaccion_id)
         _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, roles_permitidos=("USUARIO",))
-        _elegible(transaccion)
+        exigir_flujo(transaccion)
         if pago is None:
             raise ValidationError("No existe un pago para reintentar.", code="PAGO_INEXISTENTE")
         _validar_snapshots(transaccion, pago)
         if pago.estado != Pago.Estado.ERROR:
+            sincronizar_resultado_local(transaccion_id)
             return _respuesta(pago, reutilizado=True)
+        _elegible(transaccion)
         if pago.referencia_externa is not None:
             raise ValidationError("El pago requiere recuperación.", code="REQUIERE_RECUPERACION")
         _validar_metodo_cobro(transaccion)
@@ -349,13 +376,8 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
 
 
 def _validar_disponibilidad(transaccion):
-    """Antes de autorizar un cobro nuevo, lee fondos sin reservar ni bloquear Caja."""
-    if not hay_disponibilidad(moneda_id=transaccion.moneda_destino_id, monto=transaccion.monto_destino):
-        raise ValidationError(
-            "No hay disponibilidad suficiente para procesar esta operación. "
-            "No se realizó ningún cobro en este intento. Intenta más tarde.",
-            code="DISPONIBILIDAD_INSUFICIENTE",
-        )
+    """Protege el neto electrónico antes del cobro, sin acceder a Caja física."""
+    reservar(transaccion)
 
 
 def recuperar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id, provider: PaymentProvider):
@@ -364,11 +386,13 @@ def recuperar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id
     with transaction.atomic(durable=True):
         transaccion, pago = _bloquear(transaccion_id)
         _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id)
+        exigir_flujo(transaccion)
         if pago is None:
             raise ValidationError("No existe un pago para recuperar.", code="PAGO_INEXISTENTE")
         if pago.proveedor != PROVEEDOR_TEST or pago.huella_solicitud != pago.calcular_huella():
             raise ValidationError("La reserva del pago es inválida.", code="RESERVA_INVALIDA")
         if pago.estado not in {Pago.Estado.EN_PROCESO, Pago.Estado.INDETERMINADO}:
+            sincronizar_resultado_local(transaccion_id)
             return _respuesta(pago, reutilizado=True)
         reserva, referencia = _reserva(transaccion, pago), pago.referencia_externa
     return _invocar(provider, reserva, consulta=True, referencia=referencia, reutilizado=True)
