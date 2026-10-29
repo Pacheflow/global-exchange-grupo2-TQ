@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import IntentoEmisionFacturaSegura
+from .models import IntentoEmisionFacturaSegura, Factura, EnvioFactura
 
 
 @admin.register(IntentoEmisionFacturaSegura)
@@ -21,3 +21,19 @@ class IntentoEmisionFacturaSeguraAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(Factura)
+class FacturaAdmin(IntentoEmisionFacturaSeguraAdmin):
+    list_display = ("id", "transaccion", "estado", "cdc", "codigo_error", "actualizada_en")
+    list_filter = ("estado",)
+    search_fields = ("cdc", "transaccion__cliente__documento")
+    readonly_fields = tuple(campo.name for campo in Factura._meta.fields)
+
+
+@admin.register(EnvioFactura)
+class EnvioFacturaAdmin(IntentoEmisionFacturaSeguraAdmin):
+    list_display = ("id", "factura", "estado", "codigo_error", "creado_en", "terminado_en")
+    list_filter = ("estado",)
+    search_fields = ("destinatario",)
+    readonly_fields = tuple(campo.name for campo in EnvioFactura._meta.fields)

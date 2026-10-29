@@ -36,6 +36,7 @@
       <a href="{% url 'consultar_clientes' %}" {% if request.resolver_match.url_name == 'consultar_clientes' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='clients' size=18 %}</span><span class="ge-frontend-nav-label">Mi cliente</span></a>
       <a href="{% url 'operaciones_web:inicio' %}" {% if request.resolver_match.namespace == 'operaciones_web' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='operations' size=18 %}</span><span class="ge-frontend-nav-label">Operaciones</span></a>
       {% include 'frontend/partials/sidebar_pending.html' with icon='payments' label='Pagos' %}
+      <a href="{% url 'facturacion:listado' %}" {% if request.resolver_match.namespace == 'facturacion' %}class="is-active" aria-current="page"{% endif %}><span class="ge-frontend-nav-icon">{% include 'components/icon.html' with name='history' size=18 %}</span><span class="ge-frontend-nav-label">Mis facturas</span></a>
       {% include 'frontend/partials/sidebar_pending.html' with icon='notifications' label='Notificaciones' %}
       {% include 'frontend/partials/sidebar_pending.html' with icon='settings' label='Configuración' %}
     {% endif %}
