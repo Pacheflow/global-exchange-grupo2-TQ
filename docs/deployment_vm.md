@@ -111,6 +111,10 @@ Los backups se guardan, por defecto, en un directorio hermano privado llamado
 `global-exchange-backups/<fecha-UTC>/`. También se registran allí los commits
 anterior y desplegado. El script nunca elimina volúmenes ni restaura una base
 automáticamente. Ante un error imprime el estado y los últimos logs relevantes.
+La imagen de Django queda etiquetada con el commit desplegado; el proceso
+recrea explícitamente `web` y `nginx`, comprueba esa etiqueta e importa el
+módulo `facturacion` antes de declarar exitoso el despliegue. Esto evita que un
+simple cambio de contenedor reutilice silenciosamente una imagen anterior.
 
 Las rutas pueden ajustarse sin editar el script:
 
