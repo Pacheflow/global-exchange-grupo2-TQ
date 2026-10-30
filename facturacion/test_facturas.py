@@ -1,4 +1,4 @@
-"""HU-29/30: errores externos, aislamiento financiero, permisos e idempotencia."""
+"""Facturas web: errores externos, aislamiento financiero, permisos e idempotencia."""
 import time
 from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
@@ -9,7 +9,7 @@ from uuid import uuid4
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.db import close_old_connections, transaction
-from django.test import Client, TestCase, TransactionTestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from clientes.models import Cliente, UsuarioCliente
@@ -21,14 +21,14 @@ from tasas.models import TasaComercial
 from usuarios.services.keycloak import SESSION_AUTENTICADO, SESSION_EXPIRA_EN, SESSION_ROLES, SESSION_USUARIO
 from .models import Factura, EnvioFactura
 from .services.factura_segura import ArchivoFactura, ResultadoGeneracion, FacturaSeguraResultadoIndeterminado, FacturaSeguraProveedorError, FacturaSeguraAutenticacionError
-from .services.facturas import preparar_factura, emitir_factura, enviar_factura
+from .services.facturas import preparar_factura, emitir_factura
 
 
 class EscenarioFactura:
     def setUp(self):
         super().setUp()
         self.cliente = Cliente.objects.create(nombre_razon_social="Cliente facturas", documento="123456",
-            tipo_persona="FISICA", correo_facturacion="cliente@example.test")
+            tipo_persona="FISICA")
         self.asociacion = UsuarioCliente.objects.create(cliente=self.cliente, keycloak_user_id="usuario",
             username="usuario", rol_en_cliente="RESPONSABLE")
         usd, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar", "simbolo": "$"})
@@ -133,51 +133,6 @@ class FacturaTests(EscenarioFactura, TestCase):
         self.generar()
         self.proveedor.generar_de.assert_called_once()
 
-    def test_correo_exitoso_con_adjunto_y_sin_reenvio_duplicado(self):
-        self.generar()
-        with patch("facturacion.services.facturas.mailers.create_connection") as crear:
-            conexion = crear.return_value.__enter__.return_value
-            conexion.send_messages.return_value = 1
-            envio = enviar_factura(self.factura.pk, client=self.proveedor)
-            self.assertEqual(enviar_factura(self.factura.pk, reintentar=True).pk, envio.pk)
-        self.assertEqual(envio.estado, "ENVIADO")
-        mensaje = conexion.send_messages.call_args.args[0][0]
-        self.assertEqual(mensaje.to, ["cliente@example.test"])
-        self.assertIn(str(self.op.pk), mensaje.subject)
-        self.assertEqual(len(mensaje.attachments), 1)
-        conexion.send_messages.assert_called_once()
-        self.proveedor.generar_de.assert_called_once()
-
-    def test_fallo_correo_y_reintento_no_reemiten_factura(self):
-        self.generar()
-        with patch("facturacion.services.facturas.mailers.create_connection") as crear:
-            conexion = crear.return_value.__enter__.return_value
-            conexion.send_messages.side_effect = [OSError("smtp caído"), 1]
-            with self.assertLogs("facturacion.services.facturas", level="ERROR"):
-                fallido = enviar_factura(self.factura.pk, client=self.proveedor)
-            self.assertEqual(fallido.estado, "ERROR")
-            self.assertEqual(enviar_factura(self.factura.pk).pk, fallido.pk)
-            correcto = enviar_factura(self.factura.pk, reintentar=True, client=self.proveedor)
-        self.assertEqual(correcto.estado, "ENVIADO")
-        self.assertEqual(EnvioFactura.objects.count(), 2)
-        self.factura.refresh_from_db()
-        self.assertEqual(self.factura.estado, "GENERADA")
-        self.proveedor.generar_de.assert_called_once()
-
-    def test_correo_faltante_registra_intento_sin_llamar_smtp(self):
-        self.generar()
-        self.cliente.correo_facturacion = ""
-        self.cliente.save()
-        with patch("facturacion.services.facturas.mailers.create_connection") as smtp:
-            with self.assertLogs("facturacion.services.facturas", level="ERROR"):
-                envio = enviar_factura(self.factura.pk, client=self.proveedor)
-        self.assertEqual(envio.codigo_error, "CORREO_NO_CONFIGURADO")
-        smtp.assert_not_called()
-
-    def test_factura_pendiente_no_admite_correo(self):
-        with self.assertRaises(ValidationError):
-            enviar_factura(self.factura.pk)
-        self.assertFalse(EnvioFactura.objects.exists())
 
     def test_preparacion_se_difiere_al_commit(self):
         with patch("facturacion.signals.preparar_despues_de_commit") as preparar:
@@ -232,7 +187,6 @@ class FacturaHTTPTests(EscenarioFactura, TestCase):
             for nombre, args in (("detalle", [self.factura.pk]), ("visualizar", [self.factura.pk]),
                                   ("descargar", [self.factura.pk, "pdf"])):
                 self.assertEqual(self.client.get(reverse(f"facturacion:{nombre}", args=args)).status_code, 404)
-            self.assertEqual(self.client.post(reverse("facturacion:enviar", args=[self.factura.pk])).status_code, 404)
             self.assertNotContains(self.client.get(reverse("facturacion:listado")), "Consultar factura")
 
     def test_anonimo_y_rol_ajeno(self):
@@ -241,11 +195,10 @@ class FacturaHTTPTests(EscenarioFactura, TestCase):
         self.autenticar(rol="CAJERO")
         self.assertEqual(self.client.get(reverse("facturacion:listado")).status_code, 403)
 
-    def test_solo_consulta_puede_leer_pero_no_enviar(self):
+    def test_solo_consulta_puede_leer(self):
         self.asociacion.rol_en_cliente = "CONSULTA"
         self.asociacion.save()
         self.assertEqual(self.client.get(reverse("facturacion:detalle", args=[self.factura.pk])).status_code, 200)
-        self.assertEqual(self.client.post(reverse("facturacion:enviar", args=[self.factura.pk])).status_code, 403)
 
     def test_descarga_pdf_xml_y_visualizacion_privadas(self):
         self.generar()
@@ -273,32 +226,35 @@ class FacturaHTTPTests(EscenarioFactura, TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertNotIn(b"secreto", response.content)
 
-    def test_enviar_requiere_post_y_csrf(self):
-        url = reverse("facturacion:enviar", args=[self.factura.pk])
-        self.assertEqual(self.client.get(url).status_code, 405)
-        protegido = Client(enforce_csrf_checks=True)
-        self.autenticar(protegido)
-        self.assertEqual(protegido.post(url).status_code, 403)
 
-    def test_correo_destino_no_se_toma_del_post(self):
+    def test_facturas_solo_web_sin_acciones_de_correo(self):
+        """La sección permite consultar y descargar sin ofrecer envío ni destino."""
         self.generar()
-        with patch("facturacion.services.facturas.obtener_factura_segura_client", return_value=self.proveedor):
-            with patch("facturacion.services.facturas.mailers.create_connection") as crear:
-                conexion = crear.return_value.__enter__.return_value
-                conexion.send_messages.return_value = 1
-                response = self.client.post(reverse("facturacion:enviar", args=[self.factura.pk]), {"destinatario": "atacante@example.test"})
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(EnvioFactura.objects.get().destinatario, "cliente@example.test")
+        for url in [reverse("facturacion:listado"), reverse("facturacion:detalle", args=[self.factura.pk])]:
+            respuesta = self.client.get(url)
+            self.assertNotContains(respuesta, "Enviar factura")
+            self.assertNotContains(respuesta, "Configurar correo")
+            self.assertNotContains(respuesta, "Envío por correo")
+        detalle = self.client.get(reverse("facturacion:detalle", args=[self.factura.pk]))
+        self.assertContains(detalle, "Descargar PDF")
+        self.assertContains(detalle, "Descargar XML")
+        self.assertContains(detalle, "Ver comprobante PDF")
 
-    def test_responsable_configura_correo_validado(self):
-        url = reverse("facturacion:correo_cliente", args=[self.cliente.pk])
-        self.assertEqual(self.client.post(url, {"correo_facturacion": "invalido"}).status_code, 400)
-        self.assertEqual(self.client.post(url, {"correo_facturacion": "nuevo@example.test"}).status_code, 302)
-        self.cliente.refresh_from_db()
-        self.assertEqual(self.cliente.correo_facturacion, "nuevo@example.test")
-        self.asociacion.rol_en_cliente = "OPERADOR"
-        self.asociacion.save()
-        self.assertEqual(self.client.post(url, {"correo_facturacion": "otro@example.test"}).status_code, 404)
+    def test_endpoints_de_correo_retirados(self):
+        """Las URLs anteriores no permiten enviar ni configurar correo."""
+        for url in [f"/facturas/{self.factura.pk}/enviar/", f"/facturas/cliente/{self.cliente.pk}/correo/"]:
+            self.assertEqual(self.client.get(url).status_code, 404)
+            self.assertEqual(self.client.post(url).status_code, 404)
+
+    def test_procesador_no_envia_correo_para_facturas_generadas(self):
+        """Una factura generada queda disponible en web sin contactar SMTP."""
+        self.generar()
+        with patch("django.core.mail.mailers.create_connection") as smtp:
+            call_command("procesar_facturas", stdout=StringIO())
+        smtp.assert_not_called()
+        self.assertFalse(EnvioFactura.objects.exists())
+        self.factura.refresh_from_db()
+        self.assertEqual(self.factura.estado, "GENERADA")
 
 
 class FacturaConcurrenciaTests(EscenarioFactura, TransactionTestCase):
@@ -329,34 +285,3 @@ class FacturaConcurrenciaTests(EscenarioFactura, TransactionTestCase):
                 continuar.set()
             self.assertEqual(primera.result(timeout=10), "GENERADA")
         self.proveedor.generar_de.assert_called_once()
-
-    def test_dos_correos_concurrentes_reservan_un_solo_envio(self):
-        self.generar()
-        entrando, continuar = Event(), Event()
-
-        def enviar(mensajes):
-            entrando.set()
-            if not continuar.wait(10):
-                raise RuntimeError("timeout test")
-            return 1
-
-        def ejecutar():
-            close_old_connections()
-            try:
-                return enviar_factura(self.factura.pk, reintentar=True, client=self.proveedor).pk
-            finally:
-                close_old_connections()
-
-        with patch("facturacion.services.facturas.mailers.create_connection") as crear:
-            conexion = crear.return_value.__enter__.return_value
-            conexion.send_messages.side_effect = enviar
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                primera = pool.submit(ejecutar)
-                try:
-                    self.assertTrue(entrando.wait(10))
-                    segunda = pool.submit(ejecutar).result(timeout=10)
-                finally:
-                    continuar.set()
-                self.assertEqual(primera.result(timeout=10), segunda)
-        conexion.send_messages.assert_called_once()
-        self.assertEqual(EnvioFactura.objects.count(), 1)

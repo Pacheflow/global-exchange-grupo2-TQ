@@ -5,10 +5,6 @@
 <div class="ge-frontend-main-pad">
   <h1 class="ge-frontend-h2">Mis facturas</h1>
   <p class="ge-frontend-subtitle">Comprobantes de las operaciones completadas de tus clientes asociados.</p>
-  {% for cliente in clientes %}
-  <p>{{ cliente.nombre_razon_social }} · Correo: {{ cliente.correo_facturacion|default:'Sin configurar' }}
-    <a href="{% url 'facturacion:correo_cliente' cliente.pk %}">Configurar correo</a></p>
-  {% endfor %}
   <div class="ge-card" style="overflow-x:auto">
     <table class="ge-table">
       <thead><tr><th>Operación</th><th>Cliente</th><th>Fecha</th><th>Estado de emisión</th><th>Comprobante</th></tr></thead>

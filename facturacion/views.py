@@ -1,20 +1,17 @@
-"""Consultas privadas y acciones POST protegidas por sesión, asociación y CSRF."""
+"""Consulta y descarga de facturas protegidas por sesión y asociación activa."""
 from io import BytesIO
 import logging
 
-from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.http import FileResponse, HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, render
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from django.views.decorators.http import require_GET
 
-from clientes.models import Cliente
 from usuarios.decorators import requiere_roles_web
 from usuarios.services.keycloak import SESSION_USUARIO
-from .forms import CorreoFacturacionForm
-from .services.facturas import facturas_del_usuario, autorizar_envio, enviar_factura, obtener_comprobante
+from .services.facturas import facturas_del_usuario, obtener_comprobante
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +29,8 @@ def _factura(request, pk):
 @require_GET
 def listado(request):
     facturas = facturas_del_usuario(_usuario(request))
-    clientes = Cliente.objects.filter(usuarios_asignados__keycloak_user_id=_usuario(request),
-                                     usuarios_asignados__activo=True, usuarios_asignados__rol_en_cliente="RESPONSABLE")
     return render(request, "frontend/facturas.html", {
-        "pagina": Paginator(facturas, 20).get_page(request.GET.get("page")), "clientes": clientes,
+        "pagina": Paginator(facturas, 20).get_page(request.GET.get("page")),
     })
 
 
@@ -44,12 +39,7 @@ def listado(request):
 @require_GET
 def detalle(request, pk):
     factura = _factura(request, pk)
-    asignaciones = factura.transaccion.cliente.usuarios_asignados.filter(keycloak_user_id=_usuario(request), activo=True)
-    return render(request, "frontend/factura_detalle.html", {
-        "factura": factura, "envio": factura.envios.first(),
-        "puede_enviar": asignaciones.filter(rol_en_cliente__in=["RESPONSABLE", "OPERADOR"]).exists(),
-        "puede_configurar_correo": asignaciones.filter(rol_en_cliente="RESPONSABLE").exists(),
-    })
+    return render(request, "frontend/factura_detalle.html", {"factura": factura})
 
 
 def _archivo(request, pk, formato, *, adjunto):
@@ -79,39 +69,3 @@ def visualizar(request, pk):
 @require_GET
 def descargar(request, pk, formato):
     return _archivo(request, pk, formato, adjunto=True)
-
-
-@never_cache
-@requiere_roles_web("USUARIO")
-@require_POST
-def enviar(request, pk):
-    factura = _factura(request, pk)
-    autorizar_envio(factura, _usuario(request))
-    try:
-        envio = enviar_factura(factura.pk, reintentar=True)
-    except ValidationError:
-        messages.error(request, "La factura todavía no está disponible para enviar.")
-    else:
-        if envio.estado == "ENVIADO":
-            messages.success(request, "La factura fue enviada al correo registrado del cliente.")
-        elif envio.estado == "EN_PROCESO":
-            messages.info(request, "Ya hay un envío en proceso.")
-        else:
-            messages.error(request, "No se pudo enviar. Revisá el correo del cliente e intentá nuevamente.")
-    return redirect("facturacion:detalle", pk=pk)
-
-
-@never_cache
-@requiere_roles_web("USUARIO")
-@require_http_methods(["GET", "POST"])
-def correo_cliente(request, cliente_id):
-    cliente = get_object_or_404(Cliente, pk=cliente_id,
-        usuarios_asignados__keycloak_user_id=_usuario(request), usuarios_asignados__activo=True,
-        usuarios_asignados__rol_en_cliente="RESPONSABLE")
-    form = CorreoFacturacionForm(request.POST if request.method == "POST" else None, instance=cliente)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Correo de facturación actualizado.")
-        return redirect("facturacion:listado")
-    return render(request, "frontend/factura_correo.html", {"form": form, "cliente": cliente},
-                  status=400 if request.method == "POST" and form.errors else 200)

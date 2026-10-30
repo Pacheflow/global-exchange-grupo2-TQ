@@ -1,4 +1,4 @@
-# HU-29 / HU-30 - Facturas y envío por correo
+# HU-29 / HU-30 - Facturas disponibles en la web
 
 ## Estado de esta entrega
 
@@ -22,10 +22,10 @@ interpretación de estados SIFEN y validación de los comprobantes reales.
    La clave es `factura:transaccion:<id>:v1`; no se cambia para sortear un error.
 5. Guarda el intento técnico, CDC, estado de emisión y fecha. `GENERADA` significa
    respuesta válida del proveedor; **no significa aprobación fiscal SIFEN**.
-6. El procesador intenta el primer correo de las facturas generadas. Guarda un
-   `EnvioFactura` antes de descargar el PDF y contactar al servicio de correo.
+6. Las facturas generadas se consultan en Mis facturas y permiten visualizar
+   el PDF y descargar PDF/XML desde la web. No se envían correos.
 
-Los bloqueos se liberan antes de API/SMTP. Los fallos no modifican ni eliminan
+Los bloqueos se liberan antes de la API. Los fallos de facturación no modifican ni eliminan
 transacciones, movimientos, pagos ni facturas. Errores inesperados se registran
 con códigos controlados; no se publican respuestas técnicas ni secretos.
 
@@ -33,35 +33,30 @@ con códigos controlados; no se publican respuestas técnicas ni secretos.
 
 En `/facturas/` (Mis facturas del menú de usuario) se muestran únicamente facturas
 de clientes con asociación activa a la identidad OIDC. Se revalida en cada detalle,
-visualización, descarga y envío; no se confía en IDs ni destinatarios del POST.
+visualización y descarga; no se confía en IDs aportados por el navegador.
 
-- RESPONSABLE: consulta, descarga, envío y configuración del correo del cliente.
-- OPERADOR: consulta, descarga y envío al correo ya configurado.
-- CONSULTA: consulta y descarga.
+- RESPONSABLE, OPERADOR y CONSULTA: consulta, visualización y descarga de facturas de clientes asociados.
 - Sin asociación activa o sin sesión: no accede al comprobante.
 
-Se conserva el correo en `Cliente.correo_facturacion`. Inicialmente está vacío:
-el responsable lo configura desde Mis facturas. No se infiere desde un usuario
-de Keycloak, porque un cliente puede tener varias identidades asociadas. Este
-criterio de destinatario y permisos debe revisarse con el equipo.
+El alcance acordado el 30/10/2026 por indicación de Axel y confirmado por Elías
+reemplaza el envío por correo por disponibilidad dentro de la web. Se retiraron
+las rutas de envío y configuración, formularios, botones y llamadas SMTP.
+La HU-30 original y la guía incluían correo: este documento registra el cambio
+de alcance y no lo presenta como cumplimiento literal de aquellos criterios.
+Corresponde reflejar el acuerdo en Jira y los criterios del sprint.
 
 PDF/XML se obtienen del adaptador existente y se sirven con permisos y sin caché
 pública. No se almacenan archivos en MEDIA ni se generan comprobantes ficticios.
 La disponibilidad de descarga depende del proveedor; los metadatos permanecen
 consultables aunque éste falle. Falta validar visualmente un KuDE real.
 
-## Correo e idempotencia
+## Compatibilidad con la versión anterior
 
-Se utiliza `mailers.create_connection("default")`, igual que las notificaciones
-de tasas. En desarrollo Compose usa Mailpit; no se cambió la configuración SMTP.
-El mensaje identifica la operación y adjunta su PDF.
-
-Un envío ENVIADO o EN_PROCESO se reutiliza. Un ERROR permite un nuevo intento
-mediante POST con CSRF y autorización; el intento anterior permanece. Nunca se
-vuelve a emitir la factura para reintentar correo. SMTP no garantiza entrega
-exactamente una vez: si aceptó el mensaje pero la respuesta se perdió, un reintento
-puede repetir el correo. Un proceso interrumpido en EN_PROCESO requiere revisión,
-no se libera por tiempo transcurrido.
+Las migraciones ya publicadas no se reescriben. Se conservan el modelo histórico
+EnvioFactura y el campo correo_facturacion para no eliminar datos existentes.
+No tienen pantallas, formularios, rutas, registro en el admin de envíos ni
+servicios activos en facturación. El procesador no crea ni reintenta envíos.
+No se modifica el correo utilizado por otros módulos del proyecto.
 
 ## Contrato fiscal pendiente
 
@@ -111,10 +106,10 @@ Para procesar una tanda una vez configurado el contrato fiscal:
 python manage.py procesar_facturas --limite 100
 ```
 
-Migraciones nuevas: correo opcional del cliente, Factura y EnvioFactura con
-restricciones de unicidad y estados. Las pruebas usan una base aislada y proveedores
+El ajuste a facturas web no requiere nuevas migraciones. Se mantiene el esquema
+publicado y las restricciones de unicidad y estados de Factura. Las pruebas usan una base aislada y proveedores
 simulados; no envían correos reales ni emiten documentos externos.
 
 El cierre de las HUs requiere además completar el contrato, consulta/persistencia
-de estados fiscales, programar el procesador, probar el circuito real en TEST y
+de estados fiscales, programar el procesador, probar emisión, consulta y descargas reales en TEST y
 realizar QA visual del flujo con los roles acordados.

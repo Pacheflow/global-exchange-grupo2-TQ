@@ -1,8 +1,8 @@
-"""Procesador invocable por scheduler; recupera eventos y envía una sola vez."""
+"""Procesador invocable por scheduler; recupera eventos y prepara comprobantes para la web."""
 from django.core.management.base import BaseCommand, CommandError
 from fondos.models import OperacionCompletada
 from facturacion.models import Factura
-from facturacion.services.facturas import preparar_factura, emitir_factura, enviar_factura
+from facturacion.services.facturas import preparar_factura, emitir_factura
 
 
 class Command(BaseCommand):
@@ -21,7 +21,4 @@ class Command(BaseCommand):
         ids = list(Factura.objects.filter(estado="PENDIENTE").order_by("pk").values_list("pk", flat=True)[:limite])
         for pk in ids:
             emitir_factura(pk)
-        generadas = Factura.objects.filter(estado="GENERADA", envios__isnull=True).order_by("pk")[:limite]
-        for factura in generadas:
-            enviar_factura(factura.pk)
-        self.stdout.write(f"Procesadas {len(ids)} facturas pendientes. Los errores de correo requieren reintento explícito.")
+        self.stdout.write(f"Procesadas {len(ids)} facturas pendientes para consulta en la web.")

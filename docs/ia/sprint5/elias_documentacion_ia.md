@@ -2,7 +2,9 @@
 
 **Integrante:** Elías Hirano
 
-**Historias de usuario:** HU-29 — Generar factura electrónica y HU-30 — Enviar factura por correo electrónico.
+**Historias de usuario:** HU-29 — Generar factura electrónica y alcance ajustado de HU-30 — Consultar, visualizar y descargar facturas desde la web.
+
+**Actualización del 30/10/2026:** Axel indicó que las facturas deben estar disponibles en la web, sin envío por correo; Elías confirmó aplicar ese alcance. Las consultas siguientes conservan el contexto inicial y la sección 8 registra el ajuste. El título y los criterios originales de HU-30 deben actualizarse en Jira según este acuerdo.
 
 Se utilizó Codex para analizar los requisitos, revisar la integración existente y asistir en la implementación mediante generación de código, documentación y pruebas. El integrante aportó la guía, los criterios de aceptación y las restricciones del proyecto, y autorizó el avance en una rama propia.
 
@@ -32,9 +34,9 @@ Las consultas siguientes son síntesis de lo conversado, no transcripciones lite
 
 **Respuesta resumida de la IA:** Es posible desarrollar la lógica interna y probarla con respuestas simuladas, reutilizando el adaptador existente. Las credenciales y el contrato fiscal confirmado son necesarios para verificar la emisión real.
 
-**Aplicación:** Se incorporó una base funcional con el modelo Factura, asociación única a la transacción completada, estados de emisión, consulta autorizada y acceso al comprobante mediante el adaptador de Guillermo. Se agregó el registro separado de intentos de correo y su reintento sin volver a emitir la factura. Los fallos de facturación o correo conservan la transacción realizada.
+**Aplicación:** Se incorporó una base funcional con el modelo Factura, asociación única a la transacción completada, estados de emisión, consulta autorizada y acceso al comprobante mediante el adaptador de Guillermo. La versión inicial agregó intentos y reintentos de correo; este flujo fue retirado con el ajuste del 30/10/2026. Los fallos de facturación o correo conservan la transacción realizada.
 
-**Criterios técnicos aplicados:** Preparación posterior al commit de la operación; protección contra duplicados y concurrencia; validación de asociación activa del usuario; acciones de envío mediante POST y CSRF. Se añadió un correo de facturación por cliente, configurable por su usuario responsable. Este criterio de destinatario debe revisarse con el equipo.
+**Criterios técnicos aplicados:** Preparación posterior al commit de la operación; protección contra duplicados y concurrencia; validación de asociación activa del usuario; consulta y descarga protegidas. La configuración y las acciones de correo de la versión inicial se retiraron del alcance actual.
 
 ### 5. ¿Qué es el JSON y dónde se indica que hace falta?
 
@@ -52,11 +54,21 @@ Las consultas siguientes son síntesis de lo conversado, no transcripciones lite
 
 **Diferencia de alcance:** Todavía falta completar el documento fiscal real, consultar e interpretar los estados SIFEN, programar el procesador y realizar pruebas reales y QA visual. Una respuesta de generación del proveedor no se presenta como aprobación fiscal.
 
-### 7. ¿Qué sigue para probar lo implementado?
+### 7. ¿Qué se propuso para probar la versión inicial?
 
 **Estado registrado:** Las migraciones se verificaron en las bases aisladas de pruebas. Se realizó una revisión visual parcial de “Mis facturas” y de la configuración del correo del cliente. No se completó la prueba visual del circuito de emisión, descarga y envío debido a que todavía falta configurar el contrato fiscal real. Los cambios quedaron locales, sin commit ni push al cierre de la implementación documentada.
 
-## Verificación registrada
+### 8. ¿Podemos dejarlo como pidió Axel, con una sección de facturas para descargar desde la web?
+
+**Respuesta resumida de la IA:** Ajustar el alcance a la consulta, visualización y descarga en Mis facturas, retirando el envío automático y manual de correo y su configuración.
+
+**Aplicación:** Por indicación expresa del integrante, se retiraron servicios, rutas, formularios y pantallas de correo. El procesador prepara y emite comprobantes para la web sin contactar SMTP. Se conservaron permisos por asociación activa, generación única y descargas PDF/XML. Las migraciones publicadas y los registros históricos se mantienen sin uso operativo para evitar eliminar datos.
+
+**Pruebas:** Se sustituyeron los casos del flujo retirado por verificaciones de ausencia de acciones de correo, rechazo de sus URLs y procesamiento sin SMTP. Se actualizaron la documentación técnica y este registro.
+
+**Diferencia respecto de la guía:** El correo figuraba en los criterios originales. El cambio responde al acuerdo comunicado por Axel y confirmado por Elías; queda por reflejarlo en Jira. No se afirma que enviar correo y descargar en la web sean el mismo criterio.
+
+## Verificación histórica de la versión inicial
 
 Resultados obtenidos durante la implementación del 29/10/2026:
 
@@ -73,10 +85,23 @@ Durante las pruebas se corrigió el cierre manual de una respuesta de descarga e
 
 ## Pendientes de cierre
 
+Verificación del ajuste a facturas web (30/10/2026):
+
+- Antes del cambio: 43 pruebas de facturación OK.
+- Después del cambio: 38 pruebas de facturación y 561 pruebas de la suite completa OK.
+- `manage.py check`: sin incidencias.
+- `makemigrations --check --dry-run`: sin cambios pendientes.
+- `git diff --check`: sin errores de espacios.
+
+La cantidad disminuye por retirar las pruebas del envío de correo. Se añadieron
+pruebas del nuevo alcance: sección sin acciones de correo, URLs retiradas y
+procesamiento sin SMTP. No se realizó QA visual en navegador ni prueba fiscal
+real en esta revisión. El ajuste permanece local, sin commit ni push.
+
 - Confirmar e implementar el contrato fiscal del emisor y las reglas de importe/concepto.
 - Completar la consulta e interpretación de estados SIFEN.
 - Configurar credenciales TEST por un mecanismo seguro y validar emisión y descarga reales.
-- Probar correo y comprobantes reales, realizar QA visual e integrar el circuito completo.
+- Probar emisión y comprobantes reales, realizar QA visual de consulta/descarga e integrar el circuito completo.
 - Programar la ejecución del procesador de facturas.
 - Completar la revisión del código con el integrante y actualizar la documentación con la evidencia final.
 

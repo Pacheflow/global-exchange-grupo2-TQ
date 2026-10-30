@@ -53,6 +53,7 @@ class Cliente(models.Model):
     ]
 
     nombre_razon_social = models.CharField(max_length=150)
+    # Campo histórico; el flujo de facturas web no lo consulta ni modifica.
     correo_facturacion = models.EmailField(blank=True)
 
     tipo_persona = models.CharField(

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import IntentoEmisionFacturaSegura, Factura, EnvioFactura
+from .models import IntentoEmisionFacturaSegura, Factura
 
 
 @admin.register(IntentoEmisionFacturaSegura)
@@ -29,11 +29,3 @@ class FacturaAdmin(IntentoEmisionFacturaSeguraAdmin):
     list_filter = ("estado",)
     search_fields = ("cdc", "transaccion__cliente__documento")
     readonly_fields = tuple(campo.name for campo in Factura._meta.fields)
-
-
-@admin.register(EnvioFactura)
-class EnvioFacturaAdmin(IntentoEmisionFacturaSeguraAdmin):
-    list_display = ("id", "factura", "estado", "codigo_error", "creado_en", "terminado_en")
-    list_filter = ("estado",)
-    search_fields = ("destinatario",)
-    readonly_fields = tuple(campo.name for campo in EnvioFactura._meta.fields)
