@@ -12,12 +12,14 @@ class ClienteForm(forms.ModelForm):
             "nombre_razon_social",
             "tipo_persona",
             "documento",
+            "correo_facturacion",
         ]
 
         labels = {
             "nombre_razon_social": "Nombre o razón social",
             "tipo_persona": "Tipo de persona",
             "documento": "Documento",
+            "correo_facturacion": "Correo de facturación",
         }
 
 

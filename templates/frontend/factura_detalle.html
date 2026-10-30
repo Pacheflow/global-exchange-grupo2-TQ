@@ -1,23 +1,56 @@
 {% extends 'frontend/base.html' %}
-{% block title %}Factura de operación #{{ factura.transaccion_id }} · Global Exchange{% endblock %}
+{% block title %}Factura #{{ factura.transaccion_id }} · Global Exchange{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-<div class="ge-frontend-main-pad">
-  <a href="{% url 'facturacion:listado' %}">Volver a mis facturas</a>
-  <h1 class="ge-frontend-h2">Factura de operación #{{ factura.transaccion_id }}</h1>
-  <div class="ge-card">
-    <p>Cliente: {{ factura.datos_operacion.cliente }}</p>
-    <p>Operación: {{ factura.datos_operacion.tipo }} · {{ factura.datos_operacion.monto_origen }} {{ factura.datos_operacion.moneda_origen }} → {{ factura.datos_operacion.monto_destino }} {{ factura.datos_operacion.moneda_destino }}</p>
-    <p>Estado de emisión: <strong>{{ factura.get_estado_display }}</strong></p>
-    {% if factura.estado == 'GENERADA' %}
-      <p style="overflow-wrap:anywhere">Identificador: {{ factura.cdc }}</p>
-      <p>La generación por el proveedor no confirma por sí sola la aprobación fiscal.</p>
-      <p><a class="ge-btn-outline" href="{% url 'facturacion:visualizar' factura.pk %}" target="_blank" rel="noopener">Ver comprobante PDF</a>
-      <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>
-      <a class="ge-btn-outline" href="{% url 'facturacion:descargar' factura.pk 'xml' %}">Descargar XML</a></p>
-    {% else %}
-      <p>El comprobante todavía no está disponible. Tu operación completada se conserva.</p>
-    {% endif %}
-  </div>
+<div class="ge-frontend-main-pad ge-invoice-page ge-invoice-page--compact">
+  <a class="ge-invoice-back" href="{% url 'facturacion:listado' %}"><span aria-hidden="true">←</span> Mis facturas</a>
+  <header class="ge-invoice-header ge-invoice-header--compact">
+    <div><h1 class="ge-frontend-h2">Factura #{{ factura.transaccion_id }}</h1><p class="ge-frontend-subtitle">{{ factura.datos_operacion.cliente }} · {{ factura.creada_en|date:'d/m/Y H:i' }}</p></div>
+    <span class="ge-status-badge ge-status-badge--md {% if factura.estado == 'GENERADA' %}ge-status-badge--success{% elif factura.estado == 'ERROR' %}ge-status-badge--danger{% else %}ge-status-badge--warning{% endif %}"><i class="ge-status-dot"></i>{{ factura.get_estado_display }}</span>
+  </header>
+
+  {% if factura.estado == 'GENERADA' %}
+    <section class="ge-card ge-invoice-fiscal-card" aria-labelledby="fiscal-title">
+      <div class="ge-invoice-fiscal-head">
+        <div><span>Seguimiento fiscal</span><h2 id="fiscal-title">Estado en SIFEN</h2></div>
+        <form method="post" action="{% url 'facturacion:actualizar_estado' factura.pk %}">{% csrf_token %}<button class="ge-btn-outline" type="submit">Actualizar estado</button></form>
+      </div>
+      <div class="ge-invoice-fiscal-event">
+        <i class="{% if factura.estado_sifen == 'Aprobado' %}is-success{% elif factura.estado_sifen == 'Rechazado' %}is-danger{% else %}is-pending{% endif %}" aria-hidden="true"></i>
+        <div class="ge-invoice-fiscal-copy">
+          <strong class="{% if factura.estado_sifen == 'Aprobado' %}is-success{% elif factura.estado_sifen == 'Rechazado' %}is-danger{% else %}is-pending{% endif %}">{{ factura.estado_sifen|default:'Pendiente de consulta' }}</strong>
+          {% if factura.descripcion_sifen %}<p>{{ factura.descripcion_sifen }}</p>{% endif %}
+          {% if factura.error_sifen %}<p class="is-error">{{ factura.error_sifen }}</p>{% endif %}
+          {% if factura.consultada_sifen_en %}<small>Última consulta: {{ factura.consultada_sifen_en|date:'d/m/Y H:i:s' }}</small>{% else %}<small>Aún no se consultó el estado al proveedor.</small>{% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="ge-card ge-invoice-actions ge-invoice-actions--compact" aria-label="Acciones del comprobante">
+      <div><h2>Comprobante</h2>{% if factura.cdc %}<code class="ge-invoice-cdc ge-invoice-cdc--inline">CDC {{ factura.cdc }}</code>{% endif %}</div>
+      <div class="ge-btn-row">
+        <a class="ge-btn-ghost" href="{% url 'facturacion:visualizar' factura.pk %}" target="_blank" rel="noopener">Ver comprobante PDF</a>
+        <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>
+        <a class="ge-btn-outline" href="{% url 'facturacion:descargar' factura.pk 'xml' %}">Descargar XML</a>
+      </div>
+    </section>
+    {% if factura.estado_sifen != 'Aprobado' %}<p class="ge-invoice-footnote">Este comprobante todavía no cuenta con aprobación fiscal confirmada.</p>{% endif %}
+  {% else %}
+    <section class="ge-card ge-invoice-empty-state ge-invoice-empty-state--wide"><span>{% include 'components/icon.html' with name='alert' size=22 %}</span><div><strong>Comprobante no disponible</strong><p>La factura todavía no fue generada.</p></div></section>
+  {% endif %}
+
+  <section class="ge-card ge-invoice-operation-summary" aria-labelledby="operation-title">
+    <div class="ge-invoice-summary-head"><h2 id="operation-title">Resumen de la operación</h2><span>{{ factura.datos_operacion.tipo }}</span></div>
+    <div class="ge-invoice-exchange ge-invoice-exchange--compact">
+      <div class="ge-invoice-amount"><span>Entrega</span><strong>{{ factura.datos_operacion.monto_origen }} <small>{{ factura.datos_operacion.moneda_origen }}</small></strong></div>
+      <div class="ge-invoice-exchange-arrow" aria-hidden="true">→</div>
+      <div class="ge-invoice-amount"><span>Recibe</span><strong>{{ factura.datos_operacion.monto_destino }} <small>{{ factura.datos_operacion.moneda_destino }}</small></strong></div>
+    </div>
+    <dl class="ge-invoice-compact-meta">
+      <div><dt>Tasa</dt><dd>{{ factura.datos_operacion.tasa_aplicada }}</dd></div>
+      <div><dt>Comisión</dt><dd>{{ factura.datos_operacion.importe_comision_pyg|default:'—' }} PYG</dd></div>
+      <div><dt>Documento</dt><dd>{{ factura.datos_operacion.documento }}</dd></div>
+    </dl>
+  </section>
 </div>
 {% endblock %}

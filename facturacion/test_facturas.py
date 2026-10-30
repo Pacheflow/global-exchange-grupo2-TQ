@@ -20,8 +20,8 @@ from operaciones.models import Transaccion
 from tasas.models import TasaComercial
 from usuarios.services.keycloak import SESSION_AUTENTICADO, SESSION_EXPIRA_EN, SESSION_ROLES, SESSION_USUARIO
 from .models import Factura, EnvioFactura
-from .services.factura_segura import ArchivoFactura, ResultadoGeneracion, FacturaSeguraResultadoIndeterminado, FacturaSeguraProveedorError, FacturaSeguraAutenticacionError
-from .services.facturas import preparar_factura, emitir_factura
+from .services.factura_segura import ArchivoFactura, ResultadoGeneracion, ResultadoOperacion, FacturaSeguraResultadoIndeterminado, FacturaSeguraProveedorError, FacturaSeguraAutenticacionError
+from .services.facturas import actualizar_estado_sifen, preparar_factura, emitir_factura
 
 
 class EscenarioFactura:
@@ -133,6 +133,29 @@ class FacturaTests(EscenarioFactura, TestCase):
         self.generar()
         self.proveedor.generar_de.assert_called_once()
 
+    def test_actualiza_estado_sifen_sin_reemitir_ni_cambiar_numeracion(self):
+        factura = self.generar()
+        self.proveedor.consultar_estado.return_value = ResultadoOperacion(
+            codigo=0,
+            descripcion="OK",
+            operacion_id="estado-id",
+            resultados=({
+                "estado_sifen": "Rechazado",
+                "desc_sifen": "1261 - Código de actividad económica incorrecto",
+                "error_sifen": "",
+                "fch_sifen": "2026-10-30 13:58:00",
+            },),
+        )
+
+        actualizada = actualizar_estado_sifen(factura.pk, client=self.proveedor)
+
+        self.proveedor.consultar_estado.assert_called_once_with(factura.cdc)
+        self.proveedor.generar_de.assert_called_once()
+        self.assertEqual(actualizada.estado, "GENERADA")
+        self.assertEqual(actualizada.estado_sifen, "Rechazado")
+        self.assertIn("1261", actualizada.descripcion_sifen)
+        self.assertIsNotNone(actualizada.consultada_sifen_en)
+
 
     def test_preparacion_se_difiere_al_commit(self):
         with patch("facturacion.signals.preparar_despues_de_commit") as preparar:
@@ -179,6 +202,51 @@ class FacturaHTTPTests(EscenarioFactura, TestCase):
         self.assertContains(self.client.get(reverse("facturacion:detalle", args=[self.factura.pk])), "Pendiente de emisión")
         self.proveedor.generar_de.assert_not_called()
 
+    def test_procesar_es_post_autorizado_y_delega_emision(self):
+        listado = self.client.get(reverse("facturacion:listado"))
+        self.assertContains(listado, "Procesar factura")
+        url = reverse("facturacion:procesar", args=[self.factura.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        resultado = Mock(
+            pk=self.factura.pk,
+            estado=Factura.Estado.GENERADA,
+            Estado=Factura.Estado,
+        )
+        with patch("facturacion.views.emitir_factura", return_value=resultado) as emitir:
+            respuesta = self.client.post(url)
+        self.assertRedirects(
+            respuesta,
+            reverse("facturacion:detalle", args=[self.factura.pk]),
+        )
+        emitir.assert_called_once_with(self.factura.pk)
+
+    def test_usuario_ajeno_no_puede_procesar_factura(self):
+        self.autenticar(usuario="otro")
+        with patch("facturacion.views.emitir_factura") as emitir:
+            respuesta = self.client.post(
+                reverse("facturacion:procesar", args=[self.factura.pk])
+            )
+        self.assertEqual(respuesta.status_code, 404)
+        emitir.assert_not_called()
+
+    def test_actualizar_estado_es_post_y_no_emite_documento(self):
+        self.generar()
+        url = reverse("facturacion:actualizar_estado", args=[self.factura.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        resultado = Mock(pk=self.factura.pk, estado_sifen="Aprobado")
+        with patch(
+            "facturacion.views.actualizar_estado_sifen", return_value=resultado
+        ) as actualizar:
+            respuesta = self.client.post(url)
+        self.assertRedirects(
+            respuesta,
+            reverse("facturacion:detalle", args=[self.factura.pk]),
+        )
+        actualizar.assert_called_once_with(self.factura.pk)
+        self.assertContains(
+            self.client.get(reverse("facturacion:listado")), "Actualizar estado"
+        )
+
     def test_ajeno_o_desasociado_no_ve_factura_ni_descarga(self):
         for usuario in ("otro", "usuario"):
             self.autenticar(usuario=usuario)
@@ -199,6 +267,13 @@ class FacturaHTTPTests(EscenarioFactura, TestCase):
         self.asociacion.rol_en_cliente = "CONSULTA"
         self.asociacion.save()
         self.assertEqual(self.client.get(reverse("facturacion:detalle", args=[self.factura.pk])).status_code, 200)
+        self.assertNotContains(self.client.get(reverse("facturacion:listado")), "Procesar factura")
+        with patch("facturacion.views.emitir_factura") as emitir:
+            respuesta = self.client.post(
+                reverse("facturacion:procesar", args=[self.factura.pk])
+            )
+        self.assertEqual(respuesta.status_code, 403)
+        emitir.assert_not_called()
 
     def test_descarga_pdf_xml_y_visualizacion_privadas(self):
         self.generar()

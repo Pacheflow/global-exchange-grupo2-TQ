@@ -296,6 +296,7 @@ def _cliente_data(cliente):
         "tipo_persona": cliente.tipo_persona,
         "tipo_persona_display": cliente.get_tipo_persona_display(),
         "documento": cliente.documento,
+        "correo_facturacion": cliente.correo_facturacion,
         "estado": cliente.estado,
         "estado_display": cliente.get_estado_display(),
         "categoria": cliente.categoria.nombre if cliente.categoria_id else None,

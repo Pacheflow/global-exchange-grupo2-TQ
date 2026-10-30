@@ -110,6 +110,7 @@
       field('NOMBRE O RAZÓN SOCIAL', '<input class="ge-input" name="nombre_razon_social" maxlength="150" required placeholder="Razón social o nombre completo" value="' + esc(editando ? cliente.nombre_razon_social : '') + '">') +
       field('TIPO DE PERSONA', '<select class="ge-input" name="tipo_persona" required>' + tipoPersonaOptions(editando ? cliente.tipo_persona : 'FISICA') + '</select>') +
       field('DOCUMENTO', '<input class="ge-input" name="documento" maxlength="30" required placeholder="Cédula, RUC o pasaporte" value="' + esc(editando ? cliente.documento : '') + '">') +
+      field('CORREO DE FACTURACIÓN', '<input class="ge-input" type="email" name="correo_facturacion" maxlength="254" placeholder="receptor@correo.com" value="' + esc(editando ? cliente.correo_facturacion : '') + '">') +
       '</form>';
     dialog(editando ? 'ge-cliente-editar' : 'ge-cliente-nuevo', editando ? 'Editar cliente' : 'Nuevo cliente', content,
       editando ? 'Guardar cambios' : 'Registrar cliente', function (box, close) {
@@ -118,7 +119,8 @@
         var payload = {
           nombre_razon_social: formValue(form, 'nombre_razon_social'),
           tipo_persona: formValue(form, 'tipo_persona'),
-          documento: formValue(form, 'documento')
+          documento: formValue(form, 'documento'),
+          correo_facturacion: formValue(form, 'correo_facturacion')
         };
         request(url, payload).then(function (data) {
           close();
@@ -196,7 +198,8 @@
         id: Number(button.dataset.clienteEditar),
         nombre_razon_social: button.dataset.nombre,
         tipo_persona: button.dataset.tipo,
-        documento: button.dataset.documento
+        documento: button.dataset.documento,
+        correo_facturacion: button.dataset.correo
       });
     });
   });
