@@ -68,11 +68,14 @@ class MetodoPago(models.Model):
         evitar duplicados causados únicamente por diferencias de formato.
         Una naturaleza ya clasificada no puede redefinirse con referencias;
         la primera clasificación explícita de registros heredados sí se admite.
+        Los nuevos métodos activos y las activaciones exigen un tipo explícito;
+        los registros heredados no se reclasifican ni deshabilitan automáticamente.
         """
         self.nombre = self.nombre.strip()
         self.descripcion = self.descripcion.strip()
 
         with transaction.atomic():
+            anterior = None
             if self.pk:
                 anterior = type(self).objects.select_for_update().filter(pk=self.pk).first()
                 cambia_naturaleza = kwargs.get("update_fields") is None or "naturaleza" in kwargs["update_fields"]
@@ -80,8 +83,23 @@ class MetodoPago(models.Model):
                     and anterior.naturaleza != self.Naturaleza.SIN_CLASIFICAR
                     and self.tiene_referencias()):
                     raise ValidationError("No se puede cambiar la naturaleza de un método con operaciones o pagos.")
-            if self.naturaleza not in self.Naturaleza.values:
-                raise ValidationError("La naturaleza del método no es válida.")
+            campos = kwargs.get("update_fields")
+            naturaleza_guardada = (
+                anterior.naturaleza if anterior and campos is not None and "naturaleza" not in campos
+                else self.naturaleza
+            )
+            activo_guardado = (
+                anterior.activo if anterior and campos is not None and "activo" not in campos
+                else self.activo
+            )
+            if naturaleza_guardada not in self.Naturaleza.values:
+                raise ValidationError({"naturaleza": "El tipo del método no es válido."})
+            if (activo_guardado and naturaleza_guardada == self.Naturaleza.SIN_CLASIFICAR
+                and (anterior is None or not anterior.activo
+                     or anterior.naturaleza != self.Naturaleza.SIN_CLASIFICAR)):
+                raise ValidationError({
+                    "naturaleza": "Seleccioná Electrónico o Efectivo antes de activar el método de pago."
+                })
             super().save(*args, **kwargs)
 
     def tiene_referencias(self):

@@ -1,13 +1,38 @@
 window.GEApp = (function () {
   'use strict';
 
+  function userMessage(message, fallback) {
+    message = typeof message === 'string' ? message.trim() : '';
+    if (!message || /(?:\b[45]\d\d\s+(?:Bad Request|Internal Server Error|Forbidden|Not Found)|Traceback|stack trace|(?:Type|Reference|Syntax|Validation|Database|Integrity|Operational)Error|Exception|Failed to fetch|NetworkError|<html|<!doctype)/i.test(message)) {
+      return fallback || 'No se pudo completar la solicitud. Intentá nuevamente más tarde.';
+    }
+    return message;
+  }
+
+  function insufficientFundsMessage(currency) {
+    return 'No hay fondos suficientes' + (currency ? ' en ' + currency : '') +
+      ' para completar esta operación. Probá con otro monto o intentá nuevamente más tarde.';
+  }
+
+  var pendingToasts = [];
+
   function toast(message, type) {
     var allowedTypes = ['success', 'warning', 'error', 'info'];
     type = allowedTypes.indexOf(type) >= 0 ? type : 'success';
+    message = userMessage(message);
     var existing = document.querySelector('.ge-toast');
-    if (existing) existing.remove();
+    if (existing && existing.dataset.message === message && existing.dataset.type === type) return existing;
+    if (existing) {
+      if (!pendingToasts.some(function (item) { return item.message === message && item.type === type; })) {
+        pendingToasts.push({ message: message, type: type });
+      }
+      return existing;
+    }
     var el = document.createElement('div');
     el.className = 'ge-toast ge-toast--' + type;
+    el.dataset.message = message;
+    el.dataset.type = type;
+    el.setAttribute('aria-atomic', 'true');
     el.setAttribute('role', type === 'error' || type === 'warning' ? 'alert' : 'status');
     var icon = document.createElement('span');
     icon.className = 'ge-toast-icon';
@@ -27,10 +52,21 @@ window.GEApp = (function () {
     close.type = 'button';
     close.setAttribute('aria-label', 'Cerrar');
     close.textContent = '\u00D7';
-    close.addEventListener('click', function () { el.remove(); });
+    var dismissed = false;
+    function dismiss() {
+      if (dismissed) return;
+      dismissed = true;
+      el.remove();
+      if (pendingToasts.length) {
+        var next = pendingToasts.shift();
+        toast(next.message, next.type);
+      }
+    }
+    close.addEventListener('click', dismiss);
     el.appendChild(close);
     document.body.appendChild(el);
-    window.setTimeout(function () { el.remove(); }, 4000);
+    window.setTimeout(dismiss, 6000);
+    return el;
   }
 
   function openModal(id) {
@@ -131,7 +167,24 @@ window.GEApp = (function () {
     });
   }
 
+  function initNotifications(root) {
+    root = root || document;
+    root.querySelectorAll('.messages .message, .ge-error-banner, .ge-success-banner, .errorlist.nonfield').forEach(function (notice) {
+      if (notice.dataset.notified === 'true' || notice.closest('[hidden]') && !notice.closest('.messages')) return;
+      var message = notice.textContent.trim();
+      if (!message) return;
+      var type = notice.classList.contains('warning') ? 'warning'
+        : notice.classList.contains('info') ? 'info'
+        : notice.classList.contains('error') || notice.classList.contains('ge-error-banner') || notice.classList.contains('nonfield') ? 'error' : 'success';
+      notice.dataset.notified = 'true';
+      notice.hidden = true;
+      notice.removeAttribute('role');
+      toast(message, type);
+    });
+  }
+
   function init() {
+    initNotifications();
     document.querySelectorAll('.ge-tabs').forEach(initTabs);
     initModals();
     initBackdropClose();
@@ -145,6 +198,9 @@ window.GEApp = (function () {
 
   return {
     toast: toast,
+    userMessage: userMessage,
+    insufficientFundsMessage: insufficientFundsMessage,
+    initNotifications: initNotifications,
     openModal: openModal,
     closeModal: closeModal,
     sparkline: sparklineSvg,

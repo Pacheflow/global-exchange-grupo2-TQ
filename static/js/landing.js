@@ -148,7 +148,12 @@
     if (pyg) from.value = String(pyg.id);
     if (usd) to.value = String(usd.id);
 
-    function showError(message) { error.textContent = message; error.hidden = false; resetResult(); }
+    function showError(message, general) {
+      error.textContent = general ? '' : message;
+      error.hidden = Boolean(general);
+      if (general) window.GEApp.toast(message, 'error');
+      resetResult();
+    }
     function simulate() {
       error.hidden = true;
       error.textContent = '';
@@ -165,7 +170,7 @@
         rateOutput.textContent = '1 ' + result.moneda_origen + ' = ' + rateNumber(result.tasa) + ' ' + result.moneda_destino;
         rateType.textContent = result.tipo_tasa || '—';
         updated.textContent = localDate(result.fecha_hora);
-      }).catch(function (requestError) { showError(requestError.message); });
+      }).catch(function (requestError) { showError(requestError.message, true); });
     }
     function schedule() { window.clearTimeout(timer); timer = window.setTimeout(simulate, 300); }
     // Evita que se escriban letras en el campo del monto.
@@ -207,7 +212,7 @@
     if (!landing) return;
     landing.querySelectorAll('.reveal').forEach(function (element) { var observer = new IntersectionObserver(function (entries) { if (entries[0].isIntersecting) { element.classList.add('visible'); observer.disconnect(); } }, { threshold: .1 }); observer.observe(element); });
     landing.querySelectorAll('a[href^="#"]').forEach(function (link) { link.addEventListener('click', function (event) { var target = document.querySelector(link.getAttribute('href')); if (!target) return; event.preventDefault(); history.pushState(null, '', link.getAttribute('href')); target.scrollIntoView({ behavior: 'smooth' }); }); });
-    request(landing.dataset.ratesUrl, {}, true).then(function (data) { renderRates(landing, data); }).catch(function (error) { renderRates(landing, { estado: 'indisponible', mensaje: error.message, tasas_referencia: [] }); });
+    request(landing.dataset.ratesUrl, {}, true).then(function (data) { renderRates(landing, data); }).catch(function (error) { renderRates(landing, { estado: 'indisponible', tasas_referencia: [] }); window.GEApp.toast(error.message, 'error'); });
     request(landing.dataset.currenciesUrl).then(function (data) {
       if (!Array.isArray(data.monedas)) throw new Error('El catálogo de monedas no tiene un formato válido.');
       renderCurrencies(landing, data.monedas);
@@ -216,8 +221,9 @@
       renderCurrencies(landing, []);
       initConverter(landing, []);
       var message = landing.querySelector('[data-converter-error]');
-      message.hidden = false;
-      message.textContent = error.message || 'No se pudieron cargar las monedas.';
+      message.hidden = true;
+      message.textContent = '';
+      window.GEApp.toast(error.message || 'No se pudieron cargar las monedas.', 'error');
     });
   }
 

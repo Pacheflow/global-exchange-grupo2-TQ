@@ -2,6 +2,7 @@
 
 import math
 import logging
+import os
 import re
 from decimal import Decimal, localcontext
 from enum import StrEnum
@@ -53,13 +54,14 @@ class StripePaymentProvider:
 
     @staticmethod
     def _logging_seguro():
-        """SDK 16: DEBUG/INFO pueden emitir payloads o errores incluso por stderr.
+        """Rechaza DEBUG/INFO en la configuración pública de Stripe y su logger.
 
-        Comprobación aislada de una API interna: revisar al actualizar el SDK.
-        No altera el logging global ni permite llamadas en modo inseguro.
+        Comprueba stripe.log, STRIPE_LOG y el nivel efectivo sin alterar globals.
+        Estos niveles pueden emitir payloads o errores incluso por stderr.
         """
         return (
-            stripe._util._console_log_level() not in ("debug", "info")
+            stripe.log not in ("debug", "info")
+            and os.environ.get("STRIPE_LOG") not in ("debug", "info")
             and logging.getLogger("stripe").getEffectiveLevel() > logging.INFO
         )
 

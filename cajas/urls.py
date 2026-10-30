@@ -6,6 +6,7 @@ app_name = "cajas"
 urlpatterns = [
     path("historial/", views.historial_selector, name="historial_selector"),
     path("saldos/", views.saldos, name="saldos"),
+    path("movimientos/recientes/", views.movimientos_recientes, name="movimientos_recientes"),
     path("movimientos/", views.movimientos, name="movimientos"),
     path("", views.inicio, name="inicio"),
     path("crear/", views.crear, name="crear"),

@@ -31,6 +31,8 @@ def _datos_operacion(op):
         "transaccion_id": op.pk, "cliente_id": op.cliente_id,
         "cliente": op.cliente.nombre_razon_social, "documento": op.cliente.documento,
         "tipo_persona": op.cliente.tipo_persona, "tipo": op.tipo,
+        "ruc": op.cliente.ruc, "dv": op.cliente.dv,
+        "correo_facturacion": op.cliente.correo_facturacion,
         "moneda_origen": op.moneda_origen.codigo, "moneda_destino": op.moneda_destino.codigo,
         "monto_origen": str(op.monto_origen), "monto_destino": str(op.monto_destino),
         "tasa_aplicada": str(op.tasa_aplicada), "importe_comision": str(op.importe_comision),

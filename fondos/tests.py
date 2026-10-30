@@ -185,6 +185,97 @@ class FondosTests(TransactionTestCase):
         provider.consultar.assert_not_called()
         provider.conciliar_sin_referencia.assert_not_called()
 
+    def test_aprobado_sin_saldo_destino_recupera_tras_financiar_sin_recobro(self):
+        """Una anomalía después del IO conserva el aprobado; financiar permite finalizar solo una vez."""
+        monto = self.previsualizar().monto_destino
+        carga = self.financiar(monto)
+        op = self.crear().transaccion
+        provider = self.provider()
+        responder = provider.iniciar.side_effect
+        faltante = Decimal("1")
+
+        def aprobar_con_anomalia(solicitud):
+            from django.db import connection
+            self.assertFalse(connection.in_atomic_block)
+            self.assertEqual(ReservaFondo.objects.get(operacion=op).estado, "ACTIVA")
+            # Fixture excepcional: update evita deliberadamente la inmutabilidad
+            # para simular corrupción externa después de reservar. No es ruta pública.
+            MovimientoFondo.objects.filter(pk=carga.pk).update(monto=monto - faltante)
+            return responder(solicitud)
+
+        provider.iniciar.side_effect = aprobar_con_anomalia
+        with self.assertLogs("pagos.services", level="ERROR") as registro:
+            with self.assertRaises(PersistenciaPagoError):
+                iniciar_pago(**self.argumentos_pago(op, provider))
+        self.assertTrue(any("FINALIZACION_ONLINE_PENDIENTE" in linea for linea in registro.output))
+        pago = Pago.objects.get(transaccion=op)
+        self.assertEqual(pago.estado, "APROBADO")
+        self.assertTrue(pago.referencia_externa)
+        self.assertIsNotNone(pago.aprobado_en)
+        op.refresh_from_db()
+        self.assertEqual(op.estado, "PENDIENTE")
+        self.assertEqual(saldos(Fondo.objects.get(moneda=self.pyg))[2], -faltante)
+        self.assertEqual(ReservaFondo.objects.get(operacion=op).estado, "ACTIVA")
+        self.assertFalse(MovimientoFondo.objects.filter(operacion=op).exists())
+        self.assertFalse(FinalizacionOnline.objects.filter(operacion=op).exists())
+        self.assertFalse(OperacionCompletada.objects.filter(operacion=op).exists())
+        with self.assertRaises(PersistenciaPagoError):
+            recuperar_pago(**self.argumentos_pago(op, provider))
+        self.assertEqual(Pago.objects.get(transaccion=op).estado, "APROBADO")
+        provider.iniciar.assert_called_once()
+        provider.consultar.assert_not_called()
+        provider.conciliar_sin_referencia.assert_not_called()
+        self.financiar(faltante)
+        for _ in range(2):
+            resultado = recuperar_pago(**self.argumentos_pago(op, provider))
+            self.assertEqual((resultado.pago_id, resultado.estado), (pago.pk, EstadoPago.APROBADO))
+        op.refresh_from_db()
+        pago.refresh_from_db()
+        self.assertEqual(op.estado, "COMPLETADA")
+        self.assertEqual(Pago.objects.filter(transaccion=op).count(), 1)
+        self.assertEqual(ReservaFondo.objects.get(operacion=op).estado, "CONSUMIDA")
+        self.assertEqual(MovimientoFondo.objects.filter(operacion=op).count(), 2)
+        self.assertEqual(MovimientoFondo.objects.get(operacion=op, tipo="EGRESO").monto, monto)
+        self.assertEqual(MovimientoFondo.objects.get(operacion=op, tipo="INGRESO").monto, op.monto_origen)
+        self.assertEqual(FinalizacionOnline.objects.filter(operacion=op).count(), 1)
+        self.assertEqual(FinalizacionOnline.objects.get(operacion=op).referencia, pago.referencia_externa)
+        self.assertEqual(OperacionCompletada.objects.filter(operacion=op).count(), 1)
+        self.assertEqual(saldos(Fondo.objects.get(moneda=self.pyg)), (Decimal(0), Decimal(0), Decimal(0)))
+        self.assertFalse(MovimientoCaja.objects.exists())
+        self.assertFalse(Caja.objects.exists())
+        provider.iniciar.assert_called_once()
+        provider.consultar.assert_not_called()
+        provider.conciliar_sin_referencia.assert_not_called()
+
+    def test_reserva_invalida_impide_finalizar_aprobado_sin_recobrar(self):
+        """Recuperar no consume reservas liberadas o inconsistentes ni llama al proveedor."""
+        self.financiar()
+        op = self.crear().transaccion
+        provider = self.provider()
+        with patch("fondos.services.FinalizacionOnline.objects.create", side_effect=RuntimeError("aislado")):
+            with self.assertRaises(PersistenciaPagoError):
+                iniciar_pago(**self.argumentos_pago(op, provider))
+        reserva = ReservaFondo.objects.get(operacion=op)
+        pago = Pago.objects.get(transaccion=op)
+        for cambios in ({"estado": "LIBERADA"}, {"monto": op.monto_destino + Decimal("1")}):
+            with self.subTest(cambios=cambios):
+                # Anomalía de fixture: no hay una API pública que reescriba la reserva.
+                ReservaFondo.objects.filter(pk=reserva.pk).update(**cambios)
+                for _ in range(2):
+                    with self.assertRaises(PersistenciaPagoError):
+                        recuperar_pago(**self.argumentos_pago(op, provider))
+                op.refresh_from_db()
+                self.assertEqual(op.estado, "PENDIENTE")
+                self.assertEqual(Pago.objects.get(transaccion=op).pk, pago.pk)
+                self.assertEqual(Pago.objects.get(transaccion=op).estado, "APROBADO")
+                self.assertFalse(MovimientoFondo.objects.filter(operacion=op).exists())
+                self.assertFalse(FinalizacionOnline.objects.filter(operacion=op).exists())
+                self.assertFalse(OperacionCompletada.objects.filter(operacion=op).exists())
+                ReservaFondo.objects.filter(pk=reserva.pk).update(estado="ACTIVA", monto=op.monto_destino)
+        provider.iniciar.assert_called_once()
+        provider.consultar.assert_not_called()
+        provider.conciliar_sin_referencia.assert_not_called()
+
     def test_historico_no_se_cobra_ni_se_reclasifica(self):
         """El marcador heredado impide nuevos cobros sin adivinar canal ni mover fondos."""
         self.financiar()

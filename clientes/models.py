@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
 
@@ -53,7 +53,7 @@ class Cliente(models.Model):
     ]
 
     nombre_razon_social = models.CharField(max_length=150)
-    # Campo histórico; el flujo de facturas web no lo consulta ni modifica.
+    # Correo de contacto opcional; las facturas se consultan en la web.
     correo_facturacion = models.EmailField(blank=True)
 
     tipo_persona = models.CharField(
@@ -65,6 +65,17 @@ class Cliente(models.Model):
         max_length=30,
         unique=True
     )
+
+    dv = models.CharField(
+        max_length=1,
+        blank=True,
+        validators=[RegexValidator(r"\A[0-9]\Z", "El DV debe ser un dígito del 0 al 9.")],
+    )
+
+    @property
+    def ruc(self):
+        """RUC base; el DV se conserva por separado del identificador único."""
+        return self.documento if self.tipo_persona == "JURIDICA" else ""
 
     estado = models.CharField(
         max_length=10,

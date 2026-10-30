@@ -30,6 +30,7 @@ from .services import (
     validar_medio_liquidacion,
 )
 from .models import LiquidacionEfectivo
+from .importes import CODIGOS_MONTO, especificacion_montos, limites_monto_operacion, validar_monto_operacion
 
 ROLES_OPERADORES = (
     "CAJERO",
@@ -194,31 +195,36 @@ def inicio_operaciones(request, *, historico=False, presencial=False):
         request,
         "frontend/operaciones.html",
         {
+            "limites_monto": especificacion_montos(),
             "cliente_operacion": cliente_operacion,
             "monedas_activas": Moneda.objects.activas() if not es_supervisor else (),
             "metodos_activos": (MetodoPago.objects.activos().filter(naturaleza="EFECTIVO") if presencial
                                 else MetodoPago.objects.activos().filter(naturaleza="ELECTRONICO") if not es_supervisor else ()),
             "es_presencial": presencial,
+            "periodo_consulta_caja": request.GET.get("periodo_id", "") if presencial else "",
             "es_supervisor": es_supervisor,
-            "puede_crear": presencial or rol == "USUARIO" and cliente_operacion is not None and UsuarioCliente.objects.filter(
+            "puede_crear": not historico and (presencial or rol == "USUARIO" and cliente_operacion is not None and UsuarioCliente.objects.filter(
                 cliente=cliente_operacion, keycloak_user_id=_usuario_sesion(request)[0], activo=True,
                 rol_en_cliente__in=["RESPONSABLE", "OPERADOR"],
-            ).exists(),
+            ).exists()),
             "puede_pagar": rol == "USUARIO" and cliente_operacion is not None and UsuarioCliente.objects.filter(
                 cliente=cliente_operacion, keycloak_user_id=_usuario_sesion(request)[0], activo=True,
                 rol_en_cliente__in=["RESPONSABLE", "OPERADOR"],
             ).exists(),
             "puede_liquidar": rol == "CAJERO" and not historico,
             "es_cajero": rol == "CAJERO",
-            "es_historial_cajero": historico,
+            "es_historial_cajero": historico and rol == "CAJERO",
+            "es_historial_usuario": historico and rol == "USUARIO",
+            "es_historial": historico,
+            "solo_recientes": rol == "USUARIO" and not historico,
         },
     )
 
 
-@requiere_roles_web("CAJERO")
+@requiere_roles_web("CAJERO", "USUARIO")
 @require_GET
 def historial_operaciones_cajero(request):
-    """Consulta histórica separada, sin capacidades operativas."""
+    """Reutiliza la consulta histórica autorizada para usuario y cajero."""
     return inicio_operaciones(request, historico=True)
 
 
@@ -252,7 +258,7 @@ def _leer_cuerpo_json(request):
 
     try:
         datos = json.loads(request.body or b"{}")
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError):
         return None
 
     if not isinstance(datos, dict):
@@ -326,7 +332,7 @@ def _validar_condiciones(datos, usuario_id, *, presencial=False):
         raise ValidationError("La previsualización no es válida. Previsualizá nuevamente.", code="PREVIEW_INVALIDA") from None
 
 
-def _serializar_preview(resultado):
+def _serializar_preview(resultado, *, presencial=False):
     """Convierte una previsualización en datos aptos para JSON."""
 
     return {
@@ -344,6 +350,9 @@ def _serializar_preview(resultado):
             "codigo": resultado.moneda_destino.codigo,
         },
         "monto_origen": str(resultado.monto_origen),
+        "limites_monto": limites_monto_operacion(
+            tipo=resultado.tipo, moneda_codigo=resultado.moneda_origen.codigo, presencial=presencial,
+        ),
         "tasa": str(resultado.tasa),
         "tasa_comercial": {
             "id": resultado.tasa_comercial.id,
@@ -475,6 +484,8 @@ def previsualizar_operacion_view(request, *, presencial=False):
             presencial=presencial, roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
+        if getattr(exc, "code", None) in CODIGOS_MONTO:
+            return JsonResponse({"error": exc.message, "codigo": exc.code}, status=400)
         return JsonResponse(
             {
                 "error": "No se pudo previsualizar la operación.",
@@ -483,7 +494,7 @@ def previsualizar_operacion_view(request, *, presencial=False):
             status=400,
         )
 
-    respuesta = _serializar_preview(resultado)
+    respuesta = _serializar_preview(resultado, presencial=presencial)
     respuesta["firma_preview"] = _firmar_condiciones({
         "tipo": resultado.tipo, "cliente_id": resultado.cliente.pk,
         "moneda_origen_id": resultado.moneda_origen.pk, "moneda_destino_id": resultado.moneda_destino.pk,
@@ -520,6 +531,9 @@ def crear_transaccion_view(request, *, presencial=False):
         )
 
     try:
+        # El importe se controla también antes de canonicalizar la firma para
+        # rechazar exponentes extremos y devolver un error monetario legible.
+        validar_monto_operacion(datos.get("monto"))
         _validar_condiciones(datos, usuario_id, presencial=presencial)
         if not presencial:
             _validar_cliente_revision(request, datos)
@@ -540,7 +554,7 @@ def crear_transaccion_view(request, *, presencial=False):
             presencial=presencial, roles=request.session.get(SESSION_ROLES, []),
         )
     except ValidationError as exc:
-        if getattr(exc, "code", None) in {"DISPONIBILIDAD_INSUFICIENTE", "METODO_NO_DISPONIBLE", "PREVIEW_INVALIDA"}:
+        if getattr(exc, "code", None) in CODIGOS_MONTO | {"DISPONIBILIDAD_INSUFICIENTE", "METODO_NO_DISPONIBLE", "PREVIEW_INVALIDA"}:
             return JsonResponse({"error": exc.message, "codigo": exc.code}, status=400)
         return JsonResponse(
             {
@@ -734,6 +748,9 @@ def historial_transacciones_view(request):
         transacciones = [tx for tx in transacciones if tx.estado in estados]
         if request.GET.get("vista") != "historial":
             transacciones = [tx for tx in transacciones if tx.version_flujo == 1 and tx.canal == "PRESENCIAL"]
+
+    if not es_admin and not es_cajero and request.GET.get("recientes") == "5":
+        transacciones = transacciones[:5]
 
     return JsonResponse(
         {

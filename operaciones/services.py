@@ -2,9 +2,10 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP, localcontext
 
 from django.core.exceptions import ValidationError
+from django.db.models import Prefetch
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -19,6 +20,7 @@ from tasas.precision import normalizar_tasa
 from usuarios.services.keycloak import rol_efectivo
 
 from .models import LiquidacionEfectivo, Transaccion
+from .importes import MENSAJE_MONTO_EXCESIVO, validar_monto_operacion, validar_resultados_operacion
 
 
 PRECISION_MONTO = Decimal("0.000001")
@@ -165,17 +167,8 @@ def _obtener_moneda_activa(moneda_id, campo):
 
 
 def _convertir_monto(monto):
-    """Convierte y valida el monto ingresado."""
-
-    try:
-        monto_decimal = Decimal(str(monto))
-    except (InvalidOperation, TypeError, ValueError):
-        raise ValidationError({"monto": "El monto debe ser numérico."})
-
-    if not monto_decimal.is_finite() or monto_decimal <= 0:
-        raise ValidationError({"monto": "El monto debe ser mayor que cero."})
-
-    return monto_decimal
+    """Valida el importe según la capacidad del campo de origen."""
+    return validar_monto_operacion(monto)
 
 
 def _convertir_porcentaje_preview(porcentaje):
@@ -495,20 +488,22 @@ def _calcular_operacion(monto_origen, tasa_aplicada, porcentaje_comision):
         tuple: (monto_convertido, importe_comision, monto_destino).
     """
 
-    monto_convertido = (monto_origen * tasa_aplicada).quantize(
-        PRECISION_MONTO,
-        rounding=ROUND_HALF_UP,
-    )
-    importe_comision = (
-        monto_convertido * porcentaje_comision / Decimal("100")
-    ).quantize(
-        PRECISION_MONTO,
-        rounding=ROUND_HALF_UP,
-    )
-    monto_destino = (monto_convertido - importe_comision).quantize(
-        PRECISION_MONTO,
-        rounding=ROUND_HALF_UP,
-    )
+    # El producto origen × tasa puede tener 42 dígitos; la comisión agrega
+    # otros cinco. Reservamos además escala y acarreo, sin alterar HALF_UP.
+    precision_calculo = sum(Transaccion._meta.get_field(nombre).max_digits for nombre in
+                            ("monto_origen", "tasa_aplicada", "porcentaje_comision"))
+    precision_calculo += Transaccion._meta.get_field("monto_destino").decimal_places + 4
+    try:
+        with localcontext() as contexto:
+            contexto.prec = precision_calculo
+            monto_convertido = (monto_origen * tasa_aplicada).quantize(PRECISION_MONTO, rounding=ROUND_HALF_UP)
+            importe_comision = (monto_convertido * porcentaje_comision / Decimal("100")).quantize(
+                PRECISION_MONTO, rounding=ROUND_HALF_UP,
+            )
+            monto_destino = (monto_convertido - importe_comision).quantize(PRECISION_MONTO, rounding=ROUND_HALF_UP)
+    except DecimalException:
+        raise ValidationError(MENSAJE_MONTO_EXCESIVO, code="MONTO_EXCESIVO") from None
+    validar_resultados_operacion(importe_comision, monto_destino)
     return monto_convertido, importe_comision, monto_destino
 
 
@@ -572,7 +567,9 @@ def previsualizar_operacion(
             {"monedas": "La moneda de origen y destino deben ser diferentes."}
         )
 
-    monto_origen = _convertir_monto(monto)
+    monto_origen = validar_monto_operacion(
+        monto, tipo=tipo, moneda_codigo=moneda_origen.codigo, presencial=presencial,
+    )
     tasa_comercial = _obtener_tasa_comercial_vigente(
         moneda_origen,
         moneda_destino,
@@ -708,7 +705,9 @@ def crear_transaccion(
         raise ValidationError(
             {"monedas": "La moneda de origen y destino deben ser diferentes."}
         )
-    monto_origen = _convertir_monto(monto)
+    monto_origen = validar_monto_operacion(
+        monto, tipo=tipo, moneda_codigo=moneda_origen.codigo, presencial=presencial,
+    )
     huella_idempotencia = _construir_huella_idempotencia(
         usuario_id=usuario_id,
         cliente_id=cliente.id,
@@ -1035,7 +1034,7 @@ def cancelar_transaccion(
         # mientras el proveedor trabaja fuera de la transacción de base de datos.
         pago = (
             Pago.objects.select_for_update(of=("self",))
-            .filter(transaccion_id=transaccion_obj.pk).first()
+            .filter(transaccion_id=transaccion_obj.pk, vigente=True).first()
         )
         if pago is not None and pago.estado not in (Pago.Estado.ERROR, Pago.Estado.RECHAZADO):
             mensajes = {
@@ -1119,8 +1118,9 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None, roles=(
             "moneda_destino",
             "tasa_comercial",
             "metodo_pago",
-            "pago",
         )
+        .prefetch_related(Prefetch("intentos_pago", queryset=Pago.objects.filter(vigente=True),
+                                   to_attr="_pagos_vigentes"))
         .distinct()
     )
 

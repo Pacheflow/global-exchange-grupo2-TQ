@@ -7,10 +7,21 @@
   <h1 class="ge-frontend-h2">Factura de operación #{{ factura.transaccion_id }}</h1>
   <div class="ge-card">
     <p>Cliente: {{ factura.datos_operacion.cliente }}</p>
+    {% if factura.datos_operacion.tipo_persona == 'JURIDICA' %}
+      <p>Tipo de persona: Persona Jurídica</p>
+      <p>RUC: {{ factura.datos_operacion.ruc|default:factura.datos_operacion.documento }}</p>
+      {% if factura.datos_operacion.dv %}<p>DV: {{ factura.datos_operacion.dv }}</p>{% endif %}
+    {% else %}
+      <p>Tipo de persona: Persona Física</p>
+      <p>Documento: {{ factura.datos_operacion.documento }}</p>
+    {% endif %}
+    {% if factura.datos_operacion.correo_facturacion %}
+      <p>Correo de facturación: {{ factura.datos_operacion.correo_facturacion }}</p>
+    {% endif %}
     <p>Operación: {{ factura.datos_operacion.tipo }} · {{ factura.datos_operacion.monto_origen }} {{ factura.datos_operacion.moneda_origen }} → {{ factura.datos_operacion.monto_destino }} {{ factura.datos_operacion.moneda_destino }}</p>
     <p>Estado de emisión: <strong>{{ factura.get_estado_display }}</strong></p>
-    {% if factura.estado == 'GENERADA' %}
-      <p style="overflow-wrap:anywhere">Identificador: {{ factura.cdc }}</p>
+    {% if factura.cdc %}<p style="overflow-wrap:anywhere">CDC: {{ factura.cdc }}</p>{% endif %}
+    {% if factura.estado == 'GENERADA' and factura.cdc %}
       <p>La generación por el proveedor no confirma por sí sola la aprobación fiscal.</p>
       <p><a class="ge-btn-outline" href="{% url 'facturacion:visualizar' factura.pk %}" target="_blank" rel="noopener">Ver comprobante PDF</a>
       <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>

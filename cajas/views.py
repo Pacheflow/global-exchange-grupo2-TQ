@@ -3,11 +3,12 @@ import logging
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError
-from django.http import Http404
+from django.http import Http404, JsonResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from usuarios.decorators import requiere_roles_web
+from usuarios.decorators import requiere_rol, requiere_roles_web
 from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO
 
 from monedas.models import Moneda
@@ -20,6 +21,7 @@ from .services import (
     cambiar_estado_caja,
     cerrar_caja,
     consultar_historial_caja,
+    consultar_movimientos_recientes_caja,
     consultar_saldos_caja,
     crear_caja,
     firmar_catalogo,
@@ -252,6 +254,42 @@ def _consulta_periodo(request, *, seccion):
                 contexto["error"] = "El período seleccionado ya no está disponible."
                 status = 400
     return render(request, "frontend/caja_consulta.html", contexto, status=status)
+
+
+@requiere_rol("CAJERO")
+@require_GET
+def movimientos_recientes(request):
+    """Devuelve únicamente movimientos persistidos del período seleccionado."""
+    try:
+        resultado = consultar_movimientos_recientes_caja(
+            periodo_id=request.GET.get("periodo_id"), **_identidad(request),
+        )
+    except ValidationError as error:
+        return JsonResponse({"error": " ".join(error.messages)}, status=400)
+    except DatabaseError:
+        logger.error("No fue posible consultar los movimientos recientes de caja.")
+        return JsonResponse({"error": "No fue posible consultar los movimientos de caja. Intentá nuevamente."}, status=500)
+    periodo = resultado["periodo"]
+    datos = {
+        "periodos": [{
+            "id": p.pk, "caja_codigo": p.caja.codigo, "caja_nombre": p.caja.nombre,
+        } for p in resultado["periodos"]],
+        "periodo_id": periodo.pk if periodo else None,
+        "history_url": reverse("cajas:historial", kwargs={"caja_id": periodo.caja_id})
+            if periodo else reverse("cajas:historial_selector"),
+        "movimientos": [{
+            "id": m.pk, "fecha_registro": m.fecha_registro.isoformat(),
+            "tipo": m.get_tipo_display(), "moneda": m.moneda.codigo,
+            "importe": str(m.monto), "origen": m.get_origen_display(),
+            # Descriptor de persistencia; MovimientoCaja no tiene estado ni FK de método.
+            "metodo": "Efectivo", "estado": "Registrado",
+        } for m in resultado["movimientos"]],
+    }
+    if resultado["error"]:
+        datos["error"] = resultado["error"]
+    respuesta = JsonResponse(datos, status=400 if resultado["error"] else 200)
+    respuesta["Cache-Control"] = "no-store"
+    return respuesta
 
 
 @requiere_roles_web("ADMINISTRADOR", "CAJERO")

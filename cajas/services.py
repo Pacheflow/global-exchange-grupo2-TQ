@@ -299,6 +299,37 @@ def consultar_saldos_caja(*, periodo_id, usuario_id, roles):
     return periodo, _saldos_del_periodo(periodo)
 
 
+def consultar_movimientos_recientes_caja(*, periodo_id=None, usuario_id, roles):
+    """Consulta informativa, sin asignar Caja ni escribir efectos contables.
+
+    El acceso global por rol es el mismo de saldos: el responsable de apertura
+    no es una asignación de usuario. Solo se autoselecciona un único candidato.
+    Una selección inválida nunca se reemplaza por otra Caja.
+    """
+    _validar_consulta_saldo(roles, usuario_id)
+    candidatos = list(PeriodoCaja.objects.filter(
+        estado="ABIERTO", caja__estado="HABILITADA",
+    ).select_related("caja").order_by("caja__codigo", "pk"))
+    resultado = {"periodos": candidatos, "periodo": None, "movimientos": [], "error": None}
+    if periodo_id is not None:
+        seleccion = str(periodo_id)
+        if (not seleccion.isdecimal() or len(seleccion) > 10 or int(seleccion) <= 0):
+            resultado["error"] = "Seleccioná un período abierto de una caja habilitada."
+            return resultado
+        periodo = next((p for p in candidatos if p.pk == int(seleccion)), None)
+        if periodo is None:
+            resultado["error"] = "El período seleccionado ya no está disponible. Seleccioná una caja abierta."
+            return resultado
+    else:
+        periodo = candidatos[0] if len(candidatos) == 1 else None
+    if periodo is not None:
+        resultado.update(periodo=periodo, movimientos=list(
+            MovimientoCaja.objects.filter(periodo=periodo).select_related("moneda")
+            .order_by("-fecha_registro", "-id")[:5]
+        ))
+    return resultado
+
+
 def _validar_moneda_del_periodo(periodo, moneda_id):
     """Exige que la moneda forme parte de los saldos iniciales del período."""
 
