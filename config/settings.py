@@ -175,6 +175,26 @@ try:
 except ValueError:
     STRIPE_TIMEOUT_SECONDS = None
 
+# Sprint 5 / Guillermo: integracion tecnica ESI con Factura Segura TEST.
+# Los secretos permanecen vacios por defecto y se validan al construir el
+# cliente, de modo que el resto de la aplicacion pueda iniciar sin credenciales.
+FACTURA_SEGURA_API_URL = os.getenv(
+    "FACTURA_SEGURA_API_URL",
+    "https://apitest.facturasegura.com.py/misife00/v1/esi",
+).strip()
+FACTURA_SEGURA_TOKEN = os.getenv("FACTURA_SEGURA_TOKEN", "").strip()
+FACTURA_SEGURA_RUC = os.getenv("FACTURA_SEGURA_RUC", "").strip()
+try:
+    FACTURA_SEGURA_TIMEOUT_SECONDS = float(os.getenv("FACTURA_SEGURA_TIMEOUT_SECONDS", "30"))
+except ValueError:
+    FACTURA_SEGURA_TIMEOUT_SECONDS = None
+try:
+    FACTURA_SEGURA_MAX_DOWNLOAD_BYTES = int(
+        os.getenv("FACTURA_SEGURA_MAX_DOWNLOAD_BYTES", str(15 * 1024 * 1024))
+    )
+except ValueError:
+    FACTURA_SEGURA_MAX_DOWNLOAD_BYTES = None
+
 
 # ------------------------------------------------------------------
 # Sesión / Cookies
@@ -218,6 +238,38 @@ CSRF_COOKIE_SECURE = os.getenv(
 # ------------------------------------------------------------------
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Contrato fiscal TEST de Factura Segura. Los valores por defecto corresponden
+# exclusivamente al emisor/rango habilitado para el equipo 2 TQ.
+FACTURACION_CONTRATO = os.getenv(
+    "FACTURACION_CONTRATO",
+    "facturacion.contracts.factura_segura_test.ContratoFacturaSeguraTest",
+)
+FACTURA_EMISOR_DV = os.getenv("FACTURA_EMISOR_DV", "3").strip()
+FACTURA_EMISOR_TIPO_CONTRIBUYENTE = os.getenv("FACTURA_EMISOR_TIPO_CONTRIBUYENTE", "1").strip()
+FACTURA_EMISOR_NOMBRE = os.getenv("FACTURA_EMISOR_NOMBRE", "GLOBAL EXCHANGE TEST").strip()
+FACTURA_EMISOR_DIRECCION = os.getenv("FACTURA_EMISOR_DIRECCION", "ASUNCION").strip()
+FACTURA_EMISOR_NUMERO_CASA = os.getenv("FACTURA_EMISOR_NUMERO_CASA", "0").strip()
+FACTURA_EMISOR_DEPARTAMENTO_CODIGO = os.getenv("FACTURA_EMISOR_DEPARTAMENTO_CODIGO", "1").strip()
+FACTURA_EMISOR_DEPARTAMENTO = os.getenv("FACTURA_EMISOR_DEPARTAMENTO", "CAPITAL").strip()
+FACTURA_EMISOR_CIUDAD_CODIGO = os.getenv("FACTURA_EMISOR_CIUDAD_CODIGO", "1").strip()
+FACTURA_EMISOR_CIUDAD = os.getenv("FACTURA_EMISOR_CIUDAD", "ASUNCION (DISTRITO)").strip()
+FACTURA_EMISOR_TELEFONO = os.getenv("FACTURA_EMISOR_TELEFONO", "(021)5887000").strip()
+FACTURA_EMISOR_EMAIL = os.getenv("FACTURA_EMISOR_EMAIL", "axeleliezer7@fpuna.edu.py").strip()
+FACTURA_EMISOR_ACTIVIDAD_CODIGO = os.getenv("FACTURA_EMISOR_ACTIVIDAD_CODIGO", "64990").strip()
+FACTURA_EMISOR_ACTIVIDAD_DESCRIPCION = os.getenv(
+    "FACTURA_EMISOR_ACTIVIDAD_DESCRIPCION", "OTRAS ACTIVIDADES DE SERVICIOS FINANCIEROS N.C.P."
+).strip()
+FACTURA_TIMBRADO = os.getenv("FACTURA_TIMBRADO", "02595733").strip()
+FACTURA_TIMBRADO_FECHA_INICIO = os.getenv("FACTURA_TIMBRADO_FECHA_INICIO", "2025-03-27").strip()
+FACTURA_ESTABLECIMIENTO = os.getenv("FACTURA_ESTABLECIMIENTO", "001").strip()
+FACTURA_PUNTO_EXPEDICION = os.getenv("FACTURA_PUNTO_EXPEDICION", "003").strip()
+FACTURA_NUMERO_DESDE = os.getenv("FACTURA_NUMERO_DESDE", "338").strip()
+FACTURA_NUMERO_HASTA = os.getenv("FACTURA_NUMERO_HASTA", "349").strip()
+FACTURA_TIPO_IMPUESTO = os.getenv("FACTURA_TIPO_IMPUESTO", "1").strip()
+FACTURA_AFECTACION_IVA = os.getenv("FACTURA_AFECTACION_IVA", "1").strip()
+FACTURA_PROPORCION_IVA = os.getenv("FACTURA_PROPORCION_IVA", "100").strip()
+FACTURA_TASA_IVA = os.getenv("FACTURA_TASA_IVA", "10").strip()
 
 
 # ------------------------------------------------------------------
@@ -288,7 +340,9 @@ INSTALLED_APPS = [
     "metodos_pago",
     "operaciones",
     "cajas",
+    "fondos",
     "pagos.apps.PagosConfig",
+    "facturacion.apps.FacturacionConfig",
 ]
 
 

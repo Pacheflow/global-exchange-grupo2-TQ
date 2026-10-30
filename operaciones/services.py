@@ -2,9 +2,10 @@ import hashlib
 import hmac
 import json
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP, localcontext
 
 from django.core.exceptions import ValidationError
+from django.db.models import Prefetch
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -19,6 +20,7 @@ from tasas.precision import normalizar_tasa
 from usuarios.services.keycloak import rol_efectivo
 
 from .models import LiquidacionEfectivo, Transaccion
+from .importes import MENSAJE_MONTO_EXCESIVO, validar_monto_operacion, validar_resultados_operacion
 
 
 PRECISION_MONTO = Decimal("0.000001")
@@ -142,6 +144,8 @@ def _validar_metodo_presencial(metodo, presencial):
     """El contexto presencial exige un método activo clasificado explícitamente como efectivo."""
     if presencial and (metodo is None or not metodo.activo or metodo.naturaleza != MetodoPago.Naturaleza.EFECTIVO):
         raise ValidationError("Seleccioná un método de efectivo habilitado.", code="METODO_NO_DISPONIBLE")
+    if not presencial and metodo is not None and metodo.naturaleza != MetodoPago.Naturaleza.ELECTRONICO:
+        raise ValidationError("Seleccioná un método electrónico habilitado.", code="METODO_NO_DISPONIBLE")
 
 
 def _obtener_moneda_activa(moneda_id, campo):
@@ -163,17 +167,8 @@ def _obtener_moneda_activa(moneda_id, campo):
 
 
 def _convertir_monto(monto):
-    """Convierte y valida el monto ingresado."""
-
-    try:
-        monto_decimal = Decimal(str(monto))
-    except (InvalidOperation, TypeError, ValueError):
-        raise ValidationError({"monto": "El monto debe ser numérico."})
-
-    if not monto_decimal.is_finite() or monto_decimal <= 0:
-        raise ValidationError({"monto": "El monto debe ser mayor que cero."})
-
-    return monto_decimal
+    """Valida el importe según la capacidad del campo de origen."""
+    return validar_monto_operacion(monto)
 
 
 def _convertir_porcentaje_preview(porcentaje):
@@ -493,20 +488,22 @@ def _calcular_operacion(monto_origen, tasa_aplicada, porcentaje_comision):
         tuple: (monto_convertido, importe_comision, monto_destino).
     """
 
-    monto_convertido = (monto_origen * tasa_aplicada).quantize(
-        PRECISION_MONTO,
-        rounding=ROUND_HALF_UP,
-    )
-    importe_comision = (
-        monto_convertido * porcentaje_comision / Decimal("100")
-    ).quantize(
-        PRECISION_MONTO,
-        rounding=ROUND_HALF_UP,
-    )
-    monto_destino = (monto_convertido - importe_comision).quantize(
-        PRECISION_MONTO,
-        rounding=ROUND_HALF_UP,
-    )
+    # El producto origen × tasa puede tener 42 dígitos; la comisión agrega
+    # otros cinco. Reservamos además escala y acarreo, sin alterar HALF_UP.
+    precision_calculo = sum(Transaccion._meta.get_field(nombre).max_digits for nombre in
+                            ("monto_origen", "tasa_aplicada", "porcentaje_comision"))
+    precision_calculo += Transaccion._meta.get_field("monto_destino").decimal_places + 4
+    try:
+        with localcontext() as contexto:
+            contexto.prec = precision_calculo
+            monto_convertido = (monto_origen * tasa_aplicada).quantize(PRECISION_MONTO, rounding=ROUND_HALF_UP)
+            importe_comision = (monto_convertido * porcentaje_comision / Decimal("100")).quantize(
+                PRECISION_MONTO, rounding=ROUND_HALF_UP,
+            )
+            monto_destino = (monto_convertido - importe_comision).quantize(PRECISION_MONTO, rounding=ROUND_HALF_UP)
+    except DecimalException:
+        raise ValidationError(MENSAJE_MONTO_EXCESIVO, code="MONTO_EXCESIVO") from None
+    validar_resultados_operacion(importe_comision, monto_destino)
     return monto_convertido, importe_comision, monto_destino
 
 
@@ -570,7 +567,9 @@ def previsualizar_operacion(
             {"monedas": "La moneda de origen y destino deben ser diferentes."}
         )
 
-    monto_origen = _convertir_monto(monto)
+    monto_origen = validar_monto_operacion(
+        monto, tipo=tipo, moneda_codigo=moneda_origen.codigo, presencial=presencial,
+    )
     tasa_comercial = _obtener_tasa_comercial_vigente(
         moneda_origen,
         moneda_destino,
@@ -706,7 +705,9 @@ def crear_transaccion(
         raise ValidationError(
             {"monedas": "La moneda de origen y destino deben ser diferentes."}
         )
-    monto_origen = _convertir_monto(monto)
+    monto_origen = validar_monto_operacion(
+        monto, tipo=tipo, moneda_codigo=moneda_origen.codigo, presencial=presencial,
+    )
     huella_idempotencia = _construir_huella_idempotencia(
         usuario_id=usuario_id,
         cliente_id=cliente.id,
@@ -729,6 +730,8 @@ def crear_transaccion(
     )
 
     if existente is not None:
+        from fondos.services import exigir_flujo
+        exigir_flujo(existente, "PRESENCIAL" if presencial else "ONLINE")
         _validar_reintento_idempotente(
             existente,
             usuario_id=usuario_id,
@@ -768,6 +771,8 @@ def crear_transaccion(
             # esperábamos el lock de Cliente. Reutilizar antes de leer fondos.
             existente = Transaccion.objects.filter(clave_idempotencia=clave_idempotencia).first()
             if existente is not None:
+                from fondos.services import exigir_flujo
+                exigir_flujo(existente, "PRESENCIAL" if presencial else "ONLINE")
                 _validar_reintento_idempotente(
                     existente, usuario_id=usuario_id, cliente=cliente,
                     huella_solicitud=huella_idempotencia,
@@ -819,6 +824,8 @@ def crear_transaccion(
             )
 
             transaccion = Transaccion(
+                version_flujo=1, canal="PRESENCIAL" if presencial else "ONLINE",
+                naturaleza_metodo=metodo_pago.naturaleza,
                 clave_idempotencia=clave_idempotencia,
                 huella_idempotencia=huella_idempotencia,
                 cliente=cliente,
@@ -839,12 +846,16 @@ def crear_transaccion(
             )
 
             transaccion.full_clean()
-            if not hay_disponibilidad(moneda_id=moneda_destino.pk, monto=monto_destino):
+            from fondos.services import hay_disponibilidad as disponibilidad_online, finalizar
+            disponibilidad = hay_disponibilidad if presencial else disponibilidad_online
+            if not disponibilidad(moneda_id=moneda_destino.pk, monto=monto_destino):
                 raise ValidationError(
                     "No hay disponibilidad suficiente para atender esta operación. Intenta más tarde.",
                     code="DISPONIBILIDAD_INSUFICIENTE",
                 )
             transaccion.save()
+            if not presencial and tipo == "VENTA":
+                finalizar(transaccion)
 
     except IntegrityError as exc:
         if not _es_conflicto_de_idempotencia(exc.__cause__):
@@ -870,7 +881,11 @@ def crear_transaccion(
 
 
 def validar_medio_liquidacion(operacion, *, bloquear=False):
-    """Distingue efectivo sin Pago de COMPRA electrónica aprobada, sin invocar proveedores."""
+    """Autoriza únicamente efectivo presencial sin Pago electrónico incompatible."""
+    from fondos.services import exigir_flujo
+    exigir_flujo(operacion, "PRESENCIAL")
+    if operacion.naturaleza_metodo != "EFECTIVO":
+        raise ValidationError("Solo efectivo presencial afecta Caja.", code="REVISION_PENDIENTE")
     metodos = MetodoPago.objects
     pagos = Pago.objects
     if bloquear:
@@ -878,25 +893,13 @@ def validar_medio_liquidacion(operacion, *, bloquear=False):
         metodos = metodos.select_for_update()
     pago = pagos.filter(transaccion_id=operacion.pk).first()
     metodo = metodos.get(pk=operacion.metodo_pago_id)
-    efectivo = metodo.naturaleza == MetodoPago.Naturaleza.EFECTIVO
-    if efectivo:
-        if pago is not None:
-            raise ValidationError("La operación en efectivo tiene un Pago electrónico incompatible.", code="PAGO_INCOMPATIBLE")
-        if not metodo.activo:
-            raise ValidationError("El método de efectivo está deshabilitado.", code="METODO_INACTIVO")
-        if operacion.moneda_origen.estado != "ACTIVA" or operacion.moneda_destino.estado != "ACTIVA":
-            raise ValidationError("Las monedas de la operación deben estar activas.", code="MONEDA_NO_ADMITIDA")
-    elif operacion.tipo == "COMPRA":
-        if pago is None or pago.estado != Pago.Estado.APROBADO:
-            raise ValidationError("La compra requiere un pago aprobado.", code="PAGO_NO_APROBADO")
-        if (
-            pago.metodo_pago_id != operacion.metodo_pago_id or pago.monto != operacion.monto_origen
-            or pago.moneda_codigo != operacion.moneda_origen.codigo or pago.base_importe != Pago.BaseImporte.ORIGEN
-            or pago.huella_solicitud != pago.calcular_huella()
-        ):
-            raise ValidationError("El pago no corresponde a la obligación.", code="OBLIGACION_CAMBIADA")
-        pago.full_clean()
-    return efectivo, pago
+    if pago is not None:
+        raise ValidationError("La operación en efectivo tiene un Pago electrónico incompatible.", code="PAGO_INCOMPATIBLE")
+    if not metodo.activo or metodo.naturaleza != "EFECTIVO":
+        raise ValidationError("El método de efectivo está deshabilitado o cambió.", code="METODO_INACTIVO")
+    if operacion.moneda_origen.estado != "ACTIVA" or operacion.moneda_destino.estado != "ACTIVA":
+        raise ValidationError("Las monedas de la operación deben estar activas.", code="MONEDA_NO_ADMITIDA")
+    return True, None
 
 
 def liquidar_transaccion(
@@ -907,8 +910,7 @@ def liquidar_transaccion(
 
     Locks: Transaccion → Pago → MetodoPago → Caja → PeriodoCaja. La capa superior
     selecciona y autoriza el período explícito; no existen asignaciones Cajero–Caja.
-    El cobro digital de COMPRA no representa un ingreso de efectivo.
-    Efectivo registra recepción, entrega y evidencia en el mismo bloque atómico.
+    Solo efectivo registra recepción, entrega y evidencia en el mismo bloque atómico.
     El CAJERO efectivo actúa como personal operativo: no requiere asociación
     UsuarioCliente ni contexto de cliente seleccionado.
     """
@@ -929,6 +931,8 @@ def liquidar_transaccion(
         except (Transaccion.DoesNotExist, TypeError, ValueError):
             raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
         _obtener_cliente_activo(operacion.cliente_id)
+        from fondos.services import exigir_flujo
+        exigir_flujo(operacion, "PRESENCIAL")
         if operacion.estado == "COMPLETADA":
             evidencia = LiquidacionEfectivo.objects.filter(transaccion=operacion).first()
             if evidencia and evidencia.periodo_id != periodo_id:
@@ -976,6 +980,8 @@ def liquidar_transaccion(
         operacion.estado = "COMPLETADA"
         operacion.full_clean()
         operacion.save(update_fields=["estado", "fecha_actualizacion"])
+        from fondos.models import OperacionCompletada
+        OperacionCompletada.objects.get_or_create(operacion=operacion)
         return ResultadoLiquidarTransaccion(operacion)
 
 
@@ -1028,7 +1034,7 @@ def cancelar_transaccion(
         # mientras el proveedor trabaja fuera de la transacción de base de datos.
         pago = (
             Pago.objects.select_for_update(of=("self",))
-            .filter(transaccion_id=transaccion_obj.pk).first()
+            .filter(transaccion_id=transaccion_obj.pk, vigente=True).first()
         )
         if pago is not None and pago.estado not in (Pago.Estado.ERROR, Pago.Estado.RECHAZADO):
             mensajes = {
@@ -1077,9 +1083,9 @@ def listar_metodos_pago_operacion(*, usuario_id, cliente_id):
     cliente = _obtener_cliente_activo(cliente_id)
     _validar_acceso_usuario_cliente(cliente, usuario_id)
 
-    metodos = list(MetodoPago.objects.activos())
+    metodos = list(MetodoPago.objects.activos().filter(naturaleza="ELECTRONICO"))
     preferido = cliente.metodo_pago_preferido
-    if preferido is None or not preferido.activo:
+    if preferido is None or not preferido.activo or preferido.naturaleza != "ELECTRONICO":
         preferido = None
 
     return cliente, metodos, preferido
@@ -1112,8 +1118,9 @@ def listar_transacciones(*, usuario_id, es_admin=False, cliente_id=None, roles=(
             "moneda_destino",
             "tasa_comercial",
             "metodo_pago",
-            "pago",
         )
+        .prefetch_related(Prefetch("intentos_pago", queryset=Pago.objects.filter(vigente=True),
+                                   to_attr="_pagos_vigentes"))
         .distinct()
     )
 

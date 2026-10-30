@@ -1,0 +1,6 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Cargar fondos · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}<div class="ge-frontend-main-pad"><h2 class="ge-frontend-h2">Cargar fondos</h2>
+<p class="ge-frontend-subtitle">La carga registra financiación interna simulada; no acredita dinero recibido desde Stripe.</p>
+<form class="ge-card" method="post" up-submit="false">{% csrf_token %}{{ form.as_p }}<button class="ge-btn-primary" type="submit">Registrar carga</button> <a href="{% url 'fondos:inicio' %}">Volver</a></form></div>{% endblock %}

@@ -1,6 +1,7 @@
 """API de pagos: identidad de sesión, entrada cerrada y respuestas persistidas."""
 
 import json
+from uuid import UUID
 from functools import wraps
 
 from django.core.exceptions import PermissionDenied, RequestDataTooBig, ValidationError
@@ -15,7 +16,7 @@ from usuarios.services.keycloak import SESSION_ROLES, SESSION_USUARIO, rol_efect
 from .factory import obtener_payment_provider
 from .services import (
     PersistenciaPagoError, consultar_estado_pago, iniciar_pago,
-    recuperar_pago, reintentar_pago,
+    recuperar_pago, reintentar_pago, cambiar_metodo_pago, consultar_contexto_pago,
 )
 
 
@@ -35,7 +36,11 @@ def _errores_controlados(view):
         except PermissionDenied:
             return _no_disponible()
         except ValidationError as error:
-            if getattr(error, "code", None) in {"METODO_INACTIVO", "METODO_NO_ELECTRONICO"}:
+            if getattr(error, "code", None) in {"METODO_INACTIVO", "METODO_NO_ELECTRONICO", "REVISION_PENDIENTE"}:
+                return _error(error.message, error.code, 400)
+            if getattr(error, "code", None) in {"ESTADO_DESACTUALIZADO", "CONFLICTO_IDEMPOTENCIA"}:
+                return _error(error.message, error.code, 409)
+            if getattr(error, "code", None) in {"ENTRADA_INVALIDA", "CAMBIO_METODO_NO_PERMITIDO", "METODO_SIN_CAMBIOS"}:
                 return _error(error.message, error.code, 400)
             if getattr(error, "code", None) == "DISPONIBILIDAD_INSUFICIENTE":
                 return _error(error.message, error.code, 400)
@@ -135,4 +140,48 @@ def consultar(request, transaccion_id):
     if contexto is None:
         return _error("Seleccione un cliente válido para operar.", "CONTEXTO_CLIENTE_INVALIDO", 400)
     resultado = consultar_estado_pago(transaccion_id=transaccion_id, **contexto)
-    return _serializar(transaccion_id, resultado)
+    respuesta = _serializar(transaccion_id, resultado)
+    datos = json.loads(respuesta.content)
+    datos.update({k: v for k, v in consultar_contexto_pago(transaccion_id=transaccion_id, **contexto).items()
+                  if k != "intentos"})
+    return JsonResponse(datos)
+
+
+@transaction.non_atomic_requests
+@never_cache
+@_errores_controlados
+@requiere_alguno_de_roles("USUARIO")
+@require_POST
+def cambiar_metodo(request, transaccion_id):
+    try:
+        datos = json.loads(request.body)
+        campos = {"metodo_pago_id", "metodo_anterior_id", "pago_esperado_id", "clave_idempotencia"}
+        if not isinstance(datos, dict) or set(datos) != campos:
+            raise ValueError
+        if (type(datos["metodo_pago_id"]) is not int or datos["metodo_pago_id"] <= 0
+            or type(datos["metodo_anterior_id"]) is not int or datos["metodo_anterior_id"] <= 0
+            or not isinstance(datos["clave_idempotencia"], str)
+            or (datos["pago_esperado_id"] is not None and not isinstance(datos["pago_esperado_id"], str))):
+            raise ValueError
+        UUID(datos["clave_idempotencia"])
+        if datos["pago_esperado_id"] is not None:
+            UUID(datos["pago_esperado_id"])
+    except (ValueError, TypeError, UnicodeDecodeError, RequestDataTooBig):
+        return _error("La solicitud de cambio de método no es válida.", "ENTRADA_INVALIDA", 400)
+    contexto = _contexto(request)
+    if contexto is None:
+        return _error("Seleccione un cliente válido para operar.", "CONTEXTO_CLIENTE_INVALIDO", 400)
+    return JsonResponse(cambiar_metodo_pago(transaccion_id=transaccion_id, **contexto, **datos))
+
+
+@transaction.non_atomic_requests
+@never_cache
+@_errores_controlados
+@requiere_alguno_de_roles("CAJERO", "USUARIO")
+@require_GET
+def intentos(request, transaccion_id):
+    contexto = _contexto(request, permitir_sin_cliente=True)
+    if contexto is None:
+        return _error("Seleccione un cliente válido para operar.", "CONTEXTO_CLIENTE_INVALIDO", 400)
+    datos = consultar_contexto_pago(transaccion_id=transaccion_id, **contexto)
+    return JsonResponse(dict(transaccion_id=transaccion_id, intentos=datos["intentos"]))

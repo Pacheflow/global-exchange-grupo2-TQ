@@ -32,7 +32,7 @@ class PagoModelTests(TestCase):
         cls.destino, _ = Moneda.objects.get_or_create(
             codigo="PYG", defaults={"nombre": "Guaraní", "simbolo": "Gs"},
         )
-        cls.metodo = MetodoPago.objects.create(nombre="Método demo pagos")
+        cls.metodo = MetodoPago.objects.create(nombre="Método demo pagos", naturaleza="ELECTRONICO")
         cls.tasa = TasaComercial.objects.create(
             moneda_origen=cls.origen, moneda_destino=cls.destino,
             compra=Decimal("7000"), venta=Decimal("7200"), vigente=True,
@@ -95,7 +95,7 @@ class PagoModelTests(TestCase):
         with self.assertRaises(ValidationError):
             self.nuevo_pago(iniciado_por_keycloak_id="   ").save()
 
-    def test_unico_por_transaccion_en_bd(self):
+    def test_unico_vigente_por_transaccion_en_bd(self):
         pago = self.nuevo_pago()
         pago.save()
         self.assert_constraint(transaccion=pago.transaccion)
@@ -163,7 +163,7 @@ class PagoModelTests(TestCase):
                 self.nuevo_pago(transaccion=self.crear_transaccion(**cambios)).save()
 
     def test_creacion_exige_snapshots_coincidentes(self):
-        otro = MetodoPago.objects.create(nombre="Otro método")
+        otro = MetodoPago.objects.create(nombre="Otro método", naturaleza="ELECTRONICO")
         for cambios in (
             {"metodo_pago": otro}, {"monto": Decimal("9")},
             {"moneda_codigo": "EUR"}, {"base_importe": Pago.BaseImporte.DESTINO},
@@ -176,7 +176,7 @@ class PagoModelTests(TestCase):
         pago = self.nuevo_pago()
         pago.save()
         otra_transaccion = self.crear_transaccion()
-        otro_metodo = MetodoPago.objects.create(nombre="Método alternativo")
+        otro_metodo = MetodoPago.objects.create(nombre="Método alternativo", naturaleza="ELECTRONICO")
         cambios = {
             "transaccion_id": otra_transaccion.pk, "metodo_pago_id": otro_metodo.pk,
             "proveedor": "otro", "monto": Decimal("20"), "moneda_codigo": "EUR",

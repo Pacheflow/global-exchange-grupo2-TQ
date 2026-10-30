@@ -1,6 +1,17 @@
 (function () {
   'use strict';
 
+  document.querySelectorAll('[data-cliente-classic-form]').forEach(function (form) {
+    bindFiscalForm(form, form.dataset.existente === 'true' ? {
+      tipo_persona: form.dataset.originalTipo,
+      documento: form.dataset.originalDocumento,
+      dv: form.dataset.originalDv
+    } : null);
+    form.addEventListener('submit', function (event) {
+      if (!validateClienteForm(form)) event.preventDefault();
+    });
+  });
+
   var page = document.querySelector('[data-clientes-page]');
   if (!page) return;
 
@@ -43,7 +54,11 @@
         : null;
       if (authError) throw authError;
       return response.json().catch(function () { return {}; }).then(function (data) {
-        if (!response.ok) throw new Error(data.error || 'No fue posible completar la operación.');
+        if (!response.ok) {
+          var error = new Error(data.error || 'No fue posible completar la operación.');
+          error.details = data.detalles;
+          throw error;
+        }
         return data;
       });
     });
@@ -86,10 +101,85 @@
     });
     var first = backdrop.querySelector('input,select,button');
     if (first) first.focus();
+    return backdrop;
   }
 
-  function field(label, control) {
-    return '<label class="ge-crud-field"><span class="ge-field-label">' + label + '</span>' + control + '</label>';
+  function field(label, control, name) {
+    return '<label class="ge-crud-field"' + (name ? ' data-cliente-field="' + name + '"' : '') + '><span class="ge-field-label">' + label + '</span>' + control + '</label>';
+  }
+
+  function clearFieldErrors(form) {
+    form.querySelectorAll('[data-cliente-error]').forEach(function (node) { node.remove(); });
+    Array.prototype.forEach.call(form.elements, function (input) {
+      input.removeAttribute('aria-invalid');
+      var descriptions = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(function (id) {
+        return id && id.indexOf('cliente-error-') !== 0 && !/_error$/.test(id);
+      });
+      if (descriptions.length) input.setAttribute('aria-describedby', descriptions.join(' '));
+      else input.removeAttribute('aria-describedby');
+    });
+  }
+
+  function showFieldError(form, name, message) {
+    var input = form.elements[name];
+    if (!input) return false;
+    var note = document.createElement('span');
+    note.className = 'field-error';
+    note.dataset.clienteError = name;
+    note.id = 'cliente-error-' + name;
+    note.textContent = message;
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), note.id].filter(Boolean).join(' '));
+    input.parentElement.appendChild(note);
+    return true;
+  }
+
+  function bindFiscalForm(form, original) {
+    var tipo = form.elements.tipo_persona;
+    var documento = form.elements.documento;
+    var dv = form.elements.dv;
+    var dvField = form.querySelector('[data-cliente-field="dv"]');
+    var label = form.querySelector('[data-cliente-field="documento"] .ge-field-label, [data-cliente-field="documento"] label');
+    function sync() {
+      var juridica = tipo.value === 'JURIDICA';
+      var legacy = original && original.tipo_persona === 'JURIDICA' &&
+        (!/^[0-9]+$/.test(original.documento) || !original.dv) &&
+        tipo.value === original.tipo_persona && documento.value.trim() === original.documento &&
+        dv.value.trim() === original.dv;
+      if (label) label.textContent = juridica ? 'RUC' : 'Cédula o pasaporte';
+      documento.placeholder = juridica ? 'Número principal, sin guion ni DV' : 'Cédula o pasaporte';
+      if (juridica && !legacy) {
+        documento.setAttribute('pattern', '[0-9]+');
+        documento.setAttribute('inputmode', 'numeric');
+      } else {
+        documento.removeAttribute('pattern');
+        documento.removeAttribute('inputmode');
+      }
+      dv.required = juridica && !legacy;
+      dv.disabled = !juridica;
+      dvField.hidden = !juridica;
+    }
+    form.addEventListener('input', function () { clearFieldErrors(form); sync(); });
+    tipo.addEventListener('change', function () { clearFieldErrors(form); sync(); });
+    sync();
+  }
+
+  function validateClienteForm(form) {
+    clearFieldErrors(form);
+    var valid = true;
+    Array.prototype.forEach.call(form.elements, function (input) {
+      if (input.disabled || !input.checkValidity || input.checkValidity()) return;
+      var message = input.validity.typeMismatch ? 'Ingresá un correo electrónico válido.' :
+        input.validity.patternMismatch ? (input.name === 'dv' ? 'El DV debe ser un dígito del 0 al 9.' : 'El RUC debe contener solo números, sin guion ni DV.') :
+        input.validity.tooLong ? 'El valor supera la longitud permitida.' : 'Completá este campo.';
+      showFieldError(form, input.name, message);
+      valid = false;
+    });
+    if (!valid) {
+      var first = form.querySelector('[aria-invalid="true"]');
+      if (first) first.focus();
+    }
+    return valid;
   }
 
   function formValue(form, name) {
@@ -106,29 +196,51 @@
   function clienteForm(cliente) {
     var editando = !!cliente;
     var url = editando ? endpoint(page.dataset.editarUrl, cliente.id) : page.dataset.crearUrl;
-    var content = '<form data-cliente-form>' +
-      field('NOMBRE O RAZÓN SOCIAL', '<input class="ge-input" name="nombre_razon_social" maxlength="150" required placeholder="Razón social o nombre completo" value="' + esc(editando ? cliente.nombre_razon_social : '') + '">') +
-      field('TIPO DE PERSONA', '<select class="ge-input" name="tipo_persona" required>' + tipoPersonaOptions(editando ? cliente.tipo_persona : 'FISICA') + '</select>') +
-      field('DOCUMENTO', '<input class="ge-input" name="documento" maxlength="30" required placeholder="Cédula, RUC o pasaporte" value="' + esc(editando ? cliente.documento : '') + '">') +
+    var content = '<form data-cliente-form novalidate>' +
+      field('NOMBRE O RAZÓN SOCIAL', '<input class="ge-input" name="nombre_razon_social" maxlength="150" required placeholder="Razón social o nombre completo" value="' + esc(editando ? cliente.nombre_razon_social : '') + '">', 'nombre_razon_social') +
+      field('TIPO DE PERSONA', '<select class="ge-input" name="tipo_persona" required>' + tipoPersonaOptions(editando ? cliente.tipo_persona : 'FISICA') + '</select>', 'tipo_persona') +
+      field('CÉDULA O PASAPORTE', '<input class="ge-input" name="documento" maxlength="30" required value="' + esc(editando ? cliente.documento : '') + '">', 'documento') +
+      field('DV', '<input class="ge-input" name="dv" maxlength="1" pattern="[0-9]" inputmode="numeric" placeholder="0–9" value="' + esc(editando ? cliente.dv : '') + '"><small>Dígito verificador, separado del RUC.</small>', 'dv') +
+      field('CORREO ELECTRÓNICO', '<input class="ge-input" type="email" name="correo_facturacion" maxlength="254" autocomplete="email" value="' + esc(editando ? cliente.correo_facturacion : '') + '"><small>Opcional. Las facturas se consultan en la web.</small>', 'correo_facturacion') +
       '</form>';
-    dialog(editando ? 'ge-cliente-editar' : 'ge-cliente-nuevo', editando ? 'Editar cliente' : 'Nuevo cliente', content,
+    var backdrop = dialog(editando ? 'ge-cliente-editar' : 'ge-cliente-nuevo', editando ? 'Editar cliente' : 'Nuevo cliente', content,
       editando ? 'Guardar cambios' : 'Registrar cliente', function (box, close) {
         var form = box.querySelector('form');
-        if (!form.reportValidity()) return false;
+        var confirm = box.querySelector('[data-confirm]');
+        if (confirm.disabled || !validateClienteForm(form)) return false;
         var payload = {
           nombre_razon_social: formValue(form, 'nombre_razon_social'),
           tipo_persona: formValue(form, 'tipo_persona'),
-          documento: formValue(form, 'documento')
+          documento: formValue(form, 'documento'),
+          dv: formValue(form, 'tipo_persona') === 'JURIDICA' ? formValue(form, 'dv') : '',
+          correo_facturacion: formValue(form, 'correo_facturacion')
         };
+        confirm.disabled = true;
         request(url, payload).then(function (data) {
           close();
           notify(data.message || 'Cliente guardado correctamente.');
           recargar();
         }).catch(function (error) {
-          notify(error.message, 'error');
-        });
+          var shown = false;
+          if (error.details) {
+            Object.keys(error.details).forEach(function (name) {
+              var messages = error.details[name].map(function (entry) { return entry.message; }).join(' ');
+              shown = showFieldError(form, name, messages) || shown;
+            });
+          }
+          if (shown) {
+            var first = form.querySelector('[aria-invalid="true"]');
+            if (first) first.focus();
+          } else notify(error.message, 'error');
+        }).finally(function () { confirm.disabled = false; });
         return false;
       });
+    var form = backdrop.querySelector('form');
+    bindFiscalForm(form, cliente);
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      backdrop.querySelector('[data-confirm]').click();
+    });
   }
 
   function darDeBaja(id, nombre) {
@@ -196,7 +308,9 @@
         id: Number(button.dataset.clienteEditar),
         nombre_razon_social: button.dataset.nombre,
         tipo_persona: button.dataset.tipo,
-        documento: button.dataset.documento
+        documento: button.dataset.documento,
+        dv: button.dataset.dv,
+        correo_facturacion: button.dataset.correo
       });
     });
   });

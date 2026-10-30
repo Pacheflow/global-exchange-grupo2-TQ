@@ -13,6 +13,7 @@
     payload: null,
     idempotencyKey: null,
     transactions: [],
+    cashRecentVersion: 0,
     cancelTarget: null,
     detailId: null,
     detailTransaction: null,
@@ -25,6 +26,10 @@
     confirmationPayload: null,
     selectedMethod: null,
     paymentStatus: null,
+    paymentData: null,
+    methodChangePending: {},
+    methodChangeRequests: {},
+    methodChangeVersion: 0,
     liquidationVersion: 0,
     liquidationLoading: false,
     liquidationPeriods: [],
@@ -79,6 +84,8 @@
           var error = new Error(responseMessage(data, 'No se pudo completar la solicitud.'));
           error.status = response.status;
           error.codigo = data.codigo;
+          error.fields = data.detalles || data.errores;
+          error.payload = data;
           throw error;
         }
         return data;
@@ -102,10 +109,118 @@
     return template.replace('/0/', '/' + encodeURIComponent(id) + '/');
   }
 
-  function showFeedback(message, type) {
-    feedback.hidden = false;
-    feedback.className = 'ge-operation-feedback is-' + type;
-    feedback.textContent = message;
+  function notify(message, type) {
+    clearFeedback();
+    window.GEApp.toast(message, type);
+  }
+
+  function destinationCurrency(operation) {
+    if (operation && operation.moneda_destino) return operation.moneda_destino.codigo;
+    var select = form && form.elements.moneda_destino_id;
+    var option = select && select.options[select.selectedIndex];
+    return option && option.value ? option.textContent.split(' · ')[0].trim() : '';
+  }
+
+  var amountLimits = (function () {
+    var script = document.getElementById('operacion-limites-monto');
+    try { return script ? JSON.parse(script.textContent) : null; }
+    catch (_error) { return null; }
+  })();
+
+  function currentAmountLimits() {
+    if (!amountLimits || !form) return null;
+    var origin = form.elements.moneda_origen_id;
+    var option = origin && origin.options && origin.options[origin.selectedIndex];
+    var currency = option && option.dataset.codigo;
+    var onlinePurchase = page.dataset.presencial !== 'true' && form.elements.tipo && form.elements.tipo.value === 'COMPRA';
+    return onlinePurchase && amountLimits.compra_online && amountLimits.compra_online[currency]
+      ? amountLimits.compra_online[currency] : amountLimits.general;
+  }
+
+  function updateAmountLimits() {
+    var input = form && form.elements.monto_origen;
+    var limits = currentAmountLimits();
+    if (!input || !limits) return;
+    input.min = limits.minimo;
+    input.step = limits.minimo;
+    input.max = limits.maximo;
+  }
+
+  // Mantener dígitos y exponente separados evita redondear o expandir importes grandes.
+  function exactPositiveAmount(raw) {
+    var match = /^\+?(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:[eE]([+-]?\d+))?$/.exec(String(raw).trim());
+    if (!match) return null;
+    var fraction = match[2] || match[3] || '';
+    var digits = ((match[1] || '') + fraction).replace(/^0+/, '');
+    if (!digits) return null;
+    var significant = digits.replace(/0+$/, '');
+    var exponent = Number(match[4] || 0) - fraction.length + digits.length - significant.length;
+    return { digits: significant, exponent: exponent, order: significant.length + exponent };
+  }
+
+  function exceedsAmount(value, maximum) {
+    if (value.order !== maximum.order) return value.order > maximum.order;
+    var length = Math.max(value.digits.length, maximum.digits.length);
+    return value.digits.padEnd(length, '0') > maximum.digits.padEnd(length, '0');
+  }
+
+  function validateAmount() {
+    var input = form && form.elements.monto_origen;
+    if (!input) return true;
+    var value = exactPositiveAmount(input.value);
+    var limits = currentAmountLimits();
+    var message = '';
+    if (!value) message = 'Ingresá un monto válido mayor a cero.';
+    else if (limits && exceedsAmount(value, exactPositiveAmount(limits.maximo))) {
+      message = 'El monto ingresado supera el límite permitido para una operación.';
+    } else if (limits && value.exponent < -limits.decimales) {
+      message = limits.decimales === 0 ? 'Ingresá un monto sin decimales para esta moneda.'
+        : 'Ingresá un monto con hasta ' + limits.decimales + ' decimales.';
+    }
+    if (!message) return true;
+    invalidatePreview();
+    notify(message, 'error');
+    return false;
+  }
+
+  function errorMessage(error, operation) {
+    if (error.codigo === 'MONTO_EXCESIVO') return 'El monto ingresado supera el límite permitido para una operación.';
+    if (error.codigo === 'MONTO_INVALIDO') return 'Ingresá un monto válido mayor a cero.';
+    if (error.codigo === 'DISPONIBILIDAD_INSUFICIENTE' || error.codigo === 'SALDO_INSUFICIENTE') {
+      var currency = destinationCurrency(operation || state.preview);
+      return window.GEApp.insufficientFundsMessage(currency);
+    }
+    return window.GEApp.userMessage ? window.GEApp.userMessage(error.message) : error.message;
+  }
+
+  function fieldErrors(error) {
+    if (/^MONTO_(INVALIDO|EXCESIVO|PRECISION)$/.test(error.codigo)) return false;
+    if (!form || !error.fields || typeof error.fields !== 'object' || Array.isArray(error.fields)) return false;
+    var shown = false;
+    Object.keys(error.fields).forEach(function (name) {
+      var input = form.elements[name === 'monto' ? 'monto_origen' : name];
+      if (!input || !input.setCustomValidity) return;
+      var message = detailMessages(error.fields[name]).join(' ');
+      message = window.GEApp.userMessage ? window.GEApp.userMessage(message) : message;
+      input.setCustomValidity(message);
+      input.setAttribute('aria-invalid', 'true');
+      var note = document.createElement('small');
+      note.className = 'ge-field-error';
+      note.dataset.operationFieldError = 'true';
+      note.textContent = message;
+      input.insertAdjacentElement('afterend', note);
+      shown = true;
+    });
+    return shown;
+  }
+
+  function clearFieldErrors() {
+    if (!form) return;
+    form.querySelectorAll('[data-operation-field-error]').forEach(function (note) { note.remove(); });
+    Array.prototype.forEach.call(form.elements, function (input) {
+      if (input.setCustomValidity) input.setCustomValidity('');
+      input.removeAttribute('aria-invalid');
+    });
   }
 
   function clearFeedback() {
@@ -197,6 +312,7 @@
       var preferred = data.metodo_pago_preferido && data.metodo_pago_preferido.id;
       var methods = data.metodos_pago || [];
       var chosen = state.selectedMethod === null && !aviso ? String(preferred || '') : state.selectedMethod;
+      if (page.dataset.presencial === 'true' && methods.length === 1) chosen = String(methods[0].id);
       chosen = methods.some(function (method) { return String(method.id) === chosen; }) ? chosen : '';
       select.innerHTML = '<option value="">Seleccionar método</option>' + methods.map(function (method) {
         return '<option value="' + escapeHtml(method.id) + '"' + (String(method.id) === chosen ? ' selected' : '') + '>' + escapeHtml(method.nombre) + '</option>';
@@ -210,12 +326,22 @@
       button.disabled = select.disabled || !select.value;
       page.querySelector('[data-open-confirm]').disabled = button.disabled;
       if (form) form.querySelector('[data-preview-button]').disabled = !methods.length;
-      document.querySelector('[data-confirm-message]').textContent = [aviso, !methods.length ? 'No hay métodos de pago habilitados disponibles.' : ''].filter(Boolean).join(' ');
-      if (initial) document.querySelector('[data-new-method-message]').textContent = document.querySelector('[data-confirm-message]').textContent;
+      document.querySelector('[data-confirm-message]').textContent = '';
+      if (initial) document.querySelector('[data-new-method-message]').textContent = '';
+      if (!methods.length) notify(page.dataset.presencial === 'true'
+        ? 'No hay métodos de efectivo activos. Solicitá que se habilite uno para previsualizar la operación.'
+        : 'No hay métodos de pago habilitados disponibles.', 'error');
     }).catch(function (error) {
       if (state.methodsVersion !== version) return;
       state.methodsLoading = false;
-      document.querySelector('[data-confirm-message]').textContent = [aviso, error.message].filter(Boolean).join(' ');
+      // Una consulta fallida no debe dejar los controles de edición bloqueados.
+      select.disabled = state.confirmationPending || Boolean(state.confirmationPayload);
+      if (initial) initial.disabled = select.disabled;
+      button.disabled = select.disabled || !select.value;
+      page.querySelector('[data-open-confirm]').disabled = button.disabled;
+      if (form) form.querySelector('[data-preview-button]').disabled = false;
+      document.querySelector('[data-confirm-message]').textContent = '';
+      notify(errorMessage(error), 'error');
     });
   }
 
@@ -295,10 +421,9 @@
       window.GEApp.closeModal('confirmar-operacion');
       var repeated = data.repetida ? ' La solicitud ya había sido procesada.' : '';
       var statusMessage = data.transaccion.estado === 'PENDIENTE'
-        ? ' registrada y pendiente de liquidación; la disponibilidad futura no está garantizada.'
+        ? (data.transaccion.canal === 'ONLINE' ? ' registrada y pendiente de pago.' : ' registrada y pendiente de intercambio físico.')
         : ' registrada. Estado: ' + data.transaccion.estado + '.';
-      showFeedback('Transacción #' + data.transaccion.id + statusMessage + repeated, 'success');
-      window.GEApp.toast('Operación' + statusMessage, 'success');
+      notify('Transacción #' + data.transaccion.id + statusMessage + repeated, 'success');
       invalidatePreview();
       loadHistory();
       showDetail(data.transaccion);
@@ -308,9 +433,12 @@
         state.confirmationPayload = null;
         state.selectedMethod = '';
       }
+      if (error.status === 400 && /^MONTO_(INVALIDO|EXCESIVO|PRECISION)$/.test(error.codigo)) {
+        invalidatePreview();
+        window.GEApp.closeModal('confirmar-operacion');
+      }
       if (error.codigo === 'DISPONIBILIDAD_INSUFICIENTE') window.GEApp.closeModal('confirmar-operacion');
-      showFeedback(error.message, 'error');
-      window.GEApp.toast(error.message, 'error');
+      notify(errorMessage(error), 'error');
     }).finally(function () {
       state.confirmationPending = false;
       setBusy(button, false);
@@ -327,14 +455,16 @@
 
   function renderHistory() {
     if (!state.transactions.length) {
-      historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 6) + '" class="no-data">Todavía no hay transacciones disponibles.</td></tr>';
+      historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 7) + '" class="no-data">Todavía no hay transacciones disponibles.</td></tr>';
       return;
     }
 
-    historyBody.innerHTML = state.transactions.map(function (transaction, index) {
+    var limit = Number(page.dataset.historyLimit);
+    var visible = limit > 0 ? state.transactions.slice(0, limit) : state.transactions;
+    historyBody.innerHTML = visible.map(function (transaction, index) {
       if (page.dataset.operativeInbox === 'true') {
         var liquidable = transaction.estado === 'PENDIENTE' &&
-          (transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && transaction.pago_estado === 'APROBADO'));
+          transaction.canal === 'PRESENCIAL' && transaction.version_flujo === 1 && isCash(transaction);
         var payment = isCash(transaction) || transaction.liquidacion_efectivo ? cashPaymentLabel(transaction)
           : transaction.tipo === 'VENTA' ? 'No aplica' : (transaction.pago_estado || 'Pago no iniciado');
         return '<tr><td>#' + escapeHtml(transaction.id) + '</td><td>' + escapeHtml(transaction.cliente.nombre_razon_social) +
@@ -353,18 +483,85 @@
         '<td><strong>' + escapeHtml(transaction.tipo === 'COMPRA' ? 'Compra' : 'Venta') + '</strong><br><span class="muted">' + escapeHtml(transaction.moneda_origen.codigo + ' → ' + transaction.moneda_destino.codigo) + '</span></td>' +
         '<td><span class="ge-operation-amount">' + escapeHtml(formatAmount(transaction.monto_origen, transaction.moneda_origen.codigo)) + '</span><span class="ge-operation-amount muted">→ ' + escapeHtml(formatAmount(transaction.monto_destino, transaction.moneda_destino.codigo)) + '</span></td>' +
         '<td>' + statusBadge(transaction.estado) + '</td>' +
+        '<td>' + escapeHtml(transaction.metodo_pago && transaction.metodo_pago.nombre || '—') + '</td>' +
         '<td><div class="ge-operation-row-actions"><button type="button" class="ge-btn-ghost" data-detail-index="' + index + '">Ver detalle</button>' + cancelButton + '</div></td>' +
         '</tr>';
     }).join('');
   }
 
+  function cashRecentAmount(value) {
+    // El importe del ledger llega como decimal string; no redondearlo con Number.
+    var parts = String(value).split('.');
+    var integer = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    var fraction = (parts[1] || '').replace(/0+$/, '');
+    return integer + (fraction ? ',' + fraction : '');
+  }
+
+  function cashRecentMessage(message) {
+    historyBody.innerHTML = '<tr><td colspan="7" class="no-data">' + escapeHtml(message) + '</td></tr>';
+  }
+
+  function updateCashSelection(data) {
+    var select = page.querySelector('[data-cash-period]');
+    var periods = data.periodos || [];
+    select.innerHTML = '<option value="">' + (periods.length ? 'Seleccionar caja / período' : 'No hay cajas abiertas') + '</option>' +
+      periods.map(function (period) {
+        return '<option value="' + escapeHtml(period.id) + '">' + escapeHtml(period.caja_codigo + ' · ' + period.caja_nombre + ' / período ' + period.id) + '</option>';
+      }).join('');
+    select.value = data.periodo_id ? String(data.periodo_id) : '';
+    select.disabled = !periods.length;
+    page.dataset.cashPeriodId = select.value;
+    page.querySelector('[data-cash-history-link]').setAttribute('href', data.history_url);
+  }
+
+  function loadCashRecent() {
+    var version = ++state.cashRecentVersion;
+    var select = page.querySelector('[data-cash-period]');
+    var message = page.querySelector('[data-cash-recent-message]');
+    var refresh = page.querySelector('[data-reload-history]');
+    var selected = select.value || page.dataset.cashPeriodId;
+    var url = page.dataset.cashRecentUrl + (selected ? '?periodo_id=' + encodeURIComponent(selected) : '');
+    state.transactions = [];
+    refresh.disabled = true;
+    message.textContent = 'Consultando movimientos de caja…';
+    cashRecentMessage('Cargando movimientos…');
+    return apiRequest(url, { credentials: 'same-origin' }).then(function (data) {
+      if (version !== state.cashRecentVersion) return;
+      updateCashSelection(data);
+      if (!data.periodo_id) {
+        var empty = data.periodos.length ? 'Seleccioná una caja para consultar sus movimientos.' : 'No hay períodos abiertos de cajas habilitadas.';
+        message.textContent = empty;
+        cashRecentMessage(empty);
+        return;
+      }
+      message.textContent = 'Hasta 5 movimientos del período seleccionado. Consulta de solo lectura.';
+      var movements = (data.movimientos || []).slice(0, 5);
+      if (!movements.length) { cashRecentMessage('Todavía no hay movimientos registrados en este período.'); return; }
+      historyBody.innerHTML = movements.map(function (movement) {
+        return '<tr><td><span class="ge-operation-id">#' + escapeHtml(movement.id) + '</span><span class="ge-operation-date">' + escapeHtml(formatDate(movement.fecha_registro)) + '</span></td>' +
+          '<td>' + escapeHtml(movement.tipo) + '</td><td>' + escapeHtml(movement.moneda) + '</td><td class="strong">' + escapeHtml(cashRecentAmount(movement.importe)) + '</td>' +
+          '<td>' + escapeHtml(movement.metodo) + '</td><td>' + escapeHtml(movement.origen) + '</td><td><span class="ge-status-badge ge-status-badge--success ge-status-badge--sm"><span class="ge-status-dot"></span>' + escapeHtml(movement.estado) + '</span></td></tr>';
+      }).join('');
+    }).catch(function (error) {
+      if (version !== state.cashRecentVersion) return;
+      if (error.status === 400 && error.payload && error.payload.periodos) updateCashSelection(error.payload);
+      message.textContent = 'Movimientos de caja no disponibles. Actualizá para reintentar.';
+      cashRecentMessage('Movimientos de caja no disponibles.');
+      notify(errorMessage(error), 'error');
+    }).finally(function () {
+      if (version === state.cashRecentVersion) refresh.disabled = false;
+    });
+  }
+
   function loadHistory() {
-    historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 6) + '" class="no-data">Cargando historial…</td></tr>';
+    if (page.dataset.presencial === 'true' && page.dataset.cashRecentUrl) return loadCashRecent();
+    historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 7) + '" class="no-data">Cargando historial…</td></tr>';
     apiRequest(page.dataset.historyUrl, { credentials: 'same-origin' }).then(function (data) {
       state.transactions = data.transacciones || [];
       renderHistory();
     }).catch(function (error) {
-      historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 6) + '" class="no-data">' + escapeHtml(error.message) + '</td></tr>';
+      historyBody.innerHTML = '<tr><td colspan="' + (page.dataset.operativeInbox === 'true' ? 8 : 7) + '" class="no-data">Historial no disponible.</td></tr>';
+      notify(errorMessage(error), 'error');
     });
   }
 
@@ -415,7 +612,10 @@
     actions.replaceChildren();
     actions.hidden = true;
     document.querySelector('[data-payment-state]').textContent = '';
-    document.querySelector('[data-payment-message]').textContent = message;
+    document.querySelector('[data-payment-message]').textContent = '';
+    document.querySelector('[data-payment-method-change]').hidden = true;
+    state.paymentData = null;
+    notify(message, 'error');
   }
 
   function renderPayment(data, transaction) {
@@ -423,11 +623,13 @@
       PAGO_NO_INICIADO: 'Pago no iniciado',
       EN_PROCESO: 'Pago en proceso',
       APROBADO: transaction && transaction.estado === 'PENDIENTE'
-        ? 'Pago aprobado. La operación está pendiente de liquidación.' : 'Pago aprobado.',
+        ? 'Pago aprobado. Finalización automática pendiente de recuperación. Recuperar no vuelve a cobrar.' : 'Pago aprobado.',
       RECHAZADO: 'Pago rechazado',
       ERROR: 'No se pudo completar el pago.',
       INDETERMINADO: 'Pago pendiente de verificación.'
     };
+    state.paymentData = data;
+    renderMethodChange(data, transaction);
     var status = data.estado;
     if (data.codigo === 'PAGO_NO_INICIADO' && data.pago_id === null && status === null) {
       status = 'PAGO_NO_INICIADO';
@@ -440,10 +642,15 @@
     var known = Object.prototype.hasOwnProperty.call(messages, status) && data.codigo === codes[status];
     document.querySelector('[data-payment-state]').textContent = known ? (status === 'PAGO_NO_INICIADO' ? 'Pago no iniciado' : status) : '';
     document.querySelector('[data-payment-message]').textContent = known
-      ? (status === 'PAGO_NO_INICIADO' ? '' : messages[status]) : 'Estado de pago no disponible.';
+      ? (status === 'APROBADO' && transaction && transaction.estado === 'PENDIENTE'
+        ? 'Podés recuperar la finalización sin volver a cobrar.' : '') : '';
     var actions = document.querySelector('[data-payment-actions]');
     actions.replaceChildren();
     actions.hidden = true;
+    if (transaction && transaction.version_flujo === 0) {
+      document.querySelector('[data-payment-message]').textContent = 'Operación histórica pendiente de revisión. No se iniciarán nuevos cobros.';
+      return;
+    }
     if (!known || !transaction || transaction.tipo !== 'COMPRA' ||
         transaction.estado !== 'PENDIENTE' || page.dataset.canViewPayment !== 'true') return;
     if (status === 'PAGO_NO_INICIADO' && transaction.metodo_pago &&
@@ -459,7 +666,10 @@
       PAGO_NO_INICIADO: ['start', 'Iniciar pago'],
       ERROR: ['retry', 'Reintentar pago'],
       INDETERMINADO: ['recover', 'Recuperar estado'],
-      EN_PROCESO: ['recover', 'Recuperar estado']
+      EN_PROCESO: ['recover', 'Recuperar estado'],
+      APROBADO: transaction.version_flujo === 1 && transaction.canal === 'ONLINE' &&
+        transaction.metodo_pago && transaction.metodo_pago.naturaleza === 'ELECTRONICO'
+        ? ['recover', 'Recuperar finalización'] : null
     };
     var action = options[status];
     if (!action || (action[0] !== 'recover' && page.dataset.canPay !== 'true')) return;
@@ -468,7 +678,8 @@
     button.className = 'ge-btn-primary';
     button.dataset.paymentAction = action[0];
     button.textContent = action[1];
-    button.disabled = Boolean(state.paymentPending[transaction.id]);
+    button.disabled = Boolean(state.paymentPending[transaction.id] || state.methodChangePending[transaction.id] ||
+      state.methodChangeRequests[transaction.id] && action[0] !== 'recover');
     actions.appendChild(button);
     actions.hidden = false;
   }
@@ -478,7 +689,8 @@
     if (!button || button.disabled) return;
     var id = state.detailId;
     var version = state.detailVersion;
-    if (!isCurrentDetail(id, version) || state.paymentPending[id]) return;
+    if (!isCurrentDetail(id, version) || state.paymentPending[id] || state.methodChangePending[id] ||
+        state.methodChangeRequests[id] && button.dataset.paymentAction !== 'recover') return;
     var urls = {
       start: page.dataset.paymentStartUrl,
       retry: page.dataset.paymentRetryUrl,
@@ -497,11 +709,28 @@
         return;
       }
       renderPayment(data, state.detailTransaction);
-      if (data.estado === 'APROBADO') loadPayment(state.detailTransaction, version);
+      var notices = {
+        APROBADO: [button.dataset.paymentAction === 'recover' ? 'Recuperación realizada correctamente.' : 'Pago aprobado.', 'success'],
+        RECHAZADO: ['Pago rechazado.', 'error'],
+        EN_PROCESO: ['El pago sigue en proceso. Podés recuperar su estado más tarde.', 'info'],
+        INDETERMINADO: ['El pago está pendiente de verificación. Recuperá su estado antes de intentar otra acción.', 'warning'],
+        ERROR: ['No se pudo completar el pago. Podés reintentar cuando se resuelva el inconveniente.', 'error']
+      };
+      if (notices[data.estado]) notify(notices[data.estado][0], notices[data.estado][1]);
+      if (data.estado === 'APROBADO') {
+        refreshLiquidationDetail(id, version);
+        loadHistory();
+      } else if (data.estado === 'RECHAZADO' || data.estado === 'ERROR') {
+        // El resultado del POST no incluye las capacidades del pago actual.
+        // Consultarlas permite elegir otro método sin cerrar el detalle.
+        loadPayment(state.detailTransaction, version, true);
+        loadPaymentAttempts(state.detailTransaction, version);
+      }
     }).catch(function (error) {
       if (!isCurrentDetail(id, version)) return;
       if (error.status === 400 && ['DISPONIBILIDAD_INSUFICIENTE', 'METODO_INACTIVO', 'METODO_NO_ELECTRONICO'].indexOf(error.codigo) !== -1) {
-        document.querySelector('[data-payment-message]').textContent = error.message;
+        document.querySelector('[data-payment-message]').textContent = '';
+        notify(errorMessage(error, state.detailTransaction), 'error');
         return;
       }
       paymentError('No se pudo confirmar el resultado de la solicitud. Volvé a abrir el detalle para consultar el estado del pago.');
@@ -515,6 +744,110 @@
       var currentButton = document.querySelector('[data-payment-actions] [data-payment-action]');
       if (currentButton === button) setBusy(currentButton, false);
       else if (currentButton) currentButton.disabled = false;
+      if (state.paymentData) renderMethodChange(state.paymentData, state.detailTransaction);
+    });
+  }
+
+  function canChangeMethod(data, transaction) {
+    return Boolean(data && data.puede_cambiar_metodo === true && transaction &&
+      transaction.tipo === 'COMPRA' && transaction.estado === 'PENDIENTE' &&
+      transaction.canal === 'ONLINE' && transaction.version_flujo === 1 &&
+      page.dataset.canPay === 'true' && page.dataset.canViewPayment === 'true' &&
+      (data.codigo === 'PAGO_NO_INICIADO' && data.pago_id === null ||
+       data.estado === 'RECHAZADO' || data.estado === 'ERROR' && data.codigo === 'ERROR_SIN_EJECUCION'));
+  }
+
+  function renderMethodChange(data, transaction) {
+    var section = document.querySelector('[data-payment-method-change]');
+    section.hidden = true;
+    var optionsVersion = ++state.methodChangeVersion;
+    if (!canChangeMethod(data, transaction) || !page.dataset.paymentChangeMethodUrl || !page.dataset.methodsUrl) return;
+    var id = transaction.id;
+    var version = state.detailVersion;
+    var select = document.querySelector('[data-payment-method-options]');
+    var button = document.querySelector('[data-payment-method-submit]');
+    var request = state.methodChangeRequests[id];
+    // Una lectura posterior puede confirmar que el cambio incierto ya se aplicó.
+    if (request && Number(data.metodo_pago_id) === request.metodo_pago_id) {
+      delete state.methodChangeRequests[id];
+      request = null;
+    }
+    section.hidden = false;
+    select.disabled = true;
+    button.disabled = true;
+    button.textContent = request ? 'Reintentar cambio' : 'Cambiar método';
+    select.innerHTML = '<option value="">Consultando métodos…</option>';
+    apiRequest(page.dataset.methodsUrl, { credentials: 'same-origin' }).then(function (catalog) {
+      if (!isCurrentDetail(id, version) || state.methodChangeVersion !== optionsVersion) return;
+      var current = Number(data.metodo_pago_id || transaction.metodo_pago.id);
+      var methods = (catalog.metodos_pago || []).filter(function (method) { return Number(method.id) !== current; });
+      select.innerHTML = '<option value="">' + (methods.length ? 'Seleccionar método' : 'No hay otros métodos electrónicos activos') + '</option>' + methods.map(function (method) {
+        return '<option value="' + escapeHtml(method.id) + '">' + escapeHtml(method.nombre) + '</option>';
+      }).join('');
+      select.value = request ? String(request.metodo_pago_id) : '';
+      select.disabled = Boolean(request || state.methodChangePending[id] || state.paymentPending[id]) || !methods.length;
+      button.disabled = Boolean(state.methodChangePending[id] || state.paymentPending[id]) || !select.value;
+    }).catch(function (error) {
+      if (!isCurrentDetail(id, version) || state.methodChangeVersion !== optionsVersion) return;
+      section.hidden = true;
+      notify(errorMessage(error), 'error');
+    });
+  }
+
+  function submitMethodChange(event) {
+    var button = event.currentTarget;
+    var transaction = state.detailTransaction;
+    var data = state.paymentData;
+    var id = state.detailId;
+    var version = state.detailVersion;
+    var select = document.querySelector('[data-payment-method-options]');
+    if (button.disabled || !isCurrentDetail(id, version) || !canChangeMethod(data, transaction) ||
+        state.paymentPending[id] || state.methodChangePending[id]) return;
+    var request = state.methodChangeRequests[id];
+    if (!request) {
+      var selected = Number(select.value);
+      var previous = Number(data.metodo_pago_id || transaction.metodo_pago.id);
+      if (!Number.isSafeInteger(selected) || selected <= 0 || selected === previous) return;
+      request = { metodo_pago_id: selected, metodo_anterior_id: previous,
+        pago_esperado_id: data.pago_id || null, clave_idempotencia: createIdempotencyKey() };
+      state.methodChangeRequests[id] = request;
+    }
+    state.methodChangePending[id] = true;
+    select.disabled = true;
+    setBusy(button, true, 'Cambiando…');
+    var pay = document.querySelector('[data-payment-actions] [data-payment-action]');
+    if (pay) pay.disabled = true;
+    post(resourceUrl(page.dataset.paymentChangeMethodUrl, id), request).then(function (response) {
+      if (response.transaccion_id !== id) throw new Error('No se pudo confirmar el cambio de método.');
+      delete state.methodChangeRequests[id];
+      if (isCurrentDetail(id, version)) notify('Cambio de método confirmado. Consultá el estado actualizado del pago.', 'success');
+      loadHistory();
+    }).catch(function (error) {
+      // Ante incertidumbre, el próximo clic repite exactamente la misma solicitud.
+      if (error.status && error.status < 500) delete state.methodChangeRequests[id];
+      if (isCurrentDetail(id, version)) notify(errorMessage(error), 'error');
+    }).finally(function () {
+      delete state.methodChangePending[id];
+      if (isCurrentDetail(id, version)) showDetail(state.detailTransaction);
+    });
+  }
+
+  function loadPaymentAttempts(transaction, version) {
+    var section = document.querySelector('[data-payment-attempts]');
+    section.hidden = true;
+    if (!page.dataset.paymentAttemptsUrl || transaction.tipo !== 'COMPRA' ||
+        transaction.canal !== 'ONLINE' || transaction.version_flujo !== 1 || page.dataset.canViewPayment !== 'true') return;
+    apiRequest(resourceUrl(page.dataset.paymentAttemptsUrl, transaction.id), { credentials: 'same-origin' }).then(function (data) {
+      if (!isCurrentDetail(transaction.id, version) || data.transaccion_id !== transaction.id) return;
+      var attempts = data.intentos || [];
+      section.hidden = !attempts.length;
+      document.querySelector('[data-payment-attempts-body]').innerHTML = attempts.map(function (attempt) {
+        return '<tr><td>' + escapeHtml(attempt.pago_id) + '<span class="ge-operation-date">' + escapeHtml(formatDate(attempt.fecha_creacion)) +
+          '</span></td><td>' + escapeHtml(attempt.metodo_pago_nombre) + '</td><td>' + escapeHtml(attempt.estado) +
+          (attempt.vigente ? ' · Vigente' : '') + '</td><td>' + escapeHtml(attempt.codigo || '—') + '</td></tr>';
+      }).join('');
+    }).catch(function (error) {
+      if (isCurrentDetail(transaction.id, version)) notify(errorMessage(error), 'error');
     });
   }
 
@@ -572,6 +905,10 @@
     state.detailTransaction = transaction;
     var version = ++state.detailVersion;
     state.paymentStatus = null;
+    state.paymentData = null;
+    ++state.methodChangeVersion;
+    document.querySelector('[data-payment-method-change]').hidden = true;
+    document.querySelector('[data-payment-attempts]').hidden = true;
     ++state.liquidationVersion;
     state.liquidationLoading = false;
     document.querySelector('[data-liquidation-section]').hidden = true;
@@ -593,17 +930,19 @@
       state.detailTransaction = data.transaccion;
       if (!state.liquidationPending[transaction.id]) delete state.liquidationUncertain[transaction.id];
       loadPayment(data.transaccion, version);
+      loadPaymentAttempts(data.transaccion, version);
       if (data.transaccion.tipo === 'VENTA') loadLiquidation();
     }).catch(function (error) {
       if (!isCurrentDetail(transaction.id, version)) return;
-      container.innerHTML = '<p class="ge-operation-feedback is-error">' +
-        escapeHtml(error.message) + '</p>';
+      container.innerHTML = '<p class="ge-frontend-note">Detalle no disponible.</p>';
+      notify(errorMessage(error), 'error');
     });
   }
 
   function canLiquidate() {
     var transaction = state.detailTransaction;
     return transaction && transaction.id === state.detailId && transaction.estado === 'PENDIENTE' &&
+      transaction.canal === 'PRESENCIAL' && transaction.version_flujo === 1 &&
       page.dataset.canLiquidate === 'true' &&
       (isCash(transaction) || transaction.tipo === 'VENTA' || (transaction.tipo === 'COMPRA' && state.paymentStatus === 'APROBADO'));
   }
@@ -626,12 +965,12 @@
 
   function renderLiquidationError() {
     var container = document.querySelector('[data-liquidation-error]');
-    container.textContent = state.liquidationErrors[state.detailId] || '';
-    container.hidden = !container.textContent;
+    container.textContent = '';
+    container.hidden = true;
   }
 
   function setLiquidationError(message) {
-    if (message) state.liquidationErrors[state.detailId] = message;
+    if (message) { state.liquidationErrors[state.detailId] = message; notify(message, 'error'); }
     else delete state.liquidationErrors[state.detailId];
     renderLiquidationError();
   }
@@ -686,7 +1025,7 @@
 
   function liquidationError(error) {
     var messages = {
-      SALDO_INSUFICIENTE: 'Saldo insuficiente para liquidar la operación.',
+      SALDO_INSUFICIENTE: errorMessage(error, state.detailTransaction),
       PERIODO_NO_DISPONIBLE: 'El período de caja ya no está disponible. Actualizá el catálogo.',
       PAGO_NO_APROBADO: 'La compra requiere un pago aprobado.',
       OPERACION_NO_PENDIENTE: 'La operación ya no permite liquidación.',
@@ -711,11 +1050,12 @@
       document.querySelector('[data-liquidation-section]').hidden = !canLiquidate();
       loadPayment(data.transaccion, version, true);
       renderLiquidationError();
-      liquidationMessage(data.transaccion.estado === 'COMPLETADA' ? 'Operación completada.' : 'Estado de la operación actualizado.');
+      liquidationMessage('');
     }).catch(function () {
       if (!isCurrentDetail(id, version)) return;
       state.liquidationUncertain[id] = true;
-      liquidationMessage('No se pudo verificar el estado. Actualizá el detalle antes de volver a intentar.');
+      liquidationMessage('');
+      notify('No se pudo verificar el estado. Actualizá el detalle antes de volver a intentar.', 'warning');
     });
   }
 
@@ -745,7 +1085,7 @@
       document.querySelector('[data-payment-actions]').replaceChildren();
       if (state.paymentStatus === 'APROBADO') renderPayment({ estado: 'APROBADO', codigo: 'APROBADO' }, state.detailTransaction);
       renderDetail(state.detailTransaction);
-      showFeedback('Transacción #' + id + ' completada.', 'success');
+      notify('Transacción #' + id + ' completada.', 'success');
       loadHistory();
       return refreshLiquidationDetail(id, version, 'Operación completada.');
     }).catch(function (error) {
@@ -777,12 +1117,10 @@
     post(page.dataset.cancelUrl, { transaccion_id: state.cancelTarget.id }).then(function (data) {
       window.GEApp.closeModal('cancelar-operacion');
       state.cancelTarget = null;
-      showFeedback(data.mensaje || 'La transacción fue cancelada correctamente.', 'success');
-      window.GEApp.toast('Transacción cancelada correctamente.', 'success');
+      notify(data.mensaje || 'La transacción fue cancelada correctamente.', 'success');
       loadHistory();
     }).catch(function (error) {
-      showFeedback(error.message, 'error');
-      window.GEApp.toast(error.message, 'error');
+      notify(errorMessage(error), 'error');
     }).finally(function () {
       setBusy(button, false);
     });
@@ -804,7 +1142,7 @@
           }).join('');
           invalidatePreview();
           document.querySelector('[data-client-search-message]').textContent = data.clientes.length ? 'Seleccioná el cliente titular.' : 'No se encontraron clientes habilitados.';
-        }).catch(function (error) { document.querySelector('[data-client-search-message]').textContent = error.message; })
+        }).catch(function (error) { document.querySelector('[data-client-search-message]').textContent = ''; notify(errorMessage(error), 'error'); })
           .finally(function () { setBusy(searchButton, false); });
       });
     }
@@ -816,6 +1154,8 @@
           item.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
         form.elements.tipo.value = button.dataset.operationType;
+        updateAmountLimits();
+        clearFieldErrors();
         document.querySelector('[data-new-method-label]').textContent = button.dataset.operationType === 'VENTA' ? 'Medio de recepción' : 'Método de pago';
         invalidatePreview();
         clearFeedback();
@@ -823,6 +1163,8 @@
     });
 
     function formChanged(event) {
+      clearFieldErrors();
+      updateAmountLimits();
       if (event.target === form.elements.metodo_pago_id) syncMethodSelection(event.target);
       else invalidatePreview();
     }
@@ -831,10 +1173,14 @@
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       clearFeedback();
+      // FormData omite los selects deshabilitados: nunca enviar durante la carga.
+      if (state.methodsLoading || state.confirmationPending || (form.elements.metodo_pago_id && form.elements.metodo_pago_id.disabled)) return;
+      updateAmountLimits();
+      if (!validateAmount()) return;
       if (!form.reportValidity()) return;
       var payload = formPayload();
       if (payload.moneda_origen_id === payload.moneda_destino_id) {
-        showFeedback('Seleccioná monedas de origen y destino diferentes.', 'error');
+        fieldErrors({ fields: { moneda_destino_id: ['Seleccioná monedas de origen y destino diferentes.'] } });
         return;
       }
       var button = form.querySelector('[data-preview-button]');
@@ -847,18 +1193,19 @@
         renderPreview(preview);
       }).catch(function (error) {
         invalidatePreview();
-        showFeedback(error.message, 'error');
-        window.GEApp.toast(error.message, 'error');
+        if (!fieldErrors(error)) notify(errorMessage(error), 'error');
       }).finally(function () {
         setBusy(button, false);
       });
     });
 
     page.querySelector('[data-open-confirm]').addEventListener('click', openConfirmation);
+    updateAmountLimits();
     loadPaymentMethods();
   }
 
   historyBody.addEventListener('click', function (event) {
+    if (page.dataset.presencial === 'true' && page.dataset.cashRecentUrl) return;
     var detailButton = event.target.closest('[data-detail-index]');
     var cancelButton = event.target.closest('[data-cancel-index]');
     if (detailButton) showDetail(state.transactions[Number(detailButton.dataset.detailIndex)]);
@@ -866,7 +1213,19 @@
   });
 
   page.querySelector('[data-reload-history]').addEventListener('click', loadHistory);
+  if (page.dataset.presencial === 'true' && page.dataset.cashRecentUrl) {
+    page.querySelector('[data-cash-period]').addEventListener('change', function () {
+      page.dataset.cashPeriodId = this.value;
+      loadHistory();
+    });
+  }
   document.querySelector('[data-payment-actions]').addEventListener('click', submitPayment);
+  document.querySelector('[data-payment-method-submit]').addEventListener('click', submitMethodChange);
+  document.querySelector('[data-payment-method-options]').addEventListener('change', function () {
+    if (state.methodChangePending[state.detailId]) return;
+    delete state.methodChangeRequests[state.detailId];
+    document.querySelector('[data-payment-method-submit]').disabled = !this.value || Boolean(state.paymentPending[state.detailId]);
+  });
   var reviewMethod = document.querySelector('[data-confirm-method]');
   if (reviewMethod) reviewMethod.addEventListener('change', function () { syncMethodSelection(this); });
   document.querySelector('[data-liquidation-period]').addEventListener('change', liquidationControls);

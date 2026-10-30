@@ -28,6 +28,7 @@
 | `operaciones` | Previsualización, compra/venta pendiente, idempotencia, cancelación, historial, detalle y liquidación | `Transaccion` |
 | `pagos` | Pago COMPRA, proveedor neutral y Stripe TEST, reserva/reintento/recuperación | `Pago` |
 | `cajas` | Configuración, apertura, saldo por moneda y movimientos manuales/automáticos | `Caja`, `PeriodoCaja`, `SaldoInicialCaja`, `MovimientoCaja` |
+| `facturacion` | Adaptador ESI de Factura Segura e idempotencia técnica de emisión | `IntentoEmisionFacturaSegura` |
 
 ## Grafo de dependencias entre apps
 

@@ -5,6 +5,11 @@ from django.db.models import F, Q
 class Transaccion(models.Model):
     """Representa una operación de compra o venta realizada entre monedas."""
 
+    # Cero/ vacío identifica históricos sin inferir su canal desde el catálogo.
+    version_flujo = models.PositiveSmallIntegerField(default=0, editable=False)
+    canal = models.CharField(max_length=10, blank=True, default="", choices=[("ONLINE", "Online"), ("PRESENCIAL", "Presencial")])
+    naturaleza_metodo = models.CharField(max_length=14, blank=True, default="")
+
     TIPOS_TRANSACCION = [
         ("COMPRA", "Compra"),
         ("VENTA", "Venta"),
@@ -140,6 +145,12 @@ class Transaccion(models.Model):
 
         constraints = [
             models.CheckConstraint(
+                condition=(Q(version_flujo=0, canal="", naturaleza_metodo="")
+                    | Q(version_flujo=1, canal="ONLINE", naturaleza_metodo="ELECTRONICO")
+                    | Q(version_flujo=1, canal="PRESENCIAL", naturaleza_metodo="EFECTIVO")),
+                name="transaccion_flujo_coherente",
+            ),
+            models.CheckConstraint(
                 condition=~Q(moneda_origen=F("moneda_destino")),
                 name="transaccion_monedas_distintas",
             ),
@@ -194,6 +205,14 @@ class Transaccion(models.Model):
             ),
         ]
 
+    @property
+    def pago(self):
+        """Compatibilidad de lectura: solo el intento vigente, nunca uno histórico."""
+        from pagos.models import Pago
+        if hasattr(self, "_pagos_vigentes"):
+            return self._pagos_vigentes[0] if self._pagos_vigentes else None
+        return Pago.objects.filter(transaccion_id=self.pk, vigente=True).first()
+
     def __str__(self):
         """Devuelve una descripción breve de la transacción."""
         return (
@@ -203,7 +222,7 @@ class Transaccion(models.Model):
 
 
 class CambioMetodoPago(models.Model):
-    """Auditoría histórica del flujo retirado; se conserva su migración ya aplicada."""
+    """Cambios idempotentes de método; conserva nombres, actor y huella solicitada."""
 
     transaccion = models.ForeignKey(Transaccion, on_delete=models.PROTECT, related_name="cambios_metodo")
     anterior = models.ForeignKey("metodos_pago.MetodoPago", on_delete=models.PROTECT, related_name="cambios_salientes")

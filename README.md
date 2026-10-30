@@ -163,6 +163,23 @@ que no requiere PostgreSQL ni Keycloak para importar los módulos.
 
 ## Producción en una VM
 
+### Factura Segura TEST (Sprint 5)
+
+La integración técnica permanece deshabilitada mientras el token o el RUC
+estén vacíos. Configurarlos únicamente en `.env` o `.env.production`, nunca en
+Git:
+
+```env
+FACTURA_SEGURA_API_URL=https://apitest.facturasegura.com.py/misife00/v1/esi
+FACTURA_SEGURA_TOKEN=
+FACTURA_SEGURA_RUC=
+FACTURA_SEGURA_TIMEOUT_SECONDS=30
+FACTURA_SEGURA_MAX_DOWNLOAD_BYTES=15728640
+```
+
+Después de desplegar la migración, consultar el contrato técnico en
+[`docs/HU-28_Integracion_Factura_Segura.md`](docs/HU-28_Integracion_Factura_Segura.md).
+
 Producción utiliza un Compose separado con Gunicorn, WhiteNoise, PostgreSQL
 persistente, Keycloak en modo `start` y Nginx como única entrada pública. Los
 servicios `web`, `keycloak` y `postgres` no publican puertos del host.
@@ -273,3 +290,26 @@ Incluyen:
 - Registro mediante Keycloak.
 
 - Usuario creado correctamente.
+
+## Levantar entorno de desarrollo
+
+Para iniciar el entorno local en Windows, asegurate de tener Docker Desktop abierto y ejecutá desde la raíz del proyecto:
+
+```powershell
+.\scripts\levantar-dev.ps1
+```
+
+Compatible con Windows PowerShell 5.1. El script puede construir imágenes y
+crear o recrear servicios mediante `docker compose up -d --build`. El entrypoint
+de web aplica las migraciones al arrancar; no es una comprobación de solo lectura.
+
+Después de construir/levantar los servicios, espera hasta 360 segundos por la salud
+de web y consulta el estado cada 5 segundos, terminando antes si ya está listo.
+El presupuesto contempla 180 segundos de inicio y seis comprobaciones de hasta
+15 segundos de intervalo más 10 segundos de timeout, con 30 segundos de margen.
+Este límite no incluye el tiempo de construcción/arranque de Compose. Si cambia
+el healthcheck, debe revisarse también este presupuesto.
+
+Si falla Docker, Compose, una consulta de estado o el check de Django, informa
+la etapa y termina con código distinto de cero. Ante timeout o fallo de salud
+muestra los últimos logs disponibles de web; nunca anuncia éxito tras un fallo.
