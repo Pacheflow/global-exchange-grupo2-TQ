@@ -152,20 +152,40 @@ class ContratoFacturaSeguraTest:
         except ValidationError as error:
             raise ValidationError("El cliente necesita un correo de facturación válido.") from error
 
-        ruc = RUC_RE.fullmatch(documento)
-        if ruc:
+        tipo_persona = snapshot.get("tipo_persona")
+        ruc = str(snapshot.get("ruc") or "").strip()
+        dv = str(snapshot.get("dv") or "").strip()
+
+        # Las altas actuales guardan RUC y DV por separado. Las facturas
+        # históricas pueden conservar el formato anterior ``RUC-DV`` en el
+        # snapshot; se admite únicamente como compatibilidad de lectura.
+        ruc_legacy = RUC_RE.fullmatch(documento)
+        if ruc_legacy and not dv and (not ruc or ruc == documento):
+            ruc, dv = ruc_legacy.group("ruc"), ruc_legacy.group("dv")
+
+        if tipo_persona == "JURIDICA":
+            if not re.fullmatch(r"[0-9]{5,20}", ruc):
+                raise ValidationError("El cliente jurídico necesita un RUC válido, sin guion ni DV.")
+            if not re.fullmatch(r"[0-9]", dv):
+                raise ValidationError("El cliente jurídico necesita un DV válido.")
             return {
                 "iNatRec": "1", "iTiOpe": "1", "cPaisRec": "PRY",
-                "iTiContRec": "1" if snapshot.get("tipo_persona") == "FISICA" else "2",
-                "dRucRec": ruc.group("ruc"), "dDVRec": ruc.group("dv"),
+                "iTiContRec": "2", "dRucRec": ruc, "dDVRec": dv,
                 "iTipIDRec": "0", "dNumIDRec": "0",
                 "dNomRec": nombre, "dEmailRec": correo,
+            }
+        if ruc_legacy:
+            return {
+                "iNatRec": "1", "iTiOpe": "1", "cPaisRec": "PRY",
+                "iTiContRec": "1", "dRucRec": ruc_legacy.group("ruc"),
+                "dDVRec": ruc_legacy.group("dv"), "iTipIDRec": "0",
+                "dNumIDRec": "0", "dNomRec": nombre, "dEmailRec": correo,
             }
         if not re.fullmatch(r"[A-Za-z0-9.-]{3,20}", documento):
             raise ValidationError("El documento del receptor no tiene un formato fiscal admitido.")
         return {
             "iNatRec": "2", "iTiOpe": "2", "cPaisRec": "PRY",
-            "iTiContRec": "1" if snapshot.get("tipo_persona") == "FISICA" else "2",
+            "iTiContRec": "1",
             "dRucRec": "0", "dDVRec": "0", "iTipIDRec": "1",
             "dNumIDRec": documento, "dNomRec": nombre, "dEmailRec": correo,
         }
