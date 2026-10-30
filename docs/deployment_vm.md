@@ -92,6 +92,37 @@ la consola administrativa. No iniciar el perfil `demo` en ese escenario.
 
 ## Despliegue y comprobación
 
+### Despliegue automatizado y seguro
+
+El repositorio incluye `scripts/deploy-production.sh`. El script exige la rama
+`main` y un árbol de trabajo limpio, acepta solamente una actualización
+fast-forward desde `origin/main`, bloquea despliegues concurrentes, protege el
+archivo de entorno con modo `600`, crea copias privadas de las bases Django y
+Keycloak y valida migraciones y salud de los contenedores.
+
+Ejecutarlo desde el directorio del repositorio:
+
+```bash
+chmod +x scripts/deploy-production.sh
+./scripts/deploy-production.sh
+```
+
+Los backups se guardan, por defecto, en un directorio hermano privado llamado
+`global-exchange-backups/<fecha-UTC>/`. También se registran allí los commits
+anterior y desplegado. El script nunca elimina volúmenes ni restaura una base
+automáticamente. Ante un error imprime el estado y los últimos logs relevantes.
+
+Las rutas pueden ajustarse sin editar el script:
+
+```bash
+ENV_FILE=/ruta/segura/.env.production \
+BACKUP_DIR=/var/backups/global-exchange \
+./scripts/deploy-production.sh
+```
+
+El directorio de backups debe copiarse cifrado fuera del droplet. Mantener una
+copia solo en la misma VM no protege frente a pérdida completa del servidor.
+
 Antes de levantar servicios, validar la interpolación:
 
 ```bash
