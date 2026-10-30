@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from dataclasses import FrozenInstanceError, asdict, replace
 from decimal import Decimal, localcontext
 from types import SimpleNamespace
@@ -235,14 +236,52 @@ class StripePaymentProviderTests(SimpleTestCase):
     def test_sdk_debug_no_emite_payload_ni_envia(self):
         cliente = stripe.StripeClient("sk_test_fixture_only", max_network_retries=1)
         provider = StripePaymentProvider(client=cliente)
-        for parche, valor in (
-            ("stripe.log", "debug"), ("stripe._util.STRIPE_LOG", "debug"),
-            ("stripe.log", "info"), ("stripe._util.STRIPE_LOG", "info"),
+        logger = logging.getLogger("stripe")
+        for nivel_stripe, nivel_entorno, nivel_logger in (
+            ("debug", "warning", logging.WARNING),
+            ("info", "warning", logging.WARNING),
+            ("warning", "debug", logging.WARNING),
+            ("warning", "info", logging.WARNING),
+            ("warning", "warning", logging.DEBUG),
+            ("warning", "warning", logging.INFO),
+            ("debug", "info", logging.WARNING),
+            ("info", "debug", logging.WARNING),
         ):
-            with mock.patch(parche, valor), mock.patch("stripe.RequestsClient.request") as llamada:
+            with (
+                self.subTest(stripe=nivel_stripe, entorno=nivel_entorno, logger=nivel_logger),
+                mock.patch("stripe.log", nivel_stripe),
+                mock.patch.dict(os.environ, {"STRIPE_LOG": nivel_entorno}),
+                mock.patch.object(logger, "level", nivel_logger),
+                mock.patch("stripe.RequestsClient.request") as llamada,
+            ):
+                anterior = (stripe.log, "STRIPE_LOG" in os.environ, os.environ.get("STRIPE_LOG"), logger.level, list(logger.handlers), logger.propagate, logger.disabled)
                 self.assertEqual(provider.iniciar(self.solicitud).codigo, CodigoResultado.CONFIGURACION_INVALIDA)
                 llamada.assert_not_called()
+                self.assertEqual(
+                    (stripe.log, "STRIPE_LOG" in os.environ, os.environ.get("STRIPE_LOG"), logger.level, list(logger.handlers), logger.propagate, logger.disabled),
+                    anterior,
+                )
+
+    def test_logging_seguro_permite_proveedor_sin_mutar_configuracion_global(self):
         logger = logging.getLogger("stripe")
-        for nivel in (logging.DEBUG, logging.INFO):
-            with mock.patch.object(logger, "getEffectiveLevel", return_value=nivel):
-                self.assertEqual(provider.iniciar(self.solicitud).estado, EstadoPago.ERROR)
+        self.intents.create.return_value = self.intent()
+        for nivel_stripe, nivel_entorno in ((None, None), ("warning", "warning")):
+            with (
+                self.subTest(stripe=nivel_stripe, entorno=nivel_entorno),
+                mock.patch("stripe.log", nivel_stripe),
+                mock.patch.dict(os.environ),
+                mock.patch.object(logger, "level", logging.WARNING),
+                mock.patch.object(logger, "handlers", [logging.NullHandler()]),
+                mock.patch.object(logger, "propagate", False),
+                mock.patch.object(logger, "disabled", True),
+            ):
+                if nivel_entorno is None:
+                    os.environ.pop("STRIPE_LOG", None)
+                else:
+                    os.environ["STRIPE_LOG"] = nivel_entorno
+                anterior = (stripe.log, "STRIPE_LOG" in os.environ, os.environ.get("STRIPE_LOG"), logger.level, list(logger.handlers), logger.propagate, logger.disabled)
+                self.assertEqual(self.provider.iniciar(self.solicitud).estado, EstadoPago.APROBADO)
+                self.assertEqual(
+                    (stripe.log, "STRIPE_LOG" in os.environ, os.environ.get("STRIPE_LOG"), logger.level, list(logger.handlers), logger.propagate, logger.disabled),
+                    anterior,
+                )

@@ -100,6 +100,8 @@ class _EscenarioHTTP:
             base_importe=Pago.BaseImporte.ORIGEN, iniciado_por_keycloak_id="http-usuario",
             estado=estado, referencia_externa=referencia,
             aprobado_en=timezone.now() if estado == Pago.Estado.APROBADO else None,
+            trazabilidad=([dict(fecha=timezone.now().isoformat(), estado="ERROR", codigo="ERROR_SIN_EJECUCION")]
+                          if estado == Pago.Estado.ERROR else []),
         )
 
     @staticmethod
@@ -126,6 +128,10 @@ class _EscenarioHTTP:
         campos = {"transaccion_id", "pago_id", "estado", "codigo"}
         if post:
             campos.add("reutilizado")
+        else:
+            campos.update({"vigente", "puede_cambiar_metodo", "metodo_pago_id", "metodo_pago_nombre"})
+            self.assertIsInstance(datos["vigente"], bool)
+            self.assertIsInstance(datos["puede_cambiar_metodo"], bool)
         self.assertEqual(set(datos), campos)
         self.assertEqual(datos["transaccion_id"], transaccion.pk)
         self.assertEqual(datos["estado"], estado)

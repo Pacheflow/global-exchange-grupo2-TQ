@@ -5,6 +5,7 @@ y protege los estados que pueden tener ejecución externa. El proveedor se
 inyecta desde una capa de confianza configurada exclusivamente para TEST.
 """
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -18,7 +19,8 @@ from django.utils import timezone
 from clientes.models import UsuarioCliente
 from fondos.services import exigir_flujo, reservar, liberar, finalizar
 from metodos_pago.models import MetodoPago
-from operaciones.models import Transaccion
+from operaciones.models import CambioMetodoPago, Transaccion
+from operaciones.importes import validar_monto_operacion
 from usuarios.services.keycloak import rol_efectivo
 
 from .models import Pago
@@ -67,13 +69,13 @@ def _exigir_autocommit():
 
 def _bloquear(transaccion_id):
     try:
-        transaccion = (
-            Transaccion.objects.select_related("cliente", "moneda_origen", "metodo_pago")
-            .select_for_update(of=("self",)).get(pk=transaccion_id)
-        )
+        # Bloquear primero la fila sin joins: si otro cambio actualiza la FK
+        # del método durante la espera, PostgreSQL puede descartar el join viejo
+        # al reevaluar SELECT FOR UPDATE. Las relaciones se leen tras el lock.
+        transaccion = Transaccion.objects.select_for_update(of=("self",)).get(pk=transaccion_id)
     except Transaccion.DoesNotExist:
         raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
-    pago = Pago.objects.select_for_update(of=("self",)).filter(transaccion_id=transaccion.pk).first()
+    pago = Pago.objects.select_for_update(of=("self",)).filter(transaccion_id=transaccion.pk, vigente=True).first()
     return transaccion, pago
 
 
@@ -160,7 +162,7 @@ def _asegurar_espacio(pago):
 
 def _version(pago):
     return (
-        pago.fecha_actualizacion, pago.estado, pago.referencia_externa,
+        pago.fecha_actualizacion, pago.estado, pago.referencia_externa, pago.vigente,
         json.dumps(pago.trazabilidad, sort_keys=True, separators=(",", ":")),
     )
 
@@ -230,6 +232,11 @@ def _persistir(reserva, resultado, *, consulta, reutilizado):
     try:
         with transaction.atomic(durable=True):
             transaccion, pago = _bloquear(reserva.solicitud.transaccion_id)
+            # La respuesta pertenece al UUID reservado, jamás al nuevo intento.
+            reservado = Pago.objects.select_for_update(of=("self",)).filter(
+                pk=reserva.solicitud.pago_id, transaccion_id=transaccion.pk).first()
+            if reservado is not None and not reservado.vigente:
+                return _respuesta(reservado, reutilizado=True, anomalia="INTENTO_ARCHIVADO")
             if pago is None or _reserva(transaccion, pago).solicitud != reserva.solicitud:
                 raise ValidationError("La reserva del pago cambió.", code="RESERVA_CAMBIADA")
             resultado = _normalizar(resultado, reserva.solicitud, consulta=consulta)
@@ -363,7 +370,7 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
             sincronizar_resultado_local(transaccion_id)
             return _respuesta(pago, reutilizado=True)
         _elegible(transaccion)
-        if pago.referencia_externa is not None:
+        if not _sin_ejecucion_certificada(pago):
             raise ValidationError("El pago requiere recuperación.", code="REQUIERE_RECUPERACION")
         _validar_metodo_cobro(transaccion)
         _validar_disponibilidad(transaccion)
@@ -377,6 +384,8 @@ def reintentar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_i
 
 def _validar_disponibilidad(transaccion):
     """Protege el neto electrónico antes del cobro, sin acceder a Caja física."""
+    validar_monto_operacion(transaccion.monto_origen, tipo=transaccion.tipo,
+                            moneda_codigo=transaccion.moneda_origen.codigo)
     reservar(transaccion)
 
 
@@ -399,16 +408,122 @@ def recuperar_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id
 
 
 def consultar_estado_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id):
-    """Leer evidencia local autorizada, incluso histórica; sin locks ni proveedor."""
+    """Leer el intento vigente autorizado; sin locks ni proveedor."""
     try:
-        transaccion = Transaccion.objects.select_related("cliente", "pago").get(pk=transaccion_id)
+        transaccion = Transaccion.objects.select_related("cliente").get(pk=transaccion_id)
     except Transaccion.DoesNotExist:
         raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
     _autorizar(transaccion, usuario_id, roles, cliente_seleccionado_id, permitir_sin_cliente=True)
     if transaccion.tipo != "COMPRA":
         raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
-    try:
-        pago = transaccion.pago
-    except Pago.DoesNotExist:
+    pago = transaccion.pago
+    if pago is None:
         return None
     return _respuesta(pago, reutilizado=True)
+
+
+def _sin_ejecucion_certificada(pago):
+    """ERROR aislado no es prueba suficiente para autorizar otro cobro."""
+    return bool(
+        pago.estado == Pago.Estado.ERROR and pago.referencia_externa is None
+        and isinstance(pago.trazabilidad, list) and pago.trazabilidad
+        and isinstance(pago.trazabilidad[-1], dict)
+        and pago.trazabilidad[-1].get("estado") == Pago.Estado.ERROR
+        and pago.trazabilidad[-1].get("codigo") == "ERROR_SIN_EJECUCION"
+        and pago.huella_solicitud == pago.calcular_huella()
+    )
+
+
+def puede_cambiar_metodo_pago(op, pago):
+    return bool(
+        op.version_flujo == 1 and op.canal == "ONLINE" and op.naturaleza_metodo == "ELECTRONICO"
+        and op.tipo == "COMPRA" and op.estado == "PENDIENTE"
+        and (pago is None or pago.estado == Pago.Estado.RECHAZADO or _sin_ejecucion_certificada(pago))
+    )
+
+
+def cambiar_metodo_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id,
+                        metodo_pago_id, metodo_anterior_id, pago_esperado_id, clave_idempotencia):
+    """Archiva evidencia segura y cambia la elección sin crear ni invocar un Pago."""
+    if (type(metodo_pago_id) is not int or metodo_pago_id <= 0
+        or type(metodo_anterior_id) is not int or metodo_anterior_id <= 0):
+        raise ValidationError("Los métodos deben ser identificadores válidos.", code="ENTRADA_INVALIDA")
+    try:
+        clave = UUID(str(clave_idempotencia))
+        esperado = UUID(str(pago_esperado_id)) if pago_esperado_id is not None else None
+    except (ValueError, TypeError, AttributeError):
+        raise ValidationError("La clave o el intento esperado no es válido.", code="ENTRADA_INVALIDA") from None
+    solicitud = dict(transaccion_id=transaccion_id, metodo_pago_id=metodo_pago_id,
+                     metodo_anterior_id=metodo_anterior_id,
+                     pago_esperado_id=str(esperado) if esperado else None)
+    huella = hashlib.sha256(json.dumps(solicitud, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    with transaction.atomic():
+        op, pago = _bloquear(transaccion_id)
+        actor = _autorizar(op, usuario_id, roles, cliente_seleccionado_id, roles_permitidos=("USUARIO",))
+        # Una repetición se resuelve por la auditoría antes de mirar el estado actual.
+        anterior = CambioMetodoPago.objects.filter(transaccion=op, clave_idempotencia=clave).first()
+        if anterior:
+            if anterior.huella_solicitud != huella or anterior.actor_keycloak_id != actor:
+                raise ValidationError("La clave ya fue utilizada con otra solicitud.", code="CONFLICTO_IDEMPOTENCIA")
+            return dict(transaccion_id=op.pk, metodo_pago_id=anterior.nuevo_id,
+                        metodo_pago_nombre=anterior.nombre_nuevo, pago_id=None,
+                        codigo="METODO_CAMBIADO", reutilizado=True)
+        _elegible(op)
+        if (op.metodo_pago_id != metodo_anterior_id
+            or (pago.pk if pago else None) != esperado):
+            raise ValidationError("La operación cambió. Actualizá su estado antes de continuar.", code="ESTADO_DESACTUALIZADO")
+        if not puede_cambiar_metodo_pago(op, pago):
+            raise ValidationError("Es necesario verificar el pago antes de cambiar el método.", code="CAMBIO_METODO_NO_PERMITIDO")
+        if pago is not None:
+            _validar_snapshots(op, pago)
+        try:
+            nuevo = MetodoPago.objects.select_for_update().get(pk=metodo_pago_id)
+        except MetodoPago.DoesNotExist:
+            raise ValidationError("Seleccioná un método electrónico habilitado.", code="METODO_NO_ELECTRONICO") from None
+        if not nuevo.activo or nuevo.naturaleza != MetodoPago.Naturaleza.ELECTRONICO:
+            raise ValidationError("Seleccioná un método electrónico habilitado.", code="METODO_NO_ELECTRONICO")
+        if nuevo.pk == op.metodo_pago_id:
+            raise ValidationError("Seleccioná otro método de pago.", code="METODO_SIN_CAMBIOS")
+        liberar(op)
+        if pago is not None:
+            pago.vigente = False
+            pago.save(update_fields=["vigente"])
+        CambioMetodoPago.objects.create(
+            transaccion=op, anterior_id=op.metodo_pago_id, nuevo=nuevo,
+            nombre_anterior=op.metodo_pago_nombre, nombre_nuevo=nuevo.nombre,
+            actor_keycloak_id=actor, clave_idempotencia=clave, huella_solicitud=huella,
+        )
+        op.metodo_pago = nuevo
+        op.metodo_pago_nombre = nuevo.nombre
+        # La huella original identifica la creación comercial, no esta elección posterior.
+        op.save(update_fields=["metodo_pago", "metodo_pago_nombre", "fecha_actualizacion"])
+        return dict(transaccion_id=op.pk, metodo_pago_id=nuevo.pk, metodo_pago_nombre=nuevo.nombre,
+                    pago_id=None, codigo="METODO_CAMBIADO", reutilizado=False)
+
+
+def consultar_contexto_pago(*, transaccion_id, usuario_id, roles, cliente_seleccionado_id):
+    """Capacidades e intentos locales; no consulta ni ejecuta el proveedor."""
+    try:
+        op = Transaccion.objects.select_related("cliente").get(pk=transaccion_id)
+    except Transaccion.DoesNotExist:
+        raise ValidationError("La operación no existe.", code="OPERACION_INEXISTENTE") from None
+    _autorizar(op, usuario_id, roles, cliente_seleccionado_id, permitir_sin_cliente=True)
+    if op.tipo != "COMPRA":
+        raise ValidationError("Solo las compras utilizan este servicio de pago.", code="TIPO_NO_ADMITIDO")
+    intentos = list(op.intentos_pago.select_related("metodo_pago").order_by("fecha_creacion", "id"))
+    pago = next((p for p in intentos if p.vigente), None)
+    cambios = list(op.cambios_metodo.order_by("fecha"))
+    def nombre(p):
+        if p.vigente:
+            return op.metodo_pago_nombre
+        evidencia = next((c for c in cambios if c.anterior_id == p.metodo_pago_id and c.fecha >= p.fecha_creacion), None)
+        return evidencia.nombre_anterior if evidencia else p.metodo_pago.nombre
+    return dict(
+        vigente=pago is not None,
+        puede_cambiar_metodo=(rol_efectivo(roles) == "USUARIO" and puede_cambiar_metodo_pago(op, pago)),
+        metodo_pago_id=op.metodo_pago_id, metodo_pago_nombre=op.metodo_pago_nombre,
+        intentos=[dict(pago_id=str(p.pk), metodo_pago_id=p.metodo_pago_id, metodo_pago_nombre=nombre(p),
+                       estado=p.estado, codigo=str(_respuesta(p, reutilizado=True).codigo), vigente=p.vigente,
+                       fecha_creacion=p.fecha_creacion.isoformat(), fecha_actualizacion=p.fecha_actualizacion.isoformat(),
+                       trazabilidad=p.trazabilidad) for p in intentos],
+    )

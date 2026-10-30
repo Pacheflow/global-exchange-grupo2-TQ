@@ -67,12 +67,12 @@
   function emptyRow(message) {
     var columns = page.dataset.geApi === 'rates'
       ? 7
-      : (page.dataset.geApi === 'currencies' && page.dataset.canManage !== 'true' ? 5 : 6);
+      : (page.dataset.geApi === 'payments' || (page.dataset.geApi === 'currencies' && page.dataset.canManage !== 'true') ? 5 : 6);
     body.innerHTML = '<tr><td colspan="' + columns + '" class="ge-frontend-note">' + esc(message) + '</td></tr>';
   }
 
   function fail(error) {
-    emptyRow(error.message || 'No fue posible cargar los datos.');
+    emptyRow('Datos no disponibles.');
     notify(error.message || 'No fue posible cargar los datos.', 'error');
   }
 
@@ -263,8 +263,8 @@
       renderHistory(state.history);
     }).catch(function (error) {
       var message = error.message || 'No fue posible cargar las tasas comerciales.';
-      if (ratesBody) ratesBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + esc(message) + '</td></tr>';
-      if (historyBody) historyBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + esc(message) + '</td></tr>';
+      if (ratesBody) ratesBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + 'Datos no disponibles.' + '</td></tr>';
+      if (historyBody) historyBody.innerHTML = '<tr><td colspan="7" class="ge-frontend-note">' + 'Datos no disponibles.' + '</td></tr>';
       notify(message, 'error');
     });
   }
@@ -338,7 +338,7 @@
       if (commercialBody) commercialBody.setAttribute('aria-busy', 'false');
       if (body) {
         body.innerHTML = '<article class="ge-card ge-empty"><strong>No se pudieron cargar las tasas</strong><p>' +
-          esc(error.message) + '</p></article>';
+          'Intentá actualizar la página más tarde.</p></article>';
       }
       notify(error.message, 'error');
     });
@@ -386,6 +386,7 @@
     body.innerHTML = items.map(function (item) {
       var active = item.activo;
       return '<tr data-id="' + item.id + '"><td><strong>' + esc(item.nombre) + '</strong></td>' +
+        '<td>' + esc(item.naturaleza_display || ({ ELECTRONICO: 'Electrónico', EFECTIVO: 'Efectivo' })[item.naturaleza] || 'Sin clasificar') + '</td>' +
         '<td>' + esc(item.descripcion || '—') + '</td>' +
         '<td><span class="ge-state-dot ' + (active ? 'ge-state-dot--on' : '') + '"><i></i>' + (active ? 'Activo' : 'Inactivo') + '</span></td>' +
         '<td><div class="ge-btn-row"><button class="ge-btn-ghost" data-action="edit" style="font-size:11px;padding:3px 8px">Editar</button>' +
@@ -400,14 +401,19 @@
   }
 
   function paymentForm(item) {
+    var naturaleza = item ? item.naturaleza : '';
     var content = '<form data-api-form>' +
       field('NOMBRE', '<input class="ge-input" name="nombre" required maxlength="100" placeholder="Ej. Transferencia bancaria" value="' + esc(item ? item.nombre : '') + '">') +
+      field('TIPO', '<select class="ge-input" name="naturaleza" required>' +
+        '<option value=""' + (!naturaleza || naturaleza === 'SIN_CLASIFICAR' ? ' selected' : '') + '>Seleccioná un tipo</option>' +
+        '<option value="ELECTRONICO"' + (naturaleza === 'ELECTRONICO' ? ' selected' : '') + '>Electrónico</option>' +
+        '<option value="EFECTIVO"' + (naturaleza === 'EFECTIVO' ? ' selected' : '') + '>Efectivo</option></select>') +
       field('DESCRIPCIÓN', '<textarea class="ge-input" name="descripcion" rows="3" placeholder="Describe cuándo o cómo se utiliza">' + esc(item ? item.descripcion : '') + '</textarea>') +
       '<label class="ge-crud-check"><input type="checkbox" name="activo" ' + (!item || item.activo ? 'checked' : '') + '> Método de pago activo</label></form>';
     dialog('ge-payment-form', item ? 'Editar método de pago' : 'Nuevo método de pago', content, 'Guardar método de pago', function (box, close) {
       var form = box.querySelector('form');
       if (!form.reportValidity()) return false;
-      var payload = { nombre: formValue(form, 'nombre'), descripcion: formValue(form, 'descripcion'), activo: form.elements.activo.checked };
+      var payload = { nombre: formValue(form, 'nombre'), naturaleza: formValue(form, 'naturaleza'), descripcion: formValue(form, 'descripcion'), activo: form.elements.activo.checked };
       request(item ? endpoint(page.dataset.editUrl, item.id) : page.dataset.createUrl, { method: 'POST', body: JSON.stringify(payload) })
         .then(function (data) { close(); notify(data.message); loadPayments(); }).catch(function (error) { notify(error.message, 'error'); });
       return false;
@@ -450,8 +456,9 @@
       }[data.estado] || data.estado || 'Sin datos';
     }
     if (message) {
-      message.hidden = !data.mensaje;
-      message.textContent = data.mensaje || '';
+      message.hidden = true;
+      message.textContent = '';
+      if (data.mensaje) notify(data.mensaje, data.estado === 'desactualizado' ? 'warning' : 'info');
       message.className = data.estado === 'desactualizado'
         ? 'ge-warning-banner'
         : 'ge-inline-banner';
@@ -516,9 +523,10 @@
     var swap = root.querySelector('[data-sim-swap]');
     var timer = null;
 
-    function showError(message) {
-      error.textContent = message;
-      error.hidden = false;
+    function showError(message, general) {
+      error.textContent = general ? '' : message;
+      error.hidden = Boolean(general);
+      if (general) notify(message, 'error');
       result.textContent = '—';
       delivered.textContent = '—';
       rate.textContent = '—';
@@ -571,7 +579,7 @@
         updated.textContent = new Date(data.fecha_hora).toLocaleString('es-PY');
         root.setAttribute('aria-busy', 'false');
       }).catch(function (requestError) {
-        showError(requestError.message || 'No fue posible realizar la simulación.');
+        showError(requestError.message || 'No fue posible realizar la simulación.', true);
       });
     }
 
@@ -593,9 +601,9 @@
       var pyg = state.currencies.find(function (currency) { return currency.codigo === 'PYG'; });
       if (usd) from.value = String(usd.id);
       if (pyg) to.value = String(pyg.id);
-      if (!state.currencies.length) showError('No hay monedas activas disponibles.');
+      if (!state.currencies.length) showError('No hay monedas activas disponibles.', true);
     }).catch(function (requestError) {
-      showError(requestError.message || 'No fue posible cargar las monedas.');
+      showError(requestError.message || 'No fue posible cargar las monedas.', true);
     });
 
     amount.addEventListener('input', schedule);

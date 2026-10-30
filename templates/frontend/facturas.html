@@ -9,9 +9,13 @@
     <table class="ge-table">
       <thead><tr><th>Operación</th><th>Cliente</th><th>Fecha</th><th>Estado de emisión</th><th>Comprobante</th></tr></thead>
       <tbody>{% for factura in pagina %}
-      <tr><td>#{{ factura.transaccion_id }}</td><td>{{ factura.transaccion.cliente }}</td>
+      <tr><td>#{{ factura.transaccion_id }}</td><td>{{ factura.datos_operacion.cliente }}</td>
         <td>{{ factura.creada_en|date:'d/m/Y H:i' }}</td><td>{{ factura.get_estado_display }}</td>
-        <td><a href="{% url 'facturacion:detalle' factura.pk %}">Consultar factura</a></td></tr>
+        <td><a href="{% url 'facturacion:detalle' factura.pk %}">Consultar factura</a>
+          {% if factura.estado == 'GENERADA' and factura.cdc %}
+            <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>
+          {% endif %}
+        </td></tr>
       {% empty %}<tr><td colspan="5">Todavía no hay facturas para consultar.</td></tr>{% endfor %}</tbody>
     </table>
   </div>

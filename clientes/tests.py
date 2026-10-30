@@ -108,13 +108,14 @@ class ClientesApiEsencialesTests(TestCase):
             data=json.dumps({
                 "nombre_razon_social": "Cliente Nuevo",
                 "tipo_persona": "JURIDICA",
-                "documento": "CLI-001",
+                "documento": "80000001",
+                "dv": "0",
             }),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 201)
-        cliente = Cliente.objects.get(documento="CLI-001")
+        cliente = Cliente.objects.get(documento="80000001")
         self.assertEqual(cliente.estado, "ACTIVO")
 
     def test_creacion_rechaza_datos_obligatorios_invalidos(self):
@@ -143,7 +144,7 @@ class ClientesApiEsencialesTests(TestCase):
         Cliente.objects.create(
             nombre_razon_social="Cliente Existente",
             tipo_persona="FISICA",
-            documento="DOC-001",
+            documento="80000003",
         )
 
         response = self.client.post(
@@ -151,7 +152,8 @@ class ClientesApiEsencialesTests(TestCase):
             data=json.dumps({
                 "nombre_razon_social": "Cliente Duplicado",
                 "tipo_persona": "JURIDICA",
-                "documento": "DOC-001",
+                "documento": "80000003",
+                "dv": "1",
             }),
             content_type="application/json",
         )
@@ -199,7 +201,8 @@ class ClientesApiEsencialesTests(TestCase):
             data=json.dumps({
                 "nombre_razon_social": "Cliente Editado",
                 "tipo_persona": "JURIDICA",
-                "documento": "EDIT-002",
+                "documento": "80000002",
+                "dv": "2",
             }),
             content_type="application/json",
         )
@@ -208,7 +211,7 @@ class ClientesApiEsencialesTests(TestCase):
         cliente.refresh_from_db()
         self.assertEqual(cliente.nombre_razon_social, "Cliente Editado")
         self.assertEqual(cliente.tipo_persona, "JURIDICA")
-        self.assertEqual(cliente.documento, "EDIT-002")
+        self.assertEqual(cliente.documento, "80000002")
 
     def test_edicion_rechaza_documento_existente(self):
         """Comprueba que la edición no permita asignar a un cliente el documento de otro.
@@ -611,7 +614,7 @@ class MetodoPagoPreferidoTests(TestCase):
 
         Se espera que un método pueda asociarse a más de un cliente.
         """
-        metodo = MetodoPago.objects.create(nombre="Transferencia bancaria")
+        metodo = MetodoPago.objects.create(nombre="Transferencia bancaria", naturaleza="ELECTRONICO")
         segundo_cliente = Cliente.objects.create(
             nombre_razon_social="Segundo cliente",
             tipo_persona="FISICA",
@@ -629,7 +632,7 @@ class MetodoPagoPreferidoTests(TestCase):
 
         Se espera que la preferencia quede guardada.
         """
-        metodo = MetodoPago.objects.create(nombre="Efectivo")
+        metodo = MetodoPago.objects.create(nombre="Efectivo", naturaleza="EFECTIVO")
 
         response = self.client.post(
             self.url,
@@ -646,8 +649,8 @@ class MetodoPagoPreferidoTests(TestCase):
 
         Se espera que la nueva preferencia reemplace a la anterior.
         """
-        anterior = MetodoPago.objects.create(nombre="Efectivo")
-        nuevo = MetodoPago.objects.create(nombre="Tarjeta")
+        anterior = MetodoPago.objects.create(nombre="Efectivo", naturaleza="EFECTIVO")
+        nuevo = MetodoPago.objects.create(nombre="Tarjeta", naturaleza="ELECTRONICO")
         self.cliente.metodo_pago_preferido = anterior
         self.cliente.save(update_fields=["metodo_pago_preferido"])
 
@@ -667,7 +670,7 @@ class MetodoPagoPreferidoTests(TestCase):
         Se espera que la preferencia actual se informe aun si quedó inactiva y que
         los métodos inactivos no estén disponibles para elegir.
         """
-        activo = MetodoPago.objects.create(nombre="Efectivo")
+        activo = MetodoPago.objects.create(nombre="Efectivo", naturaleza="EFECTIVO")
         inactivo = MetodoPago.objects.create(nombre="Cheque", activo=False)
         self.cliente.metodo_pago_preferido = inactivo
         self.cliente.save(update_fields=["metodo_pago_preferido"])
@@ -719,7 +722,7 @@ class MetodoPagoPreferidoTests(TestCase):
 
         Requisito relacionado: RNF-02.
         """
-        metodo = MetodoPago.objects.create(nombre="Efectivo")
+        metodo = MetodoPago.objects.create(nombre="Efectivo", naturaleza="EFECTIVO")
         cliente_ajeno = Cliente.objects.create(
             nombre_razon_social="Cliente ajeno",
             tipo_persona="JURIDICA",
@@ -746,7 +749,7 @@ class MetodoPagoPreferidoTests(TestCase):
         Se espera que la preferencia se conserve y que la interfaz informe que el
         método ya no está disponible, permitiendo elegir otro.
         """
-        metodo = MetodoPago.objects.create(nombre="Transferencia bancaria")
+        metodo = MetodoPago.objects.create(nombre="Transferencia bancaria", naturaleza="ELECTRONICO")
         self.cliente.metodo_pago_preferido = metodo
         self.cliente.save(update_fields=["metodo_pago_preferido"])
         metodo.desactivar()

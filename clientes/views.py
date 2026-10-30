@@ -296,6 +296,9 @@ def _cliente_data(cliente):
         "tipo_persona": cliente.tipo_persona,
         "tipo_persona_display": cliente.get_tipo_persona_display(),
         "documento": cliente.documento,
+        "ruc": cliente.ruc,
+        "dv": cliente.dv,
+        "correo_facturacion": cliente.correo_facturacion,
         "estado": cliente.estado,
         "estado_display": cliente.get_estado_display(),
         "categoria": cliente.categoria.nombre if cliente.categoria_id else None,
@@ -324,11 +327,14 @@ def _json_body(request):
 def _respuesta_documento_o_error(form):
     """Convierte errores del formulario en respuestas JSON apropiadas."""
 
-    errores_documento = form.errors.get("documento", [])
+    errores_documento = form.errors.get("documento")
 
-    if any(error.code in ("unique", "duplicate") for error in errores_documento.as_data()):
+    if errores_documento and any(error.code in ("unique", "duplicate") for error in errores_documento.as_data()):
         return JsonResponse(
-            {"error": "Ya existe un cliente con ese documento."},
+            {
+                "error": "Ya existe un cliente con ese documento.",
+                "detalles": form.errors.get_json_data(),
+            },
             status=409,
         )
 
@@ -348,7 +354,7 @@ def crear_cliente_api(request):
 
     datos = _json_body(request)
 
-    if datos is None:
+    if not isinstance(datos, dict):
         return JsonResponse(
             {"error": "El cuerpo de la solicitud debe contener JSON válido."},
             status=400,
@@ -449,7 +455,7 @@ def editar_cliente_api(request, cliente_id):
 
     datos = _json_body(request)
 
-    if datos is None:
+    if not isinstance(datos, dict):
         return JsonResponse(
             {"error": "El cuerpo de la solicitud debe contener JSON válido."},
             status=400,

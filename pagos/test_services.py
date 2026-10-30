@@ -229,7 +229,7 @@ class PagoServiceTests(TransactionTestCase):
 
     def test_snapshots_incompatibles_impiden_reenvio(self):
         self.reservar_incierto()
-        for campo, valor in (("monto_origen", Decimal("20")), ("metodo_pago", MetodoPago.objects.create(nombre="Otro"))):
+        for campo, valor in (("monto_origen", Decimal("20")), ("metodo_pago", MetodoPago.objects.create(nombre="Otro", naturaleza="ELECTRONICO"))):
             original = getattr(self.transaccion, campo)
             setattr(self.transaccion, campo, valor)
             self.transaccion.save()
@@ -384,7 +384,7 @@ class PagoServiceTests(TransactionTestCase):
         self.provider.iniciar.return_value = ResultadoPago(EstadoPago.ERROR, CodigoResultado.ERROR_SIN_EJECUCION)
         respuesta = iniciar_pago(**self.argumentos())
         pago = Pago.objects.get(pk=respuesta.pago_id)
-        pago.trazabilidad = [dict(pago.trazabilidad[0])] * 47
+        pago.trazabilidad = [dict(pago.trazabilidad[-1])] * 47
         pago.save()
         with self.assertRaises(ValidationError):
             reintentar_pago(**self.argumentos())

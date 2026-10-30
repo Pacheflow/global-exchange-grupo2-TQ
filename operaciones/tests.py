@@ -1290,6 +1290,7 @@ def _crear_pago_cancelacion(transaccion, estado):
         monto=transaccion.monto_origen, moneda_codigo=transaccion.moneda_origen.codigo,
         base_importe=Pago.BaseImporte.ORIGEN, iniciado_por_keycloak_id=transaccion.creado_por_keycloak_id,
         estado=estado,
+        trazabilidad=[{"fecha": timezone.now().isoformat(), "estado": "ERROR", "codigo": "ERROR_SIN_EJECUCION"}] if estado == Pago.Estado.ERROR else [],
         referencia_externa="pi_" + uuid.uuid4().hex if estado in (Pago.Estado.APROBADO, Pago.Estado.RECHAZADO) else None,
         aprobado_en=timezone.now() if estado == Pago.Estado.APROBADO else None,
     )
@@ -1751,7 +1752,7 @@ class IdempotenciaTests(BaseOperacionesTests):
         ):
             if cambio.get("metodo_pago_id") == self.metodo_inactivo.id:
                 otro_metodo = MetodoPago.objects.create(
-                    nombre="Transferencia idempotente",
+                    nombre="Transferencia idempotente", naturaleza="ELECTRONICO",
                     activo=True,
                 )
                 cambio = {"metodo_pago_id": otro_metodo.id}
@@ -2095,12 +2096,13 @@ class HistorialTransaccionesTests(BaseOperacionesTests):
         self.tasa.compra = Decimal("7000.000001")
         self.tasa.save(update_fields=["compra"])
 
-        self.crear(monto="1.000003")
+        # USD debe ser representable en centavos; la tasa conserva el caso de redondeo.
+        self.crear(monto="1.03")
         historial = listar_transacciones(usuario_id=self.usuario_id)
         serializada = _serializar_transaccion(historial[0])
 
-        self.assertEqual(serializada["monto_origen"], "1.000003")
-        self.assertEqual(serializada["monto_convertido"], "7000.021000")
+        self.assertEqual(serializada["monto_origen"], "1.030000")
+        self.assertEqual(serializada["monto_convertido"], "7210.000000")
         self.assertEqual(serializada["tasa_aplicada"], "7000")
 
 
@@ -2212,7 +2214,7 @@ class OperacionesFrontendTests(BaseOperacionesTests):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "frontend/operaciones.html")
-        self.assertContains(response, '/static/js/operaciones.js?v=presencial-2')
+        self.assertContains(response, '/static/js/operaciones.js?v=operaciones-5')
         dialogo = response.content.decode().split('id="confirmar-operacion"')[1].split('id="cancelar-operacion"')[0]
         self.assertIn('¿Desea confirmar la operación?', dialogo)
         self.assertIn('>Volver</button>', dialogo)

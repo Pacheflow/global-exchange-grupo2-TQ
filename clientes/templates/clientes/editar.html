@@ -1,4 +1,5 @@
 {% extends 'usuarios/base.html' %}
+{% load static %}
 {% block title %}Editar cliente · Global Exchange{% endblock %}
 {% block content %}
 <div class="ge-app">
@@ -15,7 +16,11 @@
       </div>
     {% else %}
     <div class="ge-card ge-card--pad32" style="max-width: 640px">
-      <form method="post" novalidate>{% csrf_token %}
+      <form method="post" data-cliente-classic-form
+            data-original-tipo="{{ form.initial.tipo_persona }}"
+            data-original-documento="{{ form.initial.documento }}"
+            data-original-dv="{{ form.initial.dv }}"
+            data-existente="{% if form.instance.pk %}true{% else %}false{% endif %}" novalidate>{% csrf_token %}
         {% include 'clientes/partials/form_fields.html' %}
         <div class="ge-form-actions">
           <a class="ge-btn-outline" href="{% url 'consultar_clientes' %}">Cancelar</a>
@@ -27,3 +32,4 @@
   </div>
 </div>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/clientes.js' %}?v=clientes-fiscal-1"></script>{% endblock %}
