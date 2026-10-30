@@ -1,0 +1,28 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Mis facturas · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <h1 class="ge-frontend-h2">Mis facturas</h1>
+  <p class="ge-frontend-subtitle">Comprobantes de las operaciones completadas de tus clientes asociados.</p>
+  {% for cliente in clientes %}
+  <p>{{ cliente.nombre_razon_social }} · Correo: {{ cliente.correo_facturacion|default:'Sin configurar' }}
+    <a href="{% url 'facturacion:correo_cliente' cliente.pk %}">Configurar correo</a></p>
+  {% endfor %}
+  <div class="ge-card" style="overflow-x:auto">
+    <table class="ge-table">
+      <thead><tr><th>Operación</th><th>Cliente</th><th>Fecha</th><th>Estado de emisión</th><th>Comprobante</th></tr></thead>
+      <tbody>{% for factura in pagina %}
+      <tr><td>#{{ factura.transaccion_id }}</td><td>{{ factura.transaccion.cliente }}</td>
+        <td>{{ factura.creada_en|date:'d/m/Y H:i' }}</td><td>{{ factura.get_estado_display }}</td>
+        <td><a href="{% url 'facturacion:detalle' factura.pk %}">Consultar factura</a></td></tr>
+      {% empty %}<tr><td colspan="5">Todavía no hay facturas para consultar.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% if pagina.has_other_pages %}<nav aria-label="Páginas de facturas">
+    {% if pagina.has_previous %}<a href="?page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+    <span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a href="?page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+  </nav>{% endif %}
+</div>
+{% endblock %}

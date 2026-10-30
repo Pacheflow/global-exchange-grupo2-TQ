@@ -1,0 +1,36 @@
+{% extends 'frontend/base.html' %}
+{% block title %}Factura de operación #{{ factura.transaccion_id }} · Global Exchange{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad">
+  <a href="{% url 'facturacion:listado' %}">Volver a mis facturas</a>
+  <h1 class="ge-frontend-h2">Factura de operación #{{ factura.transaccion_id }}</h1>
+  <div class="ge-card">
+    <p>Cliente: {{ factura.datos_operacion.cliente }}</p>
+    <p>Operación: {{ factura.datos_operacion.tipo }} · {{ factura.datos_operacion.monto_origen }} {{ factura.datos_operacion.moneda_origen }} → {{ factura.datos_operacion.monto_destino }} {{ factura.datos_operacion.moneda_destino }}</p>
+    <p>Estado de emisión: <strong>{{ factura.get_estado_display }}</strong></p>
+    {% if factura.estado == 'GENERADA' %}
+      <p style="overflow-wrap:anywhere">Identificador: {{ factura.cdc }}</p>
+      <p>La generación por el proveedor no confirma por sí sola la aprobación fiscal.</p>
+      <p><a class="ge-btn-outline" href="{% url 'facturacion:visualizar' factura.pk %}" target="_blank" rel="noopener">Ver comprobante PDF</a>
+      <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>
+      <a class="ge-btn-outline" href="{% url 'facturacion:descargar' factura.pk 'xml' %}">Descargar XML</a></p>
+    {% else %}
+      <p>El comprobante todavía no está disponible. Tu operación completada se conserva.</p>
+    {% endif %}
+  </div>
+  <div class="ge-card">
+    <h2 class="ge-frontend-h2">Envío por correo</h2>
+    <p>Correo del cliente: {{ factura.transaccion.cliente.correo_facturacion|default:'Sin configurar' }}</p>
+    {% if puede_configurar_correo %}<a href="{% url 'facturacion:correo_cliente' factura.transaccion.cliente_id %}">Configurar correo</a>{% endif %}
+    <p>Último envío: {% if envio %}{{ envio.get_estado_display }} · {{ envio.creado_en|date:'d/m/Y H:i' }}{% else %}Todavía no se intentó enviar{% endif %}</p>
+    {% if envio.estado == 'ENVIADO' %}<p>Enviado a {{ envio.destinatario }}.</p>{% endif %}
+    {% if envio.estado == 'ERROR' %}<p role="status">El envío falló. La factura sigue disponible; podés reintentar el correo.</p>{% endif %}
+    {% if puede_enviar and factura.estado == 'GENERADA' and envio.estado != 'ENVIADO' and envio.estado != 'EN_PROCESO' %}
+      <form method="post" action="{% url 'facturacion:enviar' factura.pk %}">{% csrf_token %}
+        <button class="ge-btn-primary" type="submit">{% if envio %}Reintentar envío{% else %}Enviar factura{% endif %}</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

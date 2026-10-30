@@ -19,6 +19,7 @@ urlpatterns = [
     path("operaciones/", include("operaciones.web_urls")),
     path("cajas/", include("cajas.urls")),
     path("fondos/", include("fondos.urls")),
+    path("facturas/", include("facturacion.urls")),
     path("tasas/", include("tasas.web_urls")),
 
     path("", include("usuarios.urls")),

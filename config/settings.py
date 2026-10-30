@@ -239,6 +239,9 @@ CSRF_COOKIE_SECURE = os.getenv(
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Clase de contrato fiscal confirmada con el emisor. Vacío: preparar sin emitir.
+FACTURACION_CONTRATO = os.getenv("FACTURACION_CONTRATO", "")
+
 
 # ------------------------------------------------------------------
 # Seguridad
