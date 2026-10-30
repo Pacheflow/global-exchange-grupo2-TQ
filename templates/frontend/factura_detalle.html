@@ -19,18 +19,5 @@
       <p>El comprobante todavía no está disponible. Tu operación completada se conserva.</p>
     {% endif %}
   </div>
-  <div class="ge-card">
-    <h2 class="ge-frontend-h2">Envío por correo</h2>
-    <p>Correo del cliente: {{ factura.transaccion.cliente.correo_facturacion|default:'Sin configurar' }}</p>
-    {% if puede_configurar_correo %}<a href="{% url 'facturacion:correo_cliente' factura.transaccion.cliente_id %}">Configurar correo</a>{% endif %}
-    <p>Último envío: {% if envio %}{{ envio.get_estado_display }} · {{ envio.creado_en|date:'d/m/Y H:i' }}{% else %}Todavía no se intentó enviar{% endif %}</p>
-    {% if envio.estado == 'ENVIADO' %}<p>Enviado a {{ envio.destinatario }}.</p>{% endif %}
-    {% if envio.estado == 'ERROR' %}<p role="status">El envío falló. La factura sigue disponible; podés reintentar el correo.</p>{% endif %}
-    {% if puede_enviar and factura.estado == 'GENERADA' and envio.estado != 'ENVIADO' and envio.estado != 'EN_PROCESO' %}
-      <form method="post" action="{% url 'facturacion:enviar' factura.pk %}">{% csrf_token %}
-        <button class="ge-btn-primary" type="submit">{% if envio %}Reintentar envío{% else %}Enviar factura{% endif %}</button>
-      </form>
-    {% endif %}
-  </div>
 </div>
 {% endblock %}

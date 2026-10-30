@@ -3,15 +3,12 @@ import logging
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.mail import EmailMessage, mailers
-from django.core.validators import validate_email
 from django.db import transaction
 from django.utils import timezone
 from django.utils.module_loading import import_string
 
-from clientes.models import UsuarioCliente
 from operaciones.models import Transaccion
-from facturacion.models import Factura, EnvioFactura, IntentoEmisionFacturaSegura
+from facturacion.models import Factura, IntentoEmisionFacturaSegura
 from .emision import generar_documento_una_vez
 from .factura_segura import FacturaSeguraError, obtener_factura_segura_client
 
@@ -129,49 +126,3 @@ def obtener_comprobante(factura, *, formato="pdf", client=None):
         raise ValidationError("Formato de comprobante no válido.")
     client = client or obtener_factura_segura_client()
     return client.descargar_kude(factura.cdc) if formato == "pdf" else client.descargar_xml(factura.cdc)
-
-
-def enviar_factura(factura_id, *, reintentar=False, client=None):
-    """Registra el intento antes de descargar/enviar; SMTP fuera del bloqueo.
-
-    Un envío exitoso o activo se reutiliza. Los errores requieren reintento
-    explícito; SMTP no permite garantizar recepción exactamente una vez.
-    """
-    with transaction.atomic():
-        factura = Factura.objects.select_for_update().select_related("transaccion__cliente").get(pk=factura_id)
-        if factura.estado != Factura.Estado.GENERADA:
-            raise ValidationError("Se requiere una factura generada.")
-        activo = factura.envios.filter(estado__in=["EN_PROCESO", "ENVIADO"]).first()
-        if activo:
-            return activo
-        anterior = factura.envios.first()
-        if anterior and not reintentar:
-            return anterior
-        envio = EnvioFactura.objects.create(factura=factura, destinatario=factura.transaccion.cliente.correo_facturacion)
-    try:
-        validate_email(envio.destinatario)
-        archivo = obtener_comprobante(factura, client=client)
-        mensaje = EmailMessage(
-            subject=f"Global Exchange - Factura de la operación #{factura.transaccion_id}",
-            body=(f"Adjuntamos el comprobante de la operación #{factura.transaccion_id}.\n"
-                  f"Identificador de factura: {factura.cdc}\nPodés consultarlo también en Mis facturas."),
-            from_email=settings.DEFAULT_FROM_EMAIL, to=[envio.destinatario],
-        )
-        mensaje.attach(f"factura-{factura.transaccion_id}.pdf", archivo.contenido, archivo.content_type)
-        with mailers.create_connection("default") as conexion:
-            if conexion.send_messages([mensaje]) != 1:
-                raise RuntimeError("El servicio no confirmó el envío.")
-        envio.estado = EnvioFactura.Estado.ENVIADO
-    except Exception as error:
-        envio.estado = EnvioFactura.Estado.ERROR
-        envio.codigo_error = "CORREO_NO_CONFIGURADO" if isinstance(error, ValidationError) else "ENVIO_FALLIDO"
-        logger.error("FACTURA_CORREO_FALLIDO factura=%s envio=%s", factura.pk, envio.pk)
-    envio.terminado_en = timezone.now()
-    envio.save(update_fields=["estado", "codigo_error", "terminado_en"])
-    return envio
-
-
-def autorizar_envio(factura, usuario_id):
-    if not UsuarioCliente.objects.filter(cliente_id=factura.transaccion.cliente_id,
-            keycloak_user_id=usuario_id, activo=True, rol_en_cliente__in=["RESPONSABLE", "OPERADOR"]).exists():
-        raise PermissionDenied("No tenés permiso para enviar la factura.")

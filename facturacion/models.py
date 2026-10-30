@@ -71,7 +71,11 @@ class Factura(models.Model):
 
 
 class EnvioFactura(models.Model):
-    """Auditoría de cada intento de correo, independiente de la emisión."""
+    """Registro histórico de correo: fuera del alcance desde el 30/10/2026.
+
+    Se conserva para no eliminar datos ni alterar migraciones publicadas.
+    El flujo actual no crea ni procesa envíos.
+    """
 
     class Estado(models.TextChoices):
         EN_PROCESO = "EN_PROCESO", "En proceso"
