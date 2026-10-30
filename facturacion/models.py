@@ -58,6 +58,11 @@ class Factura(models.Model):
     datos_operacion = models.JSONField(default=dict, editable=False)
     cdc = models.CharField(max_length=64, null=True, blank=True, unique=True, editable=False)
     codigo_error = models.CharField(max_length=80, blank=True, editable=False)
+    estado_sifen = models.CharField(max_length=40, blank=True, editable=False)
+    descripcion_sifen = models.TextField(blank=True, editable=False)
+    error_sifen = models.TextField(blank=True, editable=False)
+    fecha_sifen = models.CharField(max_length=40, blank=True, editable=False)
+    consultada_sifen_en = models.DateTimeField(null=True, blank=True, editable=False)
     creada_en = models.DateTimeField(auto_now_add=True)
     actualizada_en = models.DateTimeField(auto_now=True)
     generada_en = models.DateTimeField(null=True, blank=True)
@@ -68,6 +73,58 @@ class Factura(models.Model):
             models.CheckConstraint(condition=Q(estado__in=["PENDIENTE", "EN_PROCESO", "GENERADA", "ERROR", "INDETERMINADA"]), name="factura_estado_valido"),
             models.CheckConstraint(condition=~Q(estado="GENERADA") | (Q(cdc__isnull=False, generada_en__isnull=False, intento__isnull=False) & ~Q(cdc="")), name="factura_generada_con_evidencia"),
         ]
+
+
+class RangoNumeracionFiscal(models.Model):
+    """Secuencia fiscal TEST protegida contra asignaciones concurrentes."""
+
+    tipo_documento = models.CharField(max_length=2, default="1")
+    timbrado = models.CharField(max_length=20)
+    establecimiento = models.CharField(max_length=3)
+    punto_expedicion = models.CharField(max_length=3)
+    numero_desde = models.PositiveIntegerField()
+    numero_hasta = models.PositiveIntegerField()
+    siguiente_numero = models.PositiveIntegerField()
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("tipo_documento", "timbrado", "establecimiento", "punto_expedicion"),
+                name="factura_rango_identidad_unica",
+            ),
+            models.CheckConstraint(
+                condition=Q(numero_desde__gte=1) & Q(numero_hasta__gte=models.F("numero_desde")),
+                name="factura_rango_limites_validos",
+            ),
+            models.CheckConstraint(
+                condition=Q(siguiente_numero__gte=models.F("numero_desde")),
+                name="factura_rango_siguiente_valido",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.establecimiento}-{self.punto_expedicion} {self.numero_desde:07d}-{self.numero_hasta:07d}"
+
+
+class NumeroFiscalAsignado(models.Model):
+    """Número reservado una sola vez para una factura, incluso ante errores ESI."""
+
+    factura = models.OneToOneField(Factura, on_delete=models.PROTECT, related_name="numero_fiscal")
+    rango = models.ForeignKey(RangoNumeracionFiscal, on_delete=models.PROTECT, related_name="asignaciones")
+    numero = models.PositiveIntegerField()
+    asignado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("rango", "numero"), name="factura_numero_unico_en_rango"),
+        ]
+
+    @property
+    def numero_formateado(self):
+        return f"{self.numero:07d}"
 
 
 class EnvioFactura(models.Model):

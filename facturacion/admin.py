@@ -1,6 +1,9 @@
 from django.contrib import admin
 
-from .models import IntentoEmisionFacturaSegura, Factura
+from .models import (
+    Factura, IntentoEmisionFacturaSegura, NumeroFiscalAsignado,
+    RangoNumeracionFiscal,
+)
 
 
 @admin.register(IntentoEmisionFacturaSegura)
@@ -25,7 +28,29 @@ class IntentoEmisionFacturaSeguraAdmin(admin.ModelAdmin):
 
 @admin.register(Factura)
 class FacturaAdmin(IntentoEmisionFacturaSeguraAdmin):
-    list_display = ("id", "transaccion", "estado", "cdc", "codigo_error", "actualizada_en")
-    list_filter = ("estado",)
+    list_display = (
+        "id", "transaccion", "estado", "estado_sifen", "cdc",
+        "codigo_error", "consultada_sifen_en", "actualizada_en",
+    )
+    list_filter = ("estado", "estado_sifen")
     search_fields = ("cdc", "transaccion__cliente__documento")
     readonly_fields = tuple(campo.name for campo in Factura._meta.fields)
+
+
+@admin.register(RangoNumeracionFiscal)
+class RangoNumeracionFiscalAdmin(IntentoEmisionFacturaSeguraAdmin):
+    list_display = (
+        "tipo_documento", "timbrado", "establecimiento", "punto_expedicion",
+        "numero_desde", "numero_hasta", "siguiente_numero", "activo",
+    )
+    list_filter = ("activo", "tipo_documento")
+    search_fields = ("timbrado", "establecimiento", "punto_expedicion")
+    readonly_fields = tuple(campo.name for campo in RangoNumeracionFiscal._meta.fields)
+
+
+@admin.register(NumeroFiscalAsignado)
+class NumeroFiscalAsignadoAdmin(IntentoEmisionFacturaSeguraAdmin):
+    list_display = ("factura", "rango", "numero", "asignado_en")
+    list_filter = ()
+    search_fields = ("factura__transaccion__cliente__documento", "numero")
+    readonly_fields = tuple(campo.name for campo in NumeroFiscalAsignado._meta.fields)
