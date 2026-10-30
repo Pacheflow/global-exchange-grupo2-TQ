@@ -171,7 +171,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
             else:
                 self.assertContains(respuesta, 'data-can-liquidate="true"')
 
-    def test_historial_nuevo_no_altera_usuario_ni_admin(self):
+    def test_historial_usuario_habilitado_y_admin_conserva_supervision(self):
         tx = self.crear().transaccion
         from .models import Transaccion
         Transaccion.objects.filter(pk=tx.pk).update(estado="COMPLETADA")
@@ -182,7 +182,7 @@ class FlujosGuillermoTests(BaseOperacionesTests):
             for query in ({}, {"vista": "historial"}):
                 datos = self.client.get(url, query).json()["transacciones"]
                 self.assertEqual({item["id"] for item in datos}, {tx.pk, pendiente.pk})
-            self.assertEqual(self.client.get(reverse("operaciones_web:historial")).status_code, 403)
+            self.assertEqual(self.client.get(reverse("operaciones_web:historial")).status_code, 200 if roles == ("USUARIO",) else 403)
 
     def test_cajero_renderiza_bandeja_con_selected_client_invalido(self):
         """La bandeja y acceso presencial no requieren cliente en sesión ni asociaciones del cajero."""

@@ -9,7 +9,7 @@
     <span class="ge-status-badge ge-status-badge--md {% if factura.estado == 'GENERADA' %}ge-status-badge--success{% elif factura.estado == 'ERROR' %}ge-status-badge--danger{% else %}ge-status-badge--warning{% endif %}"><i class="ge-status-dot"></i>{{ factura.get_estado_display }}</span>
   </header>
 
-  {% if factura.estado == 'GENERADA' %}
+  {% if factura.estado == 'GENERADA' and factura.cdc %}
     <section class="ge-card ge-invoice-fiscal-card" aria-labelledby="fiscal-title">
       <div class="ge-invoice-fiscal-head">
         <div><span>Seguimiento fiscal</span><h2 id="fiscal-title">Estado en SIFEN</h2></div>
@@ -27,7 +27,7 @@
     </section>
 
     <section class="ge-card ge-invoice-actions ge-invoice-actions--compact" aria-label="Acciones del comprobante">
-      <div><h2>Comprobante</h2>{% if factura.cdc %}<code class="ge-invoice-cdc ge-invoice-cdc--inline">CDC {{ factura.cdc }}</code>{% endif %}</div>
+      <div><h2>Comprobante</h2><code class="ge-invoice-cdc ge-invoice-cdc--inline">CDC: {{ factura.cdc }}</code></div>
       <div class="ge-btn-row">
         <a class="ge-btn-ghost" href="{% url 'facturacion:visualizar' factura.pk %}" target="_blank" rel="noopener">Ver comprobante PDF</a>
         <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>
@@ -36,7 +36,7 @@
     </section>
     {% if factura.estado_sifen != 'Aprobado' %}<p class="ge-invoice-footnote">Este comprobante todavía no cuenta con aprobación fiscal confirmada.</p>{% endif %}
   {% else %}
-    <section class="ge-card ge-invoice-empty-state ge-invoice-empty-state--wide"><span>{% include 'components/icon.html' with name='alert' size=22 %}</span><div><strong>Comprobante no disponible</strong><p>La factura todavía no fue generada.</p></div></section>
+    <section class="ge-card ge-invoice-empty-state ge-invoice-empty-state--wide"><span>{% include 'components/icon.html' with name='alert' size=22 %}</span><div><strong>Comprobante no disponible</strong><p>El comprobante todavía no está disponible.</p></div></section>
   {% endif %}
 
   <section class="ge-card ge-invoice-operation-summary" aria-labelledby="operation-title">
@@ -47,9 +47,19 @@
       <div class="ge-invoice-amount"><span>Recibe</span><strong>{{ factura.datos_operacion.monto_destino }} <small>{{ factura.datos_operacion.moneda_destino }}</small></strong></div>
     </div>
     <dl class="ge-invoice-compact-meta">
+      <div><dt>Operación</dt><dd>Operación: {{ factura.datos_operacion.tipo }}</dd></div>
+      <div><dt>Emisión</dt><dd>Estado de emisión: {{ factura.get_estado_display }}</dd></div>
       <div><dt>Tasa</dt><dd>{{ factura.datos_operacion.tasa_aplicada }}</dd></div>
       <div><dt>Comisión</dt><dd>{{ factura.datos_operacion.importe_comision_pyg|default:'—' }} PYG</dd></div>
-      <div><dt>Documento</dt><dd>{{ factura.datos_operacion.documento }}</dd></div>
+      {% if factura.datos_operacion.tipo_persona == 'JURIDICA' %}
+        <div><dt>Receptor</dt><dd>Persona Jurídica</dd></div>
+        <div><dt>RUC</dt><dd>RUC: {{ factura.datos_operacion.ruc|default:factura.datos_operacion.documento }}</dd></div>
+        {% if factura.datos_operacion.dv %}<div><dt>DV</dt><dd>DV: {{ factura.datos_operacion.dv }}</dd></div>{% endif %}
+      {% else %}
+        <div><dt>Receptor</dt><dd>Persona Física</dd></div>
+        <div><dt>Documento</dt><dd>Documento: {{ factura.datos_operacion.documento }}</dd></div>
+      {% endif %}
+      {% if factura.datos_operacion.correo_facturacion %}<div><dt>Correo de facturación</dt><dd>{{ factura.datos_operacion.correo_facturacion }}</dd></div>{% endif %}
     </dl>
   </section>
 </div>

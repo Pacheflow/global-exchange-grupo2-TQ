@@ -1,0 +1,25 @@
+<section class="ge-card ge-history-card" aria-labelledby="historial-title">
+  <div class="ge-history-head">
+    <div>
+      <h3 id="historial-title">Últimas operaciones de caja</h3>
+      <p>Movimientos recientes registrados en la caja.</p>
+    </div>
+    <div class="ge-operation-actions">
+      <a class="ge-btn-ghost" href="{% url 'cajas:historial_selector' %}" data-cash-history-link>Ver historial completo</a>
+      <button type="button" class="ge-btn-ghost" data-reload-history>Actualizar</button>
+    </div>
+  </div>
+  <div class="ge-card--pad24">
+    <div class="ge-field">
+      <label for="consulta-caja-periodo">Caja / período abierto</label>
+      <select id="consulta-caja-periodo" data-cash-period><option value="">Cargando cajas…</option></select>
+    </div>
+    <p class="muted" data-cash-recent-message role="status" aria-live="polite">Consultando movimientos de caja…</p>
+  </div>
+  <div class="ge-table-wrap">
+    <table class="ge-table ge-operations-table">
+      <thead><tr><th>ID / fecha</th><th>Tipo</th><th>Moneda</th><th>Importe</th><th>Método</th><th>Origen</th><th>Estado</th></tr></thead>
+      <tbody data-history-body><tr><td colspan="7" class="no-data">Cargando movimientos…</td></tr></tbody>
+    </table>
+  </div>
+</section>

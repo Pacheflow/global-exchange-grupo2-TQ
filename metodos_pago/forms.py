@@ -11,10 +11,21 @@ class MetodoPagoForm(forms.ModelForm):
     garantizando que el nombre sea válido y único dentro del catálogo global.
     """
 
+    naturaleza = forms.ChoiceField(
+        label="Tipo",
+        choices=[
+            ("", "Seleccioná un tipo"),
+            (MetodoPago.Naturaleza.ELECTRONICO, "Electrónico"),
+            (MetodoPago.Naturaleza.EFECTIVO, "Efectivo"),
+        ],
+        error_messages={"required": "Seleccioná el tipo del método de pago."},
+    )
+
     class Meta:
         model = MetodoPago
         fields = [
             "nombre",
+            "naturaleza",
             "descripcion",
             "activo",
         ]
@@ -39,6 +50,15 @@ class MetodoPagoForm(forms.ModelForm):
                 code="duplicate",
             )
         return nombre
+
+    def clean_naturaleza(self):
+        """Una clasificación con referencias históricas no puede redefinirse."""
+        naturaleza = self.cleaned_data["naturaleza"]
+        if (self.instance.pk
+            and self.instance.naturaleza not in {MetodoPago.Naturaleza.SIN_CLASIFICAR, naturaleza}
+            and self.instance.tiene_referencias()):
+            raise forms.ValidationError("No se puede cambiar el tipo de un método con operaciones o pagos.")
+        return naturaleza
 
     def clean_descripcion(self):
         """Normaliza la descripción opcional antes de persistirla."""

@@ -1,6 +1,7 @@
 import json
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -27,6 +28,12 @@ def _metodo_data(metodo):
     return {
         "id": metodo.id,
         "nombre": metodo.nombre,
+        "naturaleza": metodo.naturaleza,
+        "naturaleza_display": {
+            MetodoPago.Naturaleza.ELECTRONICO: "Electrónico",
+            MetodoPago.Naturaleza.EFECTIVO: "Efectivo",
+            MetodoPago.Naturaleza.SIN_CLASIFICAR: "Sin clasificar",
+        }[metodo.naturaleza],
         "descripcion": metodo.descripcion,
         "activo": metodo.activo,
         "fecha_registro": metodo.fecha_registro.isoformat(),
@@ -100,6 +107,8 @@ def registrar_metodo_pago(request):
         if form.is_valid():
             try:
                 metodo = form.save()
+            except ValidationError as error:
+                form.add_error(None, error)
             except IntegrityError:
                 form.add_error(
                     None,
@@ -196,6 +205,8 @@ def editar_metodo_pago(request, metodo_id):
         if form.is_valid():
             try:
                 form.save()
+            except ValidationError as error:
+                form.add_error(None, error)
             except IntegrityError:
                 form.add_error(
                     None,
@@ -255,17 +266,19 @@ def cambiar_estado_metodo_pago(request, metodo_id):
         id=metodo_id,
     )
 
-    if metodo.activo:
-        metodo.desactivar()
-        mensaje = "Método de pago desactivado correctamente."
-    else:
-        metodo.activar()
-        mensaje = "Método de pago activado correctamente."
-
-    messages.success(
-        request,
-        mensaje,
-    )
+    try:
+        if metodo.activo:
+            metodo.desactivar()
+            mensaje = "Método de pago desactivado correctamente."
+        else:
+            metodo.activar()
+            mensaje = "Método de pago activado correctamente."
+    except ValidationError as error:
+        mensaje = " ".join(error.messages)
+        if _solicita_json(request):
+            return JsonResponse({"error": mensaje}, status=400)
+        messages.error(request, mensaje)
+        return redirect("metodos_pago:consultar_metodos_pago")
 
     if _solicita_json(request):
         metodo.refresh_from_db()
@@ -276,4 +289,5 @@ def cambiar_estado_metodo_pago(request, metodo_id):
             }
         )
 
+    messages.success(request, mensaje)
     return redirect("metodos_pago:consultar_metodos_pago")

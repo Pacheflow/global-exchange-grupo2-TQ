@@ -70,7 +70,7 @@
     </div>
   {% endif %}
 
-  {% if messages %}<div class="messages" role="status">{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  {% if messages %}<div class="messages" hidden>{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
   <main id="content">{% block content %}{% endblock %}</main>
 
   {% if kc_user %}

@@ -9,10 +9,10 @@
     <table class="ge-table">
       <thead><tr><th>Operación</th><th>Cliente</th><th>Fecha</th><th>Estado de emisión</th><th>Comprobante</th></tr></thead>
       <tbody>{% for factura in pagina %}
-      <tr><td>#{{ factura.transaccion_id }}</td><td>{{ factura.transaccion.cliente }}</td>
+      <tr><td>#{{ factura.transaccion_id }}</td><td>{{ factura.datos_operacion.cliente }}</td>
         <td>{{ factura.creada_en|date:'d/m/Y H:i' }}</td><td>
           {{ factura.get_estado_display }}
-          {% if factura.estado == 'GENERADA' %}
+          {% if factura.estado == 'GENERADA' and factura.cdc %}
             <br><small>SIFEN: {{ factura.estado_sifen|default:'Pendiente de consulta' }}</small>
           {% endif %}
         </td>
@@ -24,11 +24,12 @@
               <button class="ge-btn-primary" type="submit">Procesar factura</button>
             </form>
           {% endif %}
-          {% if factura.estado == 'GENERADA' %}
+          {% if factura.estado == 'GENERADA' and factura.cdc %}
             <form method="post" action="{% url 'facturacion:actualizar_estado' factura.pk %}" style="display:inline">
               {% csrf_token %}
               <button class="ge-btn-outline" type="submit">Actualizar estado</button>
             </form>
+            <a class="ge-btn-primary" href="{% url 'facturacion:descargar' factura.pk 'pdf' %}">Descargar PDF</a>
           {% endif %}
         </td></tr>
       {% empty %}<tr><td colspan="5">Todavía no hay facturas para consultar.</td></tr>{% endfor %}</tbody>

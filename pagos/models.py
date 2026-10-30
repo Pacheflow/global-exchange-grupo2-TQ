@@ -50,9 +50,10 @@ class Pago(models.Model):
     MAX_BYTES_TRAZABILIDAD = 8192
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    transaccion = models.OneToOneField(
-        "operaciones.Transaccion", on_delete=models.PROTECT, related_name="pago",
+    transaccion = models.ForeignKey(
+        "operaciones.Transaccion", on_delete=models.PROTECT, related_name="intentos_pago",
     )
+    vigente = models.BooleanField(default=True, editable=False)
     metodo_pago = models.ForeignKey(
         "metodos_pago.MetodoPago", on_delete=models.PROTECT, related_name="pagos",
     )
@@ -77,6 +78,13 @@ class Pago(models.Model):
     class Meta:
         ordering = ("-fecha_creacion",)
         constraints = [
+            models.UniqueConstraint(fields=["transaccion"], condition=Q(vigente=True),
+                                    name="pago_vigente_unico_por_transaccion"),
+            models.CheckConstraint(
+                condition=(Q(vigente=True) | Q(estado="RECHAZADO")
+                           | Q(estado="ERROR", referencia_externa__isnull=True)),
+                name="pago_archivado_sin_ejecucion",
+            ),
             models.CheckConstraint(
                 condition=Q(monto__gt=0) & Q(monto__lt=Decimal("1000000000000")),
                 name="pago_monto_positivo",
@@ -155,8 +163,17 @@ class Pago(models.Model):
             errores["iniciado_por_keycloak_id"] = "La identidad del iniciador es obligatoria."
         original = None
         if not self._state.adding:
-            original = type(self).objects.filter(pk=self.pk).values(*self.CAMPOS_INMUTABLES, "estado").first()
+            original = type(self).objects.filter(pk=self.pk).values(*self.CAMPOS_INMUTABLES, "estado", "vigente").first()
         if original:
+            if not original["vigente"]:
+                errores["vigente"] = "Un intento histórico no puede modificarse ni reactivarse."
+            if not self.vigente and not (
+                self.estado == self.Estado.RECHAZADO
+                or (self.estado == self.Estado.ERROR and self.referencia_externa is None
+                    and self.trazabilidad and self.trazabilidad[-1]["estado"] == self.Estado.ERROR
+                    and self.trazabilidad[-1]["codigo"] == "ERROR_SIN_EJECUCION")
+            ):
+                errores["vigente"] = "Solo se archivan intentos con no ejecución certificada."
             for campo in self.CAMPOS_INMUTABLES:
                 if getattr(self, campo) != original[campo]:
                     nombre = campo.removesuffix("_id") if campo in ("transaccion_id", "metodo_pago_id") else campo

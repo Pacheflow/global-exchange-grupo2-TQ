@@ -98,6 +98,7 @@ def _datos_operacion(op):
         "cliente": op.cliente.nombre_razon_social, "documento": op.cliente.documento,
         "correo_facturacion": op.cliente.correo_facturacion,
         "tipo_persona": op.cliente.tipo_persona, "tipo": op.tipo,
+        "ruc": op.cliente.ruc, "dv": op.cliente.dv,
         "canal": op.canal, "naturaleza_metodo": op.naturaleza_metodo,
         "moneda_origen": op.moneda_origen.codigo, "moneda_destino": op.moneda_destino.codigo,
         "monto_origen": str(op.monto_origen), "monto_destino": str(op.monto_destino),
@@ -112,16 +113,9 @@ def preparar_factura(transaccion_id):
     op = Transaccion.objects.select_related("cliente", "moneda_origen", "moneda_destino").get(pk=transaccion_id)
     if op.estado != "COMPLETADA":
         raise ValidationError("La transacción debe estar completada.")
-    factura, creada = Factura.objects.get_or_create(
+    factura, _ = Factura.objects.get_or_create(
         transaccion=op, defaults={"datos_operacion": _datos_operacion(op)}
     )
-    # Compatibilidad con facturas PENDIENTE creadas antes del contrato fiscal.
-    # Una factura ya procesada conserva su snapshot original sin mutaciones.
-    if not creada and factura.estado == Factura.Estado.PENDIENTE and factura.intento_id is None:
-        requeridos = {"correo_facturacion", "canal", "naturaleza_metodo"}
-        if not requeridos <= set(factura.datos_operacion):
-            factura.datos_operacion = _datos_operacion(op)
-            factura.save(update_fields=["datos_operacion", "actualizada_en"])
     return factura
 
 

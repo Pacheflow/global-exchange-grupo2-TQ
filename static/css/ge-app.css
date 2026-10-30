@@ -208,6 +208,9 @@ body.authenticated .sidebar-user small { color: var(--text-2); }
 .ge-toast--warning { border-color: #fbbf24; background: #302713; }
 .ge-toast--error { border-color: #f87171; background: #321923; }
 .ge-toast--info { border-color: #38bdf8; background: #10263a; }
+.ge-toast > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .ge-toast { right: 16px; } }
+@media (prefers-reduced-motion: reduce) { .ge-toast { animation: none; } }
 .ge-toast-close { margin-left: auto; padding: 4px; background: none; border: 0; color: #b8cbea; cursor: pointer; font-size: 18px; line-height: 1; }
 .ge-toast-close:hover { color: #fff; }
 .ge-toast .ge-toast-icon { display: grid; place-items: center; flex: 0 0 22px; width: 22px; height: 22px; color: currentColor; }
