@@ -38,8 +38,8 @@ CONFIG_TEST = dict(
 class ContratoFacturaSeguraTestTests(TestCase):
     def setUp(self):
         self.cliente = Cliente.objects.create(
-            nombre_razon_social="Receptor Test", documento="1234567-8",
-            correo_facturacion="receptor@example.test", tipo_persona="FISICA",
+            nombre_razon_social="Receptor Test", documento="1234567", dv="8",
+            correo_facturacion="receptor@example.test", tipo_persona="JURIDICA",
         )
         usd = self.usd = Moneda.objects.get(codigo="USD")
         pyg = self.pyg = Moneda.objects.get(codigo="PYG")
@@ -75,10 +75,33 @@ class ContratoFacturaSeguraTestTests(TestCase):
         self.assertEqual(de["cMoneOpe"], "PYG")
         self.assertEqual(de["dRucRec"], "1234567")
         self.assertEqual(de["dDVRec"], "8")
+        self.assertEqual(de["iTiContRec"], "2")
         self.assertEqual(de["gPaConEIni"][0]["dMonTiPag"], "7000")
         self.assertEqual(de["gCamItem"][0]["dPUniProSer"], "7000")
         self.assertEqual(de["gCamItem"][0]["dTasaIVA"], "10")
         self.assertEqual(NumeroFiscalAsignado.objects.get(factura=self.factura).numero, 338)
+
+    def test_admite_snapshot_historico_con_ruc_y_dv_concatenados(self):
+        snapshot = self.factura.datos_operacion.copy()
+        snapshot.update({
+            "tipo_persona": "JURIDICA", "documento": "1234567-8",
+            "ruc": "1234567-8", "dv": "",
+        })
+
+        de = self.contrato.construir_de(snapshot)
+
+        self.assertEqual(de["dRucRec"], "1234567")
+        self.assertEqual(de["dDVRec"], "8")
+        self.assertEqual(de["iTiContRec"], "2")
+
+    def test_rechaza_juridica_sin_dv_antes_de_reservar_numero(self):
+        snapshot = self.factura.datos_operacion.copy()
+        snapshot["dv"] = ""
+
+        with self.assertRaisesMessage(ValidationError, "necesita un DV válido"):
+            self.contrato.construir_de(snapshot)
+
+        self.assertFalse(NumeroFiscalAsignado.objects.exists())
 
     def test_reconstruir_reutiliza_numero_y_no_avanza_dos_veces(self):
         primero = self.contrato.construir_de(self.factura.datos_operacion)
