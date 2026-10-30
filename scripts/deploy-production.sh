@@ -89,7 +89,7 @@ printf '%s\n' "${PREVIOUS_COMMIT}" >"${BACKUP_DIR}/${STAMP}/PREVIOUS_COMMIT"
 printf '%s\n' "${DEPLOY_COMMIT}" >"${BACKUP_DIR}/${STAMP}/DEPLOY_COMMIT"
 
 log "Construyendo imágenes de forma secuencial"
-compose build --pull web
+compose build --pull --build-arg "BUILD_COMMIT=${DEPLOY_COMMIT}" web
 compose build --pull nginx
 
 wait_for_health() {
@@ -141,13 +141,22 @@ wait_for_completion keycloak-config 180
 compose up -d --force-recreate keycloak-web-config
 wait_for_completion keycloak-web-config 180
 
-log "Iniciando Django y Nginx; el entrypoint aplica migraciones"
-compose up -d --remove-orphans web nginx
+log "Recreando Django con la imagen recién construida"
+compose up -d --force-recreate --no-deps web
 wait_for_health web 300
+
+log "Recreando Nginx para renovar la resolución interna de Django"
+compose up -d --force-recreate --no-deps --remove-orphans nginx
 wait_for_health nginx 180
 
 log "Ejecutando comprobaciones posteriores"
+web_container_id="$(compose ps -q web)"
+deployed_commit="$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${web_container_id}")"
+[ "${deployed_commit}" = "${DEPLOY_COMMIT}" ] || \
+  die "La imagen web no corresponde al commit desplegado (${deployed_commit:-sin etiqueta})."
+compose exec -T web python -c 'import facturacion; print("Módulo facturacion:", facturacion.__file__)'
 compose exec -T web python manage.py migrate --check
+compose exec -T web python manage.py showmigrations facturacion --plan
 compose exec -T web python manage.py check --deploy
 compose exec -T nginx wget -qO- http://127.0.0.1:8080/nginx-health | grep -qx 'ok'
 compose ps -a
