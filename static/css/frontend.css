@@ -66,6 +66,7 @@
 .ge-frontend-nav-icon svg { display: block; width: 18px; height: 18px; stroke: currentColor; }
 .ge-frontend-nav a.is-active .ge-frontend-nav-icon { opacity: 1; }
 .ge-frontend-nav-label { flex: 1; }
+.ge-frontend-nav-group-label { padding: 14px 12px 5px; color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .ge-frontend-nav-badge {
   background: var(--primary); color: #fff; border-radius: 999px;
   font-size: 10px; font-weight: 700; padding: 1px 6px;
