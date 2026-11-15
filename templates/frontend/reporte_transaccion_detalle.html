@@ -1,0 +1,37 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Detalle de transacción #{{ transaccion.pk }} · Global Exchange{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/reporte_transacciones.css' %}">{% endblock %}
+{% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad ge-report-transactions">
+  <header class="ge-frontend-section-head">
+    <div>
+      <span class="ge-frontend-eyebrow">Reportes · Transacciones</span>
+      <h1 class="ge-frontend-h1">Detalle de transacción #{{ transaccion.pk }}</h1>
+      <p class="ge-frontend-subtitle">Consulta de solo lectura. Esta pantalla no modifica la operación ni ejecuta acciones sobre pagos, Caja, Fondos o facturas.</p>
+    </div>
+    <a class="ge-btn-ghost" href="{% url 'operaciones_web:reporte_administrativo_transacciones' %}">Volver al reporte</a>
+  </header>
+
+  <section class="ge-card ge-report-card" aria-labelledby="detalle-reporte-title">
+    <h2 id="detalle-reporte-title" class="ge-card-title">Datos registrados</h2>
+    <dl class="ge-report-detail-grid">
+      <div><dt>Fecha y hora</dt><dd>{{ transaccion.fecha_creacion|date:"d/m/Y H:i:s" }}</dd></div>
+      <div><dt>Cliente vinculado</dt><dd>{{ transaccion.cliente.nombre_razon_social }} <small>Nombre actual · cliente #{{ transaccion.cliente_id }}</small></dd></div>
+      <div><dt>Tipo</dt><dd>{{ transaccion.get_tipo_display }}</dd></div>
+      <div><dt>Estado</dt><dd>{{ transaccion.get_estado_display }}</dd></div>
+      <div><dt>Moneda e importe de origen</dt><dd>{{ transaccion.monto_origen }} {{ transaccion.moneda_origen.codigo }} <small>Código actual de catálogo</small></dd></div>
+      <div><dt>Moneda e importe de destino</dt><dd>{{ transaccion.monto_destino }} {{ transaccion.moneda_destino.codigo }} <small>Código actual de catálogo</small></dd></div>
+      <div><dt>Tasa aplicada</dt><dd>{{ transaccion.tasa_aplicada }}</dd></div>
+      <div><dt>Comisión y moneda</dt><dd>{{ transaccion.importe_comision }} {{ transaccion.moneda_destino.codigo }} <small>{{ transaccion.porcentaje_comision }} %</small></dd></div>
+      <div><dt>Método de pago (snapshot)</dt><dd>{{ metodo }}</dd></div>
+      <div><dt>Naturaleza histórica</dt><dd>{{ naturaleza }}</dd></div>
+      <div><dt>Usuario responsable / cajero</dt><dd>{{ actor }}</dd></div>
+      {% if liquidacion %}<div><dt>Caja vinculada</dt><dd>{{ liquidacion.periodo.caja.codigo }} · período #{{ liquidacion.periodo_id }}</dd></div>{% endif %}
+    </dl>
+    <p class="ge-report-note">Los importes, tasa y comisión corresponden a los valores persistidos. El nombre del cliente y los códigos de moneda son datos actuales de registros vinculados; la aplicación no guardó snapshots históricos de esos textos para esta transacción.</p>
+    <a class="ge-btn-ghost" href="{% url 'operaciones_web:reporte_administrativo_transacciones' %}">Volver al reporte</a>
+  </section>
+</div>
+{% endblock %}
