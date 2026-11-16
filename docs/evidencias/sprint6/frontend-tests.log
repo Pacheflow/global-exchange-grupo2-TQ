@@ -1,0 +1,13 @@
+✔ static/js/tests/clientes.test.cjs (78.41163ms)
+✔ static/js/tests/frontend-api.test.cjs (61.318835ms)
+✔ static/js/tests/ge-app.test.cjs (61.443647ms)
+✔ static/js/tests/landing.test.cjs (51.862685ms)
+✔ static/js/tests/operaciones.test.cjs (217.649557ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 238.031332
