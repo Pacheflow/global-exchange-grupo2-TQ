@@ -114,6 +114,7 @@
         <p class="ge-frontend-note">{% if 'ANALISTA_CAMBIARIO' in kc_roles %}Compará las tasas de referencia con las tasas comerciales y administrá sus versiones.{% else %}Consultá las tasas comerciales vigentes de compra y venta.{% endif %}</p>
       </div>
       <div class="ge-frontend-section-actions">
+        <a class="ge-btn-secondary" href="{% url 'tasas_web:historico' %}">Ver histórico</a>
         {% if 'ANALISTA_CAMBIARIO' in kc_roles %}<span class="ge-chip" data-reference-status>Consultando</span>{% endif %}
         {% if 'ANALISTA_CAMBIARIO' in kc_roles %}
           <button type="button" class="ge-btn-primary" style="font-size:13px;padding:8px 16px">Nueva tasa comercial</button>
