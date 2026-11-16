@@ -4,48 +4,60 @@
 
 **Historia de usuario:** HU-18 / IS2TQ2026-22 — Consultar el histórico de tasas de cambio.
 
-Las consultas siguientes son síntesis de lo conversado y de la asistencia utilizada durante el desarrollo, no transcripciones literales.
+Las consultas están resumidas y agrupadas por tema a partir de la asistencia utilizada durante el desarrollo.
 
 ## Consultas y decisiones
 
-### 1. ¿Qué historia me corresponde y necesito esperar a otro integrante?
+### 1. ¿Cómo podemos reutilizar el histórico existente para HU-18?
 
-**Respuesta resumida de la IA:** La responsabilidad asignada es el gráfico histórico de tasas. Puede avanzar de forma independiente del cálculo de ganancias y del dashboard financiero, siempre que el histórico existente permita consultar las tasas con sus fechas.
+**Respuesta resumida de la IA:** Revisar cómo se guardan las modificaciones de tasas antes de agregar otro modelo. Si cada cambio conserva su versión y fecha, esos registros pueden utilizarse para construir la evolución histórica.
 
-**Aplicación:** Se relacionó HU-18 / IS2TQ2026-22 con el alcance de Elías en el plan del Sprint 6. Se comprobó que `TasaComercial` conserva versiones anteriores de compra y venta y se reutilizó esa información.
+**Aplicación:** Se reutilizó `TasaComercial`, que conserva compra, venta y fecha de registro de cada versión. La consulta incluye versiones anteriores y permite consultar monedas que después fueron desactivadas. No fue necesario crear tablas ni migraciones nuevas.
 
-### 2. ¿Cómo incorporamos lo que ya hicieron los demás antes de trabajar en mi parte?
+### 2. ¿Por qué necesitamos seleccionar un par de monedas y no solamente una moneda?
 
-**Respuesta resumida de la IA:** Revisar el estado local y la rama compartida, traer las actualizaciones disponibles y trabajar en una rama propia para no modificar directamente el trabajo integrado del equipo.
+**Respuesta resumida de la IA:** Una tasa expresa la relación entre dos monedas. Para comparar valores a lo largo del tiempo debe mantenerse el mismo origen y destino, sin mezclar pares ni asumir que una tasa inversa equivale al dato registrado.
 
-**Aplicación:** La implementación se preparó sobre `develop` actualizado, que ya incluía el reporte administrativo de transacciones y las correcciones de despliegue. Se utilizó la rama `feature/hu-18-historico-tasas-elias`.
+**Aplicación:** Se incorporaron los selectores de moneda de origen y destino. El gráfico y la tabla muestran únicamente el par elegido, y se rechaza seleccionar la misma moneda en ambos campos. Esto contempla la selección de moneda de Jira y el par solicitado por el plan del Sprint 6.
 
-### 3. ¿Cómo cumplimos los criterios de Jira y lo que agrega el plan del sprint?
+### 3. ¿Cómo damos acceso a visitantes sin exponer la auditoría de las tasas?
 
-**Respuesta resumida de la IA:** Permitir seleccionar el par de monedas y el período, mostrar las tasas reales de compra y venta con sus fechas y representar su evolución. Si no hay registros, informar la ausencia de información sin completar datos inexistentes.
+**Respuesta resumida de la IA:** Separar los datos necesarios para la consulta pública de los utilizados para administrar y auditar las modificaciones. El acceso público no debe ampliar los permisos del historial administrativo.
 
-**Aplicación:** Se prepararon los filtros de origen, destino, Desde y Hasta, el gráfico temporal y la tabla paginada. Las fechas incluyen el día completo en la zona horaria del proyecto. Se conservaron las versiones anteriores y la consulta de monedas desactivadas. Con las fechas vacías se puede consultar todo el histórico del par.
+**Aplicación:** La nueva consulta devuelve fechas y valores de compra y venta, sin nombres de usuario ni identificadores de auditoría. Visitantes y usuarios autenticados pueden consultar el gráfico. La API administrativa mantiene sus restricciones y las nuevas rutas solo admiten GET.
 
-### 4. ¿Cómo permitimos la consulta de visitantes y usuarios sin exponer información interna?
+### 4. ¿Cómo incluimos todo el día seleccionado sin perder registros por la hora?
 
-**Respuesta resumida de la IA:** Separar la consulta pública de la consulta administrativa. El histórico público debe mostrar fechas y valores de tasas, mientras la auditoría interna conserva sus permisos.
+**Respuesta resumida de la IA:** Interpretar las fechas en la zona horaria del proyecto. Para la fecha final, consultar hasta el inicio del día siguiente de forma exclusiva, en lugar de comparar con la medianoche del mismo día.
 
-**Aplicación:** Se agregó una API pública de solo lectura y la pantalla de histórico, sin nombres de usuario ni identificadores de auditoría. El historial administrativo mantuvo sus restricciones. La consulta no modifica tasas ni solicita información histórica al proveedor externo.
+**Aplicación:** Desde y Hasta incluyen los días completos en `America/Asuncion`. Se permiten límites independientes y, si ambos están vacíos, se consulta todo el histórico del par. La primera visita propone los últimos 30 días como filtro editable.
 
-### 5. ¿Qué pruebas necesitamos para comprobar la funcionalidad?
+### 5. ¿Qué debe ocurrir si el usuario ingresa filtros inválidos?
 
-**Respuesta resumida de la IA:** Verificar permisos, filtros, límites de fechas, precisión decimal, orden temporal, versiones anteriores y ausencia de datos. También comprobar que la paginación mantenga los filtros y que un único registro pueda visualizarse.
+**Respuesta resumida de la IA:** Validar también en backend para que la consulta no dependa de las restricciones del navegador. Diferenciar errores de entrada de una consulta válida que simplemente no tiene registros.
 
-**Aplicación:** Se prepararon y ejecutaron 18 pruebas nuevas. La suite completa pasó con 705 pruebas sobre PostgreSQL aislado. Después de que Elías abriera Docker, se repitió la suite con la imagen del proyecto y PostgreSQL 17: 705 pruebas correctas. La comprobación de migraciones no detectó cambios pendientes.
+**Aplicación:** El formulario valida monedas existentes, pares distintos y fechas válidas. Si la fecha inicial es posterior a la final, se muestra el error correspondiente. La API responde 400 ante filtros inválidos y no se genera un gráfico con esa entrada.
 
-### 6. ¿Qué tengo que revisar en la pantalla del histórico?
+### 6. ¿Cómo representamos correctamente registros tomados en momentos distintos?
 
-**Respuesta resumida de la IA:** Comparar los puntos del gráfico con los valores de la tabla, consultar un período con registros y otro sin información, y comprobar que los filtros se mantengan al realizar la consulta.
+**Respuesta resumida de la IA:** Ubicar cada punto según su fecha real y no según su posición en una lista. Distinguir las series de compra y venta y permitir visualizar también una sola observación.
 
-**Aplicación:** Elías compartió capturas de la consulta USD/PYG con los tres registros del 14/09/2026 y del período 01/10/2026–31/10/2026 sin registros. Se comprobó el mensaje de ausencia de información. También se revisó la presentación en escritorio y móvil y se ajustaron el contraste y el espacio bajo la navegación.
+**Aplicación:** Se utilizó un gráfico SVG con eje temporal proporcional, compra con línea continua y venta con línea discontinua. Los puntos permiten consultar fecha y valor. Las líneas conectan registros disponibles; no generan cotizaciones intermedias. Se conserva un orden por fecha y clave primaria para registros simultáneos.
 
-### 7. ¿Cómo queda el trabajo para revisarlo con el equipo y verlo en mi carpeta habitual?
+### 7. ¿Cómo conservamos los valores exactos y evitamos que la paginación cambie el gráfico?
 
-**Respuesta resumida de la IA:** Mantener los cambios en la rama de la historia, abrir un Pull Request hacia `develop` para revisión y traer esa misma rama a la copia local que se utiliza en VS Code.
+**Respuesta resumida de la IA:** Mantener la precisión decimal de las tasas y separar la paginación de la tabla del conjunto de datos representado. Los filtros deben conservarse al cambiar de página.
 
-**Aplicación:** Se publicó la rama y se abrió el PR #59 hacia `develop`. Después se actualizó la carpeta habitual mediante avance directo y se dejó seleccionada la rama de HU-18, sin cambios locales pendientes. La publicación no implica aceptación del equipo, despliegue productivo ni cierre de Jira.
+**Aplicación:** La API serializa los importes como cadenas decimales y la tabla permite consultar sus valores. La tabla muestra 25 registros por página, mientras el gráfico conserva toda la serie del período seleccionado. La paginación mantiene el par y las fechas elegidos.
+
+### 8. ¿Qué mostramos cuando no hay registros para el período consultado?
+
+**Respuesta resumida de la IA:** Informar que no hay información disponible y permitir cambiar los filtros. No completar fechas con valores ficticios ni presentar la ausencia de registros como un error de servidor.
+
+**Aplicación:** Se muestra un mensaje para el par y período seleccionados y se omite el gráfico. Elías verificó este caso consultando del 01/10/2026 al 31/10/2026. También comparó el gráfico y la tabla con los tres registros disponibles del 14/09/2026.
+
+### 9. ¿Qué pruebas permiten comprobar el histórico sin afectar los datos de trabajo?
+
+**Respuesta resumida de la IA:** Utilizar una base de pruebas aislada y cubrir filtros, permisos, límites de fechas, precisión, orden temporal, ausencia de datos y paginación. Complementar las pruebas automáticas con la revisión de la pantalla.
+
+**Aplicación:** Se agregaron 18 pruebas de la HU-18. La suite completa pasó con 705 pruebas en Docker, utilizando la imagen del proyecto y PostgreSQL 17. Se revisó la presentación en escritorio y móvil y se ajustaron contraste y espacio bajo la navegación. La aceptación del equipo y la validación productiva permanecen pendientes.
