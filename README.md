@@ -112,6 +112,39 @@ docker compose exec web python manage.py test
 
 ## Fuente de verdad del entorno de desarrollo
 
+### PostgreSQL local desde DataGrip
+
+Levantar el entorno desde la raíz del proyecto con `docker compose up --build -d`.
+En Linux, si Docker devuelve `permission denied`, ejecutar el comando con `sudo`
+desde una terminal. No es necesario abrir DataGrip para que el backend funcione.
+
+En DataGrip, crear una fuente de datos PostgreSQL con estos valores por defecto:
+
+| Campo | Valor |
+| --- | --- |
+| Host | `127.0.0.1` |
+| Puerto | `5433` |
+| Base de datos | `global_exchange` |
+| Usuario | `global_exchange` |
+| Contraseña de desarrollo | `global_exchange_dev` |
+| URL JDBC | `jdbc:postgresql://127.0.0.1:5433/global_exchange` |
+
+Si `.env` personaliza `DB_NAME`, `DB_USER` o `DB_PASSWORD`, usar esos valores.
+El puerto del host se configura con `DB_LOCAL_PORT` (por defecto `5433`). Django
+continúa usando `DB_HOST=postgres` y `DB_PORT=5432` dentro de Docker. La conexión
+local de DataGrip no usa túnel SSH. Seleccionar **Test Connection** y descargar
+el controlador PostgreSQL si DataGrip lo solicita.
+
+Después de cambiar el puerto publicado, volver a ejecutar `docker compose up -d`
+para recrear el contenedor con la configuración nueva, conservando su volumen.
+Los valores de inicialización de usuario/contraseña solo se aplican al crear
+un volumen vacío; editar `.env` no cambia la contraseña de una base existente.
+
+Si el backend no inicia, consultar `docker compose ps -a` y
+`docker compose logs --tail=80 web postgres keycloak keycloak-config keycloak-web-config`.
+En Linux pueden requerir `sudo`. La aplicación local abre en
+`http://localhost:8000` y Keycloak en `http://localhost:8080`.
+
 El entorno oficial y reproducible del proyecto es Docker Compose. Django,
 PostgreSQL, Keycloak y Mailpit deben ejecutarse como servicios del mismo entorno.
 
@@ -313,3 +346,18 @@ el healthcheck, debe revisarse también este presupuesto.
 Si falla Docker, Compose, una consulta de estado o el check de Django, informa
 la etapa y termina con código distinto de cero. Ante timeout o fallo de salud
 muestra los últimos logs disponibles de web; nunca anuncia éxito tras un fallo.
+
+## Sprint 6 — núcleo financiero de Guillermo
+
+API administrativa: `/api/operaciones/metricas-financieras/`. Calcula comisiones
+como ganancia en PYG para operaciones completadas, con agregados diarios,
+semanales y mensuales. Las operaciones sin conversión histórica a PYG se
+identifican como importes parciales. Se imputa por fecha de creación.
+
+- [Documentación técnica y contrato de integración](docs/Sprint6_Guillermo_Tecnico.md).
+- [Explicación para Guillermo y ejemplos](docs/Sprint6_Guillermo_Guia.md).
+- [Pruebas, evidencia y pendientes productivos](docs/Sprint6_Guillermo_Validacion.md).
+
+Guillermo autorizó la publicación en GitHub y el despliegue el 16 de noviembre
+de 2026. La evidencia y los resultados del despliegue se registran por separado
+de las validaciones previas en la documentación de validación.

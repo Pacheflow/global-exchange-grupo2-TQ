@@ -1,0 +1,49 @@
+{
+  "fecha_utc": "2026-11-15T02:48:40.298812+00:00",
+  "modo": "runtime",
+  "checks": [
+    {
+      "nombre": "sintaxis_script",
+      "ok": true
+    },
+    {
+      "nombre": "compose_valido",
+      "ok": true
+    },
+    {
+      "nombre": "salud_postgres",
+      "ok": true
+    },
+    {
+      "nombre": "salud_keycloak",
+      "ok": true
+    },
+    {
+      "nombre": "salud_web",
+      "ok": true
+    },
+    {
+      "nombre": "imagen_commit",
+      "ok": false
+    },
+    {
+      "nombre": "salud_nginx",
+      "ok": true
+    },
+    {
+      "nombre": "migraciones_aplicadas",
+      "ok": true
+    },
+    {
+      "nombre": "django_deploy",
+      "ok": false
+    },
+    {
+      "nombre": "nginx_http",
+      "ok": true
+    }
+  ],
+  "commit": "4e5c18daf347f0b5e75f5205f73a66307b823bb2",
+  "ok": false,
+  "validacion_productiva_completa": false
+}
