@@ -111,6 +111,20 @@ class ReporteAdministrativoTransaccionesTests(TestCase):
             transaccion.refresh_from_db()
         return transaccion
 
+    def test_importes_legibles_en_listado_y_detalle_sin_alterar_valores(self):
+        transaccion = self.crear_transaccion()
+        for url in (self.url, reverse("operaciones_web:detalle_reporte_transaccion",
+                                      args=[transaccion.pk])):
+            with self.subTest(url=url):
+                respuesta = self.admin.get(url)
+                self.assertContains(respuesta, "125,5 QAUSD")
+                self.assertContains(respuesta, "840.000 QAPYG")
+                self.assertContains(respuesta, "39.500 QAPYG")
+                self.assertNotContains(respuesta, "840000,000000 QAPYG")
+        transaccion.refresh_from_db()
+        self.assertEqual(transaccion.monto_origen, Decimal("125.500000"))
+        self.assertEqual(transaccion.monto_destino, Decimal("840000.000000"))
+
     def ids_resultado(self, respuesta):
         """Extrae los identificadores de la página renderizada."""
         return [item.pk for item in respuesta.context["pagina"].object_list]

@@ -1,5 +1,5 @@
 {% extends 'frontend/base.html' %}
-{% load static %}
+{% load static importes %}
 {% block title %}Detalle de transacción #{{ transaccion.pk }} · Global Exchange{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'css/reporte_transacciones.css' %}">{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
@@ -21,10 +21,10 @@
       <div><dt>Cliente vinculado</dt><dd>{{ transaccion.cliente.nombre_razon_social }} <small>Nombre actual · cliente #{{ transaccion.cliente_id }}</small></dd></div>
       <div><dt>Tipo</dt><dd>{{ transaccion.get_tipo_display }}</dd></div>
       <div><dt>Estado</dt><dd>{{ transaccion.get_estado_display }}</dd></div>
-      <div><dt>Moneda e importe de origen</dt><dd>{{ transaccion.monto_origen }} {{ transaccion.moneda_origen.codigo }} <small>Código actual de catálogo</small></dd></div>
-      <div><dt>Moneda e importe de destino</dt><dd>{{ transaccion.monto_destino }} {{ transaccion.moneda_destino.codigo }} <small>Código actual de catálogo</small></dd></div>
+      <div><dt>Moneda e importe de origen</dt><dd>{{ transaccion.monto_origen|importe_legible }} {{ transaccion.moneda_origen.codigo }} <small>Código actual de catálogo</small></dd></div>
+      <div><dt>Moneda e importe de destino</dt><dd>{{ transaccion.monto_destino|importe_legible }} {{ transaccion.moneda_destino.codigo }} <small>Código actual de catálogo</small></dd></div>
       <div><dt>Tasa aplicada</dt><dd>{{ transaccion.tasa_aplicada }}</dd></div>
-      <div><dt>Comisión y moneda</dt><dd>{{ transaccion.importe_comision }} {{ transaccion.moneda_destino.codigo }} <small>{{ transaccion.porcentaje_comision }} %</small></dd></div>
+      <div><dt>Comisión y moneda</dt><dd>{{ transaccion.importe_comision|importe_legible }} {{ transaccion.moneda_destino.codigo }} <small>{{ transaccion.porcentaje_comision }} %</small></dd></div>
       <div><dt>Método de pago (snapshot)</dt><dd>{{ metodo }}</dd></div>
       <div><dt>Naturaleza histórica</dt><dd>{{ naturaleza }}</dd></div>
       <div><dt>Usuario responsable / cajero</dt><dd>{{ actor }}</dd></div>

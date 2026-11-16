@@ -210,3 +210,19 @@ Para CAJERO, `/api/operaciones/historial/` lista PENDIENTE y `?vista=historial` 
 - Ruta legado `/cajas/periodos/<id>/saldo/` conservada. No selección activa en sesión.
 
 Contratos y decisiones completos: [HU-28 Realizar Pago](HU-28_Realizar_Pago.md).
+
+## Sprint 6 — métricas financieras comunes (HU-S6-02)
+
+`GET /api/operaciones/metricas-financieras/`
+
+Requiere sesión OIDC vigente y rol efectivo `ADMINISTRADOR`. Parámetros:
+`desde` y `hasta` en formato `YYYY-MM-DD`, inclusivos (máximo 366 días), y
+`agrupacion=dia|semana|mes`. Por defecto consulta los últimos 30 días hasta hoy.
+Devuelve totales y períodos con operaciones, compras, ventas, volumen,
+comisiones y ganancia en PYG; ganancia equivale a comisiones. La imputación es
+por fecha de creación de operaciones actualmente completadas. Los pares sin
+PYG se informan en `sin_conversion`; sus importes se excluyen y `completo=false`.
+Los importes son cadenas decimales con seis decimales.
+
+Contrato, ejemplos, errores y reglas de integración:
+[Sprint6_Guillermo_Tecnico.md](Sprint6_Guillermo_Tecnico.md).

@@ -1,5 +1,5 @@
 {% extends 'frontend/base.html' %}
-{% load static %}
+{% load static importes %}
 {% block title %}Reporte de transacciones · Global Exchange{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'css/reporte_transacciones.css' %}">{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
@@ -60,10 +60,10 @@
               <td>{{ transaccion.fecha_creacion|date:"d/m/Y H:i:s" }}</td>
               <td>{{ transaccion.cliente.nombre_razon_social }}<small>Nombre actual · cliente #{{ transaccion.cliente_id }}</small></td>
               <td>{{ transaccion.get_tipo_display }}</td>
-              <td>{{ transaccion.monto_origen }} {{ transaccion.moneda_origen.codigo }}<small>Código actual de catálogo</small></td>
-              <td>{{ transaccion.monto_destino }} {{ transaccion.moneda_destino.codigo }}<small>Código actual de catálogo</small></td>
+              <td>{{ transaccion.monto_origen|importe_legible }} {{ transaccion.moneda_origen.codigo }}<small>Código actual de catálogo</small></td>
+              <td>{{ transaccion.monto_destino|importe_legible }} {{ transaccion.moneda_destino.codigo }}<small>Código actual de catálogo</small></td>
               <td>{{ transaccion.tasa_aplicada }}</td>
-              <td>{{ transaccion.importe_comision }} {{ transaccion.moneda_destino.codigo }}<small>{{ transaccion.porcentaje_comision }} %</small></td>
+              <td>{{ transaccion.importe_comision|importe_legible }} {{ transaccion.moneda_destino.codigo }}<small>{{ transaccion.porcentaje_comision }} %</small></td>
               <td>{{ transaccion.reporte_metodo }}</td>
               <td>{{ transaccion.reporte_naturaleza }}</td>
               <td>{{ transaccion.get_estado_display }}</td>
