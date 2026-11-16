@@ -379,6 +379,16 @@
 }
 .ge-kpi--simple-sub { display: block; font-size: 11px; color: var(--text-2); margin-top: 4px; }
 
+.ge-admin-dashboard .ge-dashboard-unavailable { font-size: 16px; line-height: 1.5; color: var(--text-2); }
+.ge-admin-dashboard .ge-kpi--icon > div { min-width: 0; overflow-wrap: anywhere; }
+.ge-dashboard-periodo { margin: 0 0 24px; color: var(--text-2); line-height: 1.6; }
+.ge-dashboard-activity-note { margin: 0; padding: 0 20px 16px; color: var(--text-2); }
+.ge-dashboard-empty { margin: 0; padding: 24px; color: var(--text-2); line-height: 1.6; }
+.ge-dashboard-caption { text-align: left; padding: 12px 20px; color: var(--text-2); }
+.ge-admin-dashboard .ge-table-wrap { overflow-x: auto; }
+.ge-admin-dashboard .ge-card-head { flex-wrap: wrap; gap: 12px; }
+.ge-admin-dashboard .ge-kpi--simple-value { font-variant-numeric: tabular-nums; }
+
 .ge-frontend-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
 .ge-card-head {

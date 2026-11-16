@@ -5,87 +5,79 @@
   <div class="ge-frontend-pagehead">
     <div>
       <h1 class="ge-frontend-h1">Panel Administrador</h1>
-      <p class="ge-frontend-sub">Estado actual · Visión global del sistema</p>
+      <p class="ge-frontend-sub">Visión global · Operaciones completadas</p>
     </div>
   </div>
-
-  <div class="ge-frontend-main-pad">
-    <!-- KPIs row 1 -->
-    <div class="ge-frontend-kpis">
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='users' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">USUARIOS ACTIVOS</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Consultar gestión real</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='clients' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">CLIENTES</span><span class="ge-kpi--simple-value">{{ clientes_count }}</span><span class="ge-kpi--simple-sub">registrados</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">SUPERVISIÓN</span><span class="ge-kpi--simple-value">✓</span><span class="ge-kpi--simple-sub">Historial global disponible</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
+  <div class="ge-frontend-main-pad ge-admin-dashboard">
+    <p class="ge-dashboard-periodo">Período de los conteos: histórico completo, sin filtro de fechas. Solo operaciones completadas.</p>
+    {% if error_dashboard %}
+      <div class="ge-error-banner" role="alert">No se pudieron cargar los datos del dashboard. Recargá la página para intentar nuevamente.</div>
+    {% endif %}
+    {% with resumen=resumen_dashboard %}
+    <div class="ge-frontend-kpis" aria-label="Indicadores del dashboard">
+      <article class="ge-card ge-kpi--icon" data-metrica="ganancia_dia">
         <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
+        <div><span class="ge-kpi--simple-label">Ganancia hoy</span><span class="ge-kpi--simple-value ge-dashboard-unavailable">{% if resumen.ganancia_dia == None %}No disponible{% else %}{{ resumen.ganancia_dia }} {{ resumen.moneda }}{% endif %}</span><span class="ge-kpi--simple-sub">Definición financiera pendiente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="ganancia_semana">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Ganancia semanal</span><span class="ge-kpi--simple-value ge-dashboard-unavailable">{% if resumen.ganancia_semana == None %}No disponible{% else %}{{ resumen.ganancia_semana }} {{ resumen.moneda }}{% endif %}</span><span class="ge-kpi--simple-sub">Definición financiera pendiente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="ganancia_mes">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Ganancia mensual</span><span class="ge-kpi--simple-value ge-dashboard-unavailable">{% if resumen.ganancia_mes == None %}No disponible{% else %}{{ resumen.ganancia_mes }} {{ resumen.moneda }}{% endif %}</span><span class="ge-kpi--simple-sub">Definición financiera pendiente</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="moneda">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='currencies' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Moneda de presentación</span><span class="ge-kpi--simple-value">{{ resumen.moneda }}</span><span class="ge-kpi--simple-sub">Guaraní paraguayo</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="operaciones">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='operations' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Operaciones</span><span class="ge-kpi--simple-value">{% if resumen.operaciones == None %}<span class="ge-dashboard-unavailable">No disponible</span>{% else %}{{ resumen.operaciones }}{% endif %}</span><span class="ge-kpi--simple-sub">Completadas · histórico completo</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="compras">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Compras</span><span class="ge-kpi--simple-value">{% if resumen.compras == None %}<span class="ge-dashboard-unavailable">No disponible</span>{% else %}{{ resumen.compras }}{% endif %}</span><span class="ge-kpi--simple-sub">Completadas · histórico completo</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="ventas">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='transfer' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Ventas</span><span class="ge-kpi--simple-value">{% if resumen.ventas == None %}<span class="ge-dashboard-unavailable">No disponible</span>{% else %}{{ resumen.ventas }}{% endif %}</span><span class="ge-kpi--simple-sub">Completadas · histórico completo</span></div>
+      </article>
+      <article class="ge-card ge-kpi--icon" data-metrica="volumen">
+        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='cash' size=18 %}</span>
+        <div><span class="ge-kpi--simple-label">Volumen</span><span class="ge-kpi--simple-value ge-dashboard-unavailable">{% if resumen.volumen == None %}No disponible{% else %}{{ resumen.volumen }} {{ resumen.moneda }}{% endif %}</span><span class="ge-kpi--simple-sub">Criterio de volumen pendiente</span></div>
       </article>
     </div>
-
-    <!-- KPIs row 2 -->
-    <div class="ge-frontend-kpis" style="margin-bottom:28px">
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='reconciliation' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">CAJAS ACTIVAS</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='history' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">OPERACIONES</span><span class="ge-kpi--simple-value">✓</span><span class="ge-kpi--simple-sub">Consulta y detalle global</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">OPERACIONES MES</span><span class="ge-kpi--simple-value">—</span><span class="ge-kpi--simple-sub">Reporte futuro</span></div>
-      </article>
-    </div>
-
-    <div class="ge-frontend-grid2" style="margin-bottom:24px">
-      <!-- Ganancia mensual -->
-      <article class="ge-card" style="padding:24px">
-        <div class="ge-card-title" style="margin-bottom:20px">Ganancia mensual (PYG)</div>
-        <div class="ge-chart-box" aria-label="Ganancia mensual disponible próximamente"><span class="ge-chip">Próximamente</span></div>
-      </article>
-
-      <!-- Ganancia por moneda -->
-      <article class="ge-card" style="padding:24px">
-        <div class="ge-card-title" style="margin-bottom:20px">Ganancia por moneda (%)</div>
-        <div class="ge-donut-wrap">
-          <div class="ge-chart-box" aria-label="Ganancia por moneda disponible próximamente"><span class="ge-chip">Próximamente</span></div>
-          <div class="ge-donut-legend">
-            <div><span style="background:#3B5BFF"></span><span>USD</span><strong>—</strong></div>
-            <div><span style="background:#22C55E"></span><span>EUR</span><strong>—</strong></div>
-            <div><span style="background:#FBBF24"></span><span>BRL</span><strong>—</strong></div>
-            <div><span style="background:#F87171"></span><span>ARS</span><strong>—</strong></div>
-          </div>
-        </div>
-      </article>
-    </div>
-
-    <!-- Actividad reciente -->
-    <div class="ge-card" style="overflow:hidden">
+    <p class="ge-dashboard-periodo">Las ganancias y el volumen estarán disponibles cuando se acuerden sus criterios financieros. PYG indica la moneda de presentación; los importes de actividad conservan su moneda original.</p>
+    {{ resumen|json_script:"dashboard-resumen" }}
+    {% endwith %}
+    <section class="ge-card" aria-labelledby="actividad-dashboard-title">
       <div class="ge-card-head">
-        <span class="ge-card-title">Actividad reciente</span>
-        <a class="ge-btn-ghost" style="font-size:12px" href="{% url 'operaciones_web:inicio' %}">Ver operaciones →</a>
+        <h2 class="ge-card-title" id="actividad-dashboard-title">Actividad reciente</h2>
+        <a class="ge-btn-ghost" href="{% url 'operaciones_web:reporte_administrativo_transacciones' %}">Ver reporte completo</a>
       </div>
-      <table class="ge-table">
-        <thead>
-          <tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th><th>Estado</th></tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="6" class="ge-frontend-note">El historial global y cada detalle están disponibles en Operaciones.</td></tr>
-        </tbody>
-      </table>
-    </div>
+      <p class="ge-dashboard-activity-note">Hasta 5 operaciones completadas, ordenadas por fecha de creación más reciente.</p>
+      {% if error_dashboard %}
+        <p class="ge-dashboard-empty">La actividad reciente no está disponible. Intentá recargar la página.</p>
+      {% elif actividad_reciente %}
+      <div class="ge-table-wrap">
+        <table class="ge-table">
+          <caption class="ge-dashboard-caption">Operaciones completadas recientes</caption>
+          <thead><tr><th scope="col">ID</th><th scope="col">Fecha de creación</th><th scope="col">Cliente</th><th scope="col">Tipo</th><th scope="col">Origen</th><th scope="col">Destino</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr></thead>
+          <tbody>
+            {% for operacion in actividad_reciente %}
+            <tr>
+              <td>#{{ operacion.pk }}</td><td>{{ operacion.fecha_creacion|date:"d/m/Y H:i" }}</td><td>{{ operacion.cliente.nombre_razon_social }}</td><td>{{ operacion.get_tipo_display }}</td>
+              <td>{{ operacion.monto_origen }} {{ operacion.moneda_origen.codigo }}</td><td>{{ operacion.monto_destino }} {{ operacion.moneda_destino.codigo }}</td><td>{{ operacion.get_estado_display }}</td>
+              <td><a class="ge-btn-ghost" href="{% url 'operaciones_web:detalle_reporte_transaccion' operacion.pk %}" aria-label="Ver detalle de operación {{ operacion.pk }}">Ver detalle</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="ge-dashboard-empty">Todavía no hay operaciones completadas. Cuando se complete una operación, aparecerá aquí.</p>
+      {% endif %}
+    </section>
   </div>
 {% endblock %}
