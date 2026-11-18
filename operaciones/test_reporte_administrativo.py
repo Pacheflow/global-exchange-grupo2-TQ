@@ -5,6 +5,7 @@ import time
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.db import connection
@@ -33,6 +34,7 @@ class ReporteAdministrativoTransaccionesTests(TestCase):
 
     def setUp(self):
         self.url = reverse("operaciones_web:reporte_administrativo_transacciones")
+        self.pdf = reverse("operaciones_web:exportar_transacciones_pdf")
         self.cliente = Cliente.objects.create(
             nombre_razon_social="Cliente Histórico QA",
             tipo_persona="FISICA",
@@ -139,12 +141,14 @@ class ReporteAdministrativoTransaccionesTests(TestCase):
         detalle_url = reverse("operaciones_web:detalle_reporte_transaccion", args=[transaccion.pk])
         visitante = Client()
         self.assertEqual(visitante.get(self.url).status_code, 302)
+        self.assertEqual(visitante.get(self.pdf).status_code, 302)
         for roles in (["USUARIO"], ["CAJERO"], ["ANALISTA_CAMBIARIO"]):
             with self.subTest(roles=roles):
                 cliente_http = Client()
                 self.autenticar(cliente_http, roles)
                 self.assertEqual(cliente_http.get(self.url).status_code, 403)
                 self.assertEqual(cliente_http.get(detalle_url).status_code, 403)
+                self.assertEqual(cliente_http.get(self.pdf).status_code, 403)
 
     def test_reporte_y_detalle_son_solo_get(self):
         """Las rutas de consulta rechazan POST y no cambian la transacción."""
@@ -168,6 +172,50 @@ class ReporteAdministrativoTransaccionesTests(TestCase):
 
         self.assertEqual(admin_cajero.get(self.url).status_code, 200)
         self.assertEqual(analista_cajero.get(self.url).status_code, 403)
+        self.assertEqual(analista_cajero.get(self.pdf).status_code, 403)
+        self.assertEqual(admin_cajero.get(self.pdf).status_code, 200)
+
+    def test_descarga_pdf_es_de_solo_lectura(self):
+        """El administrador descarga un PDF con nombre fechado sin escribir en la base."""
+        self.crear_transaccion(nombre_metodo="Débito <prueba> & crédito")
+        with CaptureQueriesContext(connection) as consultas:
+            respuesta = self.admin.get(self.pdf)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta["Content-Type"], "application/pdf")
+        self.assertRegex(respuesta["Content-Disposition"], r'^attachment; filename="reporte-transacciones-\d{8}-\d{6}\.pdf"$')
+        self.assertTrue(respuesta.content.startswith(b"%PDF-"))
+        self.assertFalse(any(re.match(r"\s*(INSERT|UPDATE|DELETE)\b", q["sql"], re.I) for q in consultas))
+        self.assertEqual(self.admin.post(self.pdf).status_code, 405)
+
+    @patch("operaciones.reportes.generar_pdf", return_value=b"pdf")
+    def test_exporta_todas_las_filas_filtradas_en_orden(self, generar):
+        """La descarga ignora la página y conserva filtros, orden de desempate y snapshots."""
+        fecha = timezone.now()
+        ids = [self.crear_transaccion(fecha=fecha, nombre_metodo="Nombre original").pk for _ in range(26)]
+        otra = self.crear_transaccion(cliente=self.otro_cliente, tipo="VENTA", fecha=fecha)
+        for filtros, esperados in [
+            ({}, [otra.pk, *reversed(ids)]),
+            ({"tipo": "VENTA"}, [otra.pk]),
+            ({"cliente": self.cliente.pk, "tipo": "COMPRA", "page": 2}, list(reversed(ids))),
+        ]:
+            with self.subTest(filtros=filtros):
+                self.admin.get(self.pdf, filtros)
+                filas = generar.call_args.args[0]
+                self.assertEqual([fila[0] for fila in filas], [f"#{pk}" for pk in esperados])
+        self.assertEqual(filas[0][8], "Nombre original")
+        self.assertEqual(Decimal(filas[0][6]), Decimal("7000.1234567890"))
+
+    def test_exportacion_invalida_vacia_o_fallida_informa_en_pantalla(self):
+        """La exportación distingue filtros inválidos, cero coincidencias y fallo de generación."""
+        self.crear_transaccion()
+        with patch("operaciones.reportes.generar_pdf", side_effect=RuntimeError("detalle interno")) as generar:
+            self.assertContains(self.admin.get(self.pdf, {"tipo": "INVALIDO"}), "Corrige los filtros")
+            self.assertContains(self.admin.get(self.pdf, {"tipo": "VENTA"}),
+                                "No se encontraron transacciones con los filtros seleccionados.")
+            generar.assert_not_called()
+            respuesta = self.admin.get(self.pdf)
+            self.assertContains(respuesta, "No se pudo generar el PDF", status_code=500)
+            self.assertNotContains(respuesta, "detalle interno", status_code=500)
 
     def test_filtros_combinados_se_aplican_con_and(self):
         """La combinación cliente, tipo, estado y naturaleza devuelve solo la operación coincidente."""
