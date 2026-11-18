@@ -1,5 +1,13 @@
 .ge-report-transactions { display: grid; gap: 20px; }
 .ge-report-card { padding: 22px; min-width: 0; }
+.ge-report-filter-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.ge-report-filter-card > button { grid-area: 1 / 2; justify-self: end; max-width: 100%; }
+.ge-report-filter-card > form { grid-row: 2; grid-column: 1 / -1; }
+@media (max-width: 420px) {
+  .ge-report-filter-card { grid-template-columns: minmax(0, 1fr); }
+  .ge-report-filter-card > button { grid-area: 2 / 1; margin-top: 8px; }
+  .ge-report-filter-card > form { grid-row: 3; }
+}
 .ge-report-filters { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; margin-top: 18px; }
 .ge-report-field { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .ge-report-field label { color: var(--text-2); font-size: 13px; font-weight: 600; }

@@ -1,10 +1,12 @@
 """Consulta administrativa de transacciones, sin acciones operativas."""
 
+import logging
 from datetime import datetime, time, timedelta
 
 from django import forms
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET
@@ -14,6 +16,9 @@ from monedas.models import Moneda
 from usuarios.decorators import requiere_roles_web
 
 from .models import LiquidacionEfectivo, Transaccion
+from .reporte_pdf import generar_pdf
+
+logger = logging.getLogger(__name__)
 
 
 class FiltrosReporteTransaccionesForm(forms.Form):
@@ -165,8 +170,8 @@ def _actor_explicito(transaccion):
 
 @requiere_roles_web("ADMINISTRADOR")
 @require_GET
-def reporte_administrativo_transacciones(request):
-    """Muestra el reporte global administrativo con filtros GET y paginación."""
+def reporte_administrativo_transacciones(request, exportar=False):
+    """Consulta las transacciones para la pantalla paginada o la descarga completa."""
     formulario = FiltrosReporteTransaccionesForm(request.GET)
     filtros_validos = formulario.is_valid()
     queryset = (
@@ -174,6 +179,24 @@ def reporte_administrativo_transacciones(request):
         if filtros_validos
         else Transaccion.objects.none()
     )
+    error_exportacion = None
+    if exportar and filtros_validos:
+        filas = [_fila_pdf(t) for t in queryset.iterator(chunk_size=500)]
+        if filas:
+            ahora = timezone.localtime()
+            try:
+                contenido = generar_pdf(filas, _resumen_filtros(formulario), ahora)
+            except Exception:
+                logger.exception("Falló la generación del reporte PDF de transacciones")
+                error_exportacion = "No se pudo generar el PDF. Vuelve a intentarlo."
+            else:
+                respuesta = HttpResponse(contenido, content_type="application/pdf")
+                respuesta["Content-Disposition"] = (
+                    f'attachment; filename="reporte-transacciones-{ahora:%Y%m%d-%H%M%S}.pdf"'
+                )
+                return respuesta
+        else:
+            queryset = Transaccion.objects.none()
     paginador = Paginator(queryset, 25)
     pagina = paginador.get_page(request.GET.get("page", 1))
     for transaccion in pagina.object_list:
@@ -193,8 +216,38 @@ def reporte_administrativo_transacciones(request):
             "pagina": pagina,
             "total_resultados": paginador.count,
             "querystring": querystring,
+            "error_exportacion": error_exportacion,
         },
+        status=500 if error_exportacion else 200,
     )
+
+
+def _fila_pdf(t):
+    """Presenta los mismos valores registrados que el listado HTML."""
+    return (
+        f"#{t.pk}", timezone.localtime(t.fecha_creacion).strftime("%d/%m/%Y %H:%M:%S"),
+        f"{t.cliente.nombre_razon_social}\n#{t.cliente_id}", t.get_tipo_display(),
+        f"{t.monto_origen:f}\n{t.moneda_origen.codigo}",
+        f"{t.monto_destino:f}\n{t.moneda_destino.codigo}", f"{t.tasa_aplicada:f}",
+        f"{t.importe_comision:f}\n{t.moneda_destino.codigo} · {t.porcentaje_comision:f} %",
+        _metodo_historico(t), _naturaleza_historica(t), t.get_estado_display(), _actor_explicito(t),
+    )
+
+
+def _resumen_filtros(formulario):
+    """Describe únicamente los filtros validados con etiquetas legibles."""
+    resumen = []
+    for nombre, valor in formulario.cleaned_data.items():
+        if valor:
+            campo = formulario.fields[nombre]
+            if nombre == "cliente":
+                valor = valor.nombre_razon_social
+            elif nombre == "moneda":
+                valor = valor.codigo
+            elif isinstance(campo, forms.ChoiceField):
+                valor = dict(campo.choices)[valor]
+            resumen.append(f"{campo.label}: {valor}")
+    return " · ".join(resumen) or "Sin filtros"
 
 
 @requiere_roles_web("ADMINISTRADOR")

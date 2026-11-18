@@ -13,9 +13,9 @@
     </div>
   </header>
 
-  <section class="ge-card ge-report-card" aria-labelledby="filtros-reporte-title">
+  <section class="ge-card ge-report-card ge-report-filter-card" aria-labelledby="filtros-reporte-title">
     <h2 id="filtros-reporte-title" class="ge-card-title">Filtros</h2>
-    <form method="get" action="{% url 'operaciones_web:reporte_administrativo_transacciones' %}" class="ge-report-filters">
+    <form id="filtros-transacciones" method="get" action="{% url 'operaciones_web:reporte_administrativo_transacciones' %}" class="ge-report-filters">
       {% for field in formulario %}
       <div class="ge-report-field">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -29,6 +29,7 @@
         <a class="ge-btn-ghost" href="{% url 'operaciones_web:reporte_administrativo_transacciones' %}">Limpiar</a>
       </div>
     </form>
+    <button class="ge-btn-primary" type="submit" form="filtros-transacciones" formaction="{% url 'operaciones_web:exportar_transacciones_pdf' %}">Exportar transacciones</button>
   </section>
 
   <section class="ge-card ge-report-card" aria-labelledby="resultados-reporte-title">
@@ -38,6 +39,7 @@
         <p class="ge-frontend-subtitle">{{ total_resultados }} {% if total_resultados == 1 %}transacción encontrada{% else %}transacciones encontradas{% endif %}.</p>
       </div>
     </div>
+    {% if error_exportacion %}<p class="ge-report-error" role="alert">{{ error_exportacion }}</p>{% endif %}
     {% if not filtros_validos %}
       <p class="ge-report-error" role="alert">Corrige los filtros indicados para consultar el reporte.</p>
     {% elif total_resultados == 0 %}
