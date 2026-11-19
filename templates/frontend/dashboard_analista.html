@@ -34,13 +34,10 @@
       <!-- Histórico de tasas -->
       <article class="ge-card" style="padding:24px">
         <div class="ge-card-head-chart">
-          <span class="ge-card-title">Histórico de tasas <span class="ge-chip">Próximamente</span></span>
-          <div class="ge-legend">
-            <span><em style="background:#3B5BFF"></em>USD</span>
-            <span><em style="background:#22C55E"></em>EUR</span>
-          </div>
+          <span class="ge-card-title">Histórico de tasas</span>
         </div>
-        <div class="ge-chart-box" aria-label="Histórico de tasas disponible próximamente"></div>
+        <p class="ge-frontend-note">Compará la evolución real de compra y venta por par de monedas y período.</p>
+        <a class="ge-btn-secondary" href="{% url 'tasas_web:historico' %}">Consultar histórico</a>
       </article>
 
       <!-- Ganancia diaria -->

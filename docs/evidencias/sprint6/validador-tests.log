@@ -1,0 +1,11 @@
+test_invalid_compose_prevents_runtime_checks (test_validate_production.ProductionValidationTests.test_invalid_compose_prevents_runtime_checks) ... ok
+test_missing_container_fails_runtime (test_validate_production.ProductionValidationTests.test_missing_container_fails_runtime) ... ok
+test_revision_mismatch_fails (test_validate_production.ProductionValidationTests.test_revision_mismatch_fails) ... ok
+test_runtime_success_requires_all_checks (test_validate_production.ProductionValidationTests.test_runtime_success_requires_all_checks) ... ok
+test_static_success_is_not_runtime_evidence (test_validate_production.ProductionValidationTests.test_static_success_is_not_runtime_evidence) ... ok
+test_timeout_is_recorded_as_failure (test_validate_production.ProductionValidationTests.test_timeout_is_recorded_as_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.001s
+
+OK

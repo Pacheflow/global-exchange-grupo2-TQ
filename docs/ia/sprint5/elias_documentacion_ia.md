@@ -4,105 +4,76 @@
 
 **Historias de usuario:** HU-29 — Generar factura electrónica y alcance ajustado de HU-30 — Consultar, visualizar y descargar facturas desde la web.
 
-**Actualización del 30/10/2026:** Axel indicó que las facturas deben estar disponibles en la web, sin envío por correo; Elías confirmó aplicar ese alcance. Las consultas siguientes conservan el contexto inicial y la sección 8 registra el ajuste. El título y los criterios originales de HU-30 deben actualizarse en Jira según este acuerdo.
-
-Se utilizó Codex para analizar los requisitos, revisar la integración existente y asistir en la implementación mediante generación de código, documentación y pruebas. El integrante aportó la guía, los criterios de aceptación y las restricciones del proyecto, y autorizó el avance en una rama propia.
-
-Las consultas siguientes son síntesis de lo conversado, no transcripciones literales. Las aplicaciones describen el trabajo realizado durante la sesión; no equivalen a una revisión manual completa ni a la aceptación final de las historias.
+Las consultas están resumidas y agrupadas por tema a partir de la asistencia utilizada durante el desarrollo, la documentación y las pruebas. Este registro recoge la implementación inicial del 29/10/2026 y el ajuste de alcance del 30/10/2026.
 
 ## Consultas y decisiones
 
-### 1. ¿Qué me corresponde realizar según la guía del Sprint 5?
+### 1. ¿Cómo se relaciona la factura con una operación de cambio completada?
 
-**Respuesta resumida de la IA:** La responsabilidad asignada comprende HU-29 y HU-30: administrar la factura asociada a una transacción completada, permitir su consulta, visualización y descarga, y gestionar el envío por correo. Guillermo se encarga de la conexión técnica con la API externa.
+**Respuesta resumida de la IA:** Separar la operación comercial de la emisión del comprobante. La factura debe vincularse con una transacción completada y reutilizar el adaptador del proveedor, evitando duplicar la integración externa.
 
-**Aplicación:** Se delimitó el trabajo de facturación a partir de la guía y de los criterios de aceptación aportados. Se mantuvo la anulación de facturas fuera del alcance, ya que aparece propuesta para Sprint 6.
+**Aplicación:** Se incorporó el modelo `Factura` con una asociación única a la transacción y estados de emisión. Se reutilizó la integración técnica de Guillermo con Factura Segura. La anulación del comprobante se mantuvo fuera del alcance de esta entrega.
 
-### 2. ¿Primero debo actualizar develop en mi máquina?
+### 2. ¿En qué momento conviene preparar la factura para evitar inconsistencias?
 
-**Respuesta resumida de la IA:** Revisar que no haya cambios locales pendientes, consultar el remoto y actualizar mediante fast-forward. Actualizar la base local no implica desarrollar directamente sobre ella.
+**Respuesta resumida de la IA:** Preparar la facturación después de confirmar la transacción en la base de datos. Si la operación se revierte, no debe quedar una factura correspondiente a una operación que no se completó.
 
-**Aplicación:** El integrante ejecutó la actualización de develop y compartió los resultados: check sin incidencias y 523 tests OK. Se conservaron las restricciones de trabajar en ramas, no borrar volúmenes Docker y no utilizar comandos Git destructivos.
+**Aplicación:** Se utilizó la preparación posterior al commit de la operación y se agregaron verificaciones de confirmación y rollback. Se contempló la recuperación de eventos pendientes para que el procesamiento no dependa únicamente de una solicitud web.
 
-### 3. ¿Cómo comprobamos si Guillermo ya subió su parte?
+### 3. ¿Cómo evitamos generar dos facturas para la misma transacción?
 
-**Respuesta resumida de la IA:** Además de revisar develop, consultar las ramas remotas. Una integración puede estar subida sin haberse incorporado todavía a la rama compartida.
+**Respuesta resumida de la IA:** Combinar una relación única con controles de estado y concurrencia. Un reintento no debe generar otro comprobante cuando la factura ya fue procesada.
 
-**Aplicación:** Se localizó `feature/hu-28-integracion-factura-segura`, con base revisada en `38347f6`. Se corrigió la conclusión inicial: que la integración no apareciera en develop no significaba que Guillermo no la hubiera subido. La implementación de HU-29/HU-30 se inició en `feature/hu-29-hu-30-elias`, basada en esa integración. Antes de modificar código, la base pasó check y 538 tests.
+**Aplicación:** Se protegió la asociación entre factura y transacción y se incorporaron pruebas de unicidad y concurrencia. El procesamiento revisa el estado existente antes de continuar y conserva el vínculo con la operación original.
 
-### 4. ¿Podemos avanzar con mis historias aunque falten las credenciales?
+### 4. ¿Qué datos necesita el proveedor y por qué no alcanza con enviar cualquier JSON?
 
-**Respuesta resumida de la IA:** Es posible desarrollar la lógica interna y probarla con respuestas simuladas, reutilizando el adaptador existente. Las credenciales y el contrato fiscal confirmado son necesarios para verificar la emisión real.
+**Respuesta resumida de la IA:** JSON es el formato del intercambio, pero el proveedor exige un contrato fiscal concreto: datos del emisor y receptor, concepto, importes, timbrado, establecimiento y punto de expedición. Esos campos deben validarse con el contrato habilitado, sin inventar valores fiscales.
 
-**Aplicación:** Se incorporó una base funcional con el modelo Factura, asociación única a la transacción completada, estados de emisión, consulta autorizada y acceso al comprobante mediante el adaptador de Guillermo. La versión inicial agregó intentos y reintentos de correo; este flujo fue retirado con el ajuste del 30/10/2026. Los fallos de facturación o correo conservan la transacción realizada.
+**Aplicación:** Se revisó `docs/HU-28_Integracion_Factura_Segura.md` y se identificó la dependencia del documento fiscal real y de la respuesta de `calcular_de`. En la revisión inicial, la falta del contrato configurado mantenía la factura pendiente e impedía contactar al proveedor para emitir.
 
-**Criterios técnicos aplicados:** Preparación posterior al commit de la operación; protección contra duplicados y concurrencia; validación de asociación activa del usuario; consulta y descarga protegidas. La configuración y las acciones de correo de la versión inicial se retiraron del alcance actual.
+### 5. ¿Una respuesta de generación significa que SIFEN aprobó la factura?
 
-### 5. ¿Qué es el JSON y dónde se indica que hace falta?
+**Respuesta resumida de la IA:** La generación del documento y su aprobación fiscal son estados distintos. La interfaz debe reflejar el estado comprobado, sin interpretar una respuesta técnica como aprobación definitiva.
 
-**Respuesta resumida de la IA:** JSON es el formato en que se envían datos a la API. Para facturar se necesita conocer el documento que espera el proveedor: campos del emisor y cliente, concepto, importes y demás datos fiscales. No corresponde inventar ese contenido.
+**Aplicación:** Se distinguieron los estados de emisión y los errores del proveedor. La consulta e interpretación completa de estados SIFEN quedó identificada como dependencia de cierre en esta revisión; las respuestas simuladas no se presentaron como emisión ni aprobación fiscal real.
 
-**Aplicación:** Se revisó `docs/HU-28_Integracion_Factura_Segura.md`, donde figuran como pendientes el JSON fiscal real, timbrado, establecimiento, punto de expedición y la confirmación del esquema para compra/venta de divisas. Se aclaró que las historias no mencionan JSON literalmente: es una dependencia técnica de la solicitud a la API.
+### 6. ¿Qué ocurre si el proveedor devuelve un error o tarda demasiado?
 
-**Pendiente:** Solicitar un ejemplo válido sin credenciales, confirmar el importe y concepto facturable y validar la respuesta de `calcular_de`. Mientras no exista el contrato configurado, la factura permanece pendiente y no se contacta al proveedor para emitir.
+**Respuesta resumida de la IA:** Un fallo de facturación debe conservar la operación comercial ya completada. Registrar el estado y permitir recuperar el procesamiento sin duplicar comprobantes ni revertir el cambio de divisas.
 
-### 6. ¿Está completo todo lo pedido y está comentado el código?
+**Aplicación:** Se agregaron pruebas de timeout, errores y generación simulada mediante el adaptador existente. Los fallos del comprobante mantienen la transacción realizada y permiten distinguir una emisión pendiente de una solicitud resuelta correctamente.
 
-**Respuesta resumida de la IA:** La base implementada no equivale a completar el circuito fiscal real. Los comentarios deben explicar las decisiones relevantes, especialmente permisos, estados, errores e idempotencia.
+### 7. ¿Cómo impedimos que una persona consulte o descargue una factura ajena?
 
-**Aplicación:** Se agregaron docstrings y comentarios en los componentes principales, documentación técnica en `docs/HU-29_HU-30_Facturacion.md` y pruebas de errores, permisos y concurrencia. Se distinguió el estado de emisión del estado de correo: un envío fallido no elimina la factura ni anula la operación.
+**Respuesta resumida de la IA:** Verificar la autorización en cada consulta y descarga, utilizando la asociación activa del usuario con el cliente de la operación. Conocer un identificador no debe ser suficiente para acceder al comprobante.
 
-**Diferencia de alcance:** Todavía falta completar el documento fiscal real, consultar e interpretar los estados SIFEN, programar el procesador y realizar pruebas reales y QA visual. Una respuesta de generación del proveedor no se presenta como aprobación fiscal.
+**Aplicación:** Se protegieron el listado, la consulta y las descargas PDF/XML mediante los controles de asociación activa. Se incorporaron pruebas de permisos y descargas privadas; el acceso a los documentos utiliza el adaptador del proveedor.
 
-### 7. ¿Qué se propuso para probar la versión inicial?
+### 8. ¿Cómo queda HU-30 con el ajuste a facturas disponibles desde la web?
 
-**Estado registrado:** Las migraciones se verificaron en las bases aisladas de pruebas. Se realizó una revisión visual parcial de “Mis facturas” y de la configuración del correo del cliente. No se completó la prueba visual del circuito de emisión, descarga y envío debido a que todavía falta configurar el contrato fiscal real. Los cambios quedaron locales, sin commit ni push al cierre de la implementación documentada.
+**Respuesta resumida de la IA:** Si el alcance acordado es consultar, visualizar y descargar comprobantes en Mis facturas, retirar los servicios, rutas y pantallas del envío por correo y mantener las garantías de permisos y generación única.
 
-### 8. ¿Podemos dejarlo como pidió Axel, con una sección de facturas para descargar desde la web?
+**Aplicación:** El 30/10/2026 se aplicó la indicación de Axel, confirmada por Elías: las facturas quedan disponibles en la web, sin envío automático ni manual de correo. Se retiró la configuración de correo del flujo operativo y se conservaron las migraciones publicadas y los registros históricos para evitar eliminar datos.
 
-**Respuesta resumida de la IA:** Ajustar el alcance a la consulta, visualización y descarga en Mis facturas, retirando el envío automático y manual de correo y su configuración.
+**Alcance acordado:** El correo figuraba en los criterios originales de HU-30. La consulta y descarga web responden al ajuste comunicado por el equipo; el cambio debe reflejarse en Jira y no equivale a cumplir el criterio original de envío por correo.
 
-**Aplicación:** Por indicación expresa del integrante, se retiraron servicios, rutas, formularios y pantallas de correo. El procesador prepara y emite comprobantes para la web sin contactar SMTP. Se conservaron permisos por asociación activa, generación única y descargas PDF/XML. Las migraciones publicadas y los registros históricos se mantienen sin uso operativo para evitar eliminar datos.
+### 9. ¿Qué verifican las pruebas de facturación?
 
-**Pruebas:** Se sustituyeron los casos del flujo retirado por verificaciones de ausencia de acciones de correo, rechazo de sus URLs y procesamiento sin SMTP. Se actualizaron la documentación técnica y este registro.
+**Respuesta resumida de la IA:** Cubrir estados, permisos, generación única, concurrencia y errores con respuestas simuladas. Comprobar también que una operación revertida no genere factura y que el alcance web funcione sin acciones de correo.
 
-**Diferencia respecto de la guía:** El correo figuraba en los criterios originales. El cambio responde al acuerdo comunicado por Axel y confirmado por Elías; queda por reflejarlo en Jira. No se afirma que enviar correo y descargar en la web sean el mismo criterio.
+**Aplicación:** Las pruebas cubren asociación, unicidad, transacción pendiente, generación simulada, timeout, preparación posterior al commit, rollback y descargas privadas. Para el alcance ajustado se verificaron la ausencia de acciones de correo, el rechazo de sus URLs y el procesamiento sin SMTP.
 
-## Verificación histórica de la versión inicial
+**Verificación registrada:** La versión inicial pasó 43 pruebas de facturación y 566 de la suite completa. Después de retirar el flujo de correo, la revisión del 30/10/2026 pasó 38 pruebas de facturación y 561 de la suite completa. También pasaron `manage.py check`, la comprobación de migraciones pendientes y `git diff --check`. Las cantidades corresponden a esas versiones históricas del proyecto.
 
-Resultados obtenidos durante la implementación del 29/10/2026:
+### 10. ¿Qué conviene explicar con comentarios y documentación dentro del código?
 
-- `python manage.py check`: sin incidencias.
-- `python manage.py makemigrations --check --dry-run`: sin cambios pendientes.
-- `python manage.py test facturacion --noinput`: 43 pruebas OK.
-- `python manage.py test --noinput`: 566 pruebas OK, incluyendo 28 nuevas respecto de la base de 538.
-- `node --test static/js/tests/operaciones.test.cjs`: 10 pruebas OK.
-- `git diff --check`: sin errores de espacios.
+**Respuesta resumida de la IA:** Documentar las decisiones que no son evidentes: cuándo se prepara la factura, cómo se evitan duplicados, qué autorización exige una descarga y cómo se separan los fallos del comprobante de la operación comercial.
 
-Las pruebas nuevas cubren asociación, conservación de datos de la operación, unicidad, transacción pendiente, generación simulada, timeout, error, preparación después del commit y rollback, recuperación de eventos, envío con adjunto, reintento sin reemisión, correo faltante, permisos, CSRF, descargas privadas y concurrencia.
+**Aplicación:** Se agregaron docstrings y comentarios en los componentes principales y se documentó el flujo en `docs/HU-29_HU-30_Facturacion.md`. Las pruebas permiten revisar por separado los escenarios normales, errores, permisos y concurrencia.
 
-Durante las pruebas se corrigió el cierre manual de una respuesta de descarga en un test, que afectaba la conexión de la base. Se verificó consumiendo la respuesta como cliente.
+### 11. ¿Hasta dónde alcanza la evidencia de las pruebas simuladas?
 
-## Pendientes de cierre
+**Respuesta resumida de la IA:** Las pruebas automáticas verifican la lógica interna, pero no sustituyen una emisión real con el contrato fiscal y las credenciales TEST habilitadas, ni la revisión de los documentos generados.
 
-Verificación del ajuste a facturas web (30/10/2026):
-
-- Antes del cambio: 43 pruebas de facturación OK.
-- Después del cambio: 38 pruebas de facturación y 561 pruebas de la suite completa OK.
-- `manage.py check`: sin incidencias.
-- `makemigrations --check --dry-run`: sin cambios pendientes.
-- `git diff --check`: sin errores de espacios.
-
-La cantidad disminuye por retirar las pruebas del envío de correo. Se añadieron
-pruebas del nuevo alcance: sección sin acciones de correo, URLs retiradas y
-procesamiento sin SMTP. No se realizó QA visual en navegador ni prueba fiscal
-real en esta revisión. El ajuste permanece local, sin commit ni push.
-
-- Confirmar e implementar el contrato fiscal del emisor y las reglas de importe/concepto.
-- Completar la consulta e interpretación de estados SIFEN.
-- Configurar credenciales TEST por un mecanismo seguro y validar emisión y descarga reales.
-- Probar emisión y comprobantes reales, realizar QA visual de consulta/descarga e integrar el circuito completo.
-- Programar la ejecución del procesador de facturas.
-- Completar la revisión del código con el integrante y actualizar la documentación con la evidencia final.
-
-No se utilizaron credenciales reales ni se emitieron documentos fiscales en las pruebas registradas. Los resultados simulados no acreditan la aceptación final de HU-29/HU-30.
+**Aplicación:** Se registraron como pendientes de aquella revisión la confirmación del contrato fiscal, la consulta de estados SIFEN, la configuración segura de credenciales TEST, la ejecución programada del procesador y la validación visual y fiscal del circuito completo. No se emitieron documentos fiscales reales en las pruebas aquí registradas; los avances posteriores deben evaluarse con su propia evidencia.
