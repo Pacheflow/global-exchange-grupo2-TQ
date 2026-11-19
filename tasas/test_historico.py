@@ -14,6 +14,8 @@ from .models import TasaComercial
 
 
 class HistoricoTasasTests(TestCase):
+    """Comprueba la consulta pública, sus validaciones y la representación del histórico."""
+
     def setUp(self):
         Moneda.objects.all().delete()
         self.usd = Moneda.objects.create(codigo="USD", nombre="Dólar", simbolo="$")
@@ -25,6 +27,8 @@ class HistoricoTasasTests(TestCase):
                         "desde": "2026-11-01", "hasta": "2026-11-03"}
 
     def registrar(self, fecha, compra="7200.1234567890", venta="7300.9876543210", origen=None, destino=None):
+        # Se crean registros no vigentes para comprobar que el histórico conserva
+        # versiones anteriores y no se limita únicamente a la tasa actual.
         row = TasaComercial.objects.create(
             moneda_origen=origen or self.usd, moneda_destino=destino or self.pyg,
             compra=compra, venta=venta, vigente=False, usuario_id="identidad-interna",
@@ -48,6 +52,7 @@ class HistoricoTasasTests(TestCase):
         self.assertNotIn("usuario-privado", response.content.decode())
 
     def test_fechas_inclusivas_en_zona_local_y_aislamiento_de_par(self):
+        # El rango debe incluir ambos días completos y excluir otros pares de monedas.
         self.registrar(datetime(2026, 10, 31, 23, 59, 59))
         self.registrar(datetime(2026, 11, 1, 0))
         self.registrar(datetime(2026, 11, 3, 23, 59, 59, 999999))
@@ -78,6 +83,7 @@ class HistoricoTasasTests(TestCase):
         self.assertEqual(len(self.client.get(self.api, filtros).json()["registros"]), 1)
 
     def test_rechaza_filtros_invalidos_sin_error_de_servidor(self):
+        # Los errores de entrada deben responder de forma controlada, sin un 500.
         for cambios in ({"moneda_origen_id": "abc"}, {"moneda_destino_id": 999999},
                         {"moneda_destino_id": self.usd.pk}, {"desde": "2026-02-30"},
                         {"desde": "2026-11-05"}, {"hasta": "9999-12-31"}, {"moneda_origen_id": ""}):
@@ -92,6 +98,7 @@ class HistoricoTasasTests(TestCase):
         self.assertEqual(self.client.get(self.api).status_code, 400)
 
     def test_mensaje_sin_datos_y_sin_grafico_inventado(self):
+        # Cuando no hay registros, la interfaz informa el estado vacío y no fabrica puntos.
         response = self.client.get(self.web, self.filtros)
         self.assertContains(response, "No hay información disponible")
         self.assertNotContains(response, '<svg viewBox=')
@@ -124,6 +131,7 @@ class HistoricoTasasTests(TestCase):
         self.assertEqual(self.client.get(reverse("tasas:historial_tasas_comerciales")).status_code, 401)
 
     def test_solo_lectura_no_consulta_proveedor_ni_modifica_tasas(self):
+        # Consultar el histórico es una operación de lectura: no actualiza tasas ni proveedores.
         self.registrar(datetime(2026, 11, 2))
         with patch("tasas.views.consultar_tasas_referencia") as proveedor:
             self.client.get(self.api, self.filtros)
@@ -134,6 +142,7 @@ class HistoricoTasasTests(TestCase):
             self.assertEqual(self.client.post(url, self.filtros).status_code, 405)
 
     def test_paginacion_preserva_filtros_y_grafico_completo(self):
+        # La tabla se pagina, pero el gráfico debe seguir representando todo el resultado.
         for i in range(26):
             self.registrar(datetime(2026, 11, 2) + timedelta(minutes=i))
         response = self.client.get(self.web, {**self.filtros, "page": 2})
@@ -152,6 +161,7 @@ class HistoricoTasasTests(TestCase):
         self.assertIn("desde=", response.context["parametros"])
 
     def test_grafico_posiciona_fechas_por_tiempo_no_por_indice(self):
+        # La distancia horizontal refleja el tiempo transcurrido entre registros.
         registros = [self.registrar(datetime(2026, 11, dia)) for dia in (1, 2, 11)]
         grafico = construir_grafico(registros)
         self.assertEqual([p["x"] for p in grafico["puntos"]], ["100.00", "188.00", "980.00"])

@@ -51,3 +51,13 @@ class SidebarActivoTests(SimpleTestCase):
             with self.subTest(rol=rol):
                 self.comprobar_activo("usuarios:dashboard", "Resumen", rol=rol)
         self.comprobar_activo("operaciones_web:inicio", "Operaciones", rol="cajero")
+
+    def test_historico_de_tasas_se_conserva_al_integrar_el_dashboard(self):
+        """El menú de Axel mantiene el acceso a HU-18 para los cuatro roles."""
+        for rol in ("administrador", "analista", "cajero", "usuario"):
+            with self.subTest(rol=rol):
+                self.comprobar_activo("tasas_web:historico", "Histórico de tasas", rol=rol)
+
+    def test_notificaciones_no_activa_el_historico_de_tasas(self):
+        """Las dos pantallas comparten namespace, pero tienen selecciones distintas."""
+        self.comprobar_activo("tasas_web:configurar_notificaciones", "Notificaciones de tasas")
