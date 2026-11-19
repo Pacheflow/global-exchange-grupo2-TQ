@@ -1,0 +1,17 @@
+{
+  "fecha_utc": "2026-11-15T02:43:09.980300+00:00",
+  "modo": "estatico",
+  "checks": [
+    {
+      "nombre": "sintaxis_script",
+      "ok": true
+    },
+    {
+      "nombre": "compose_valido",
+      "ok": true
+    }
+  ],
+  "commit": "4e5c18daf347f0b5e75f5205f73a66307b823bb2",
+  "ok": true,
+  "validacion_productiva_completa": false
+}

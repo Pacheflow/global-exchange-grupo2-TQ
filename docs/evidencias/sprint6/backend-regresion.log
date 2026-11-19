@@ -1,0 +1,20 @@
+Found 682 test(s).
+Creating test database for alias 'default'...
+System check identified no issues (0 silenced).
+..................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................FINALIZACION_ONLINE_PENDIENTE operacion=267
+.FINALIZACION_ONLINE_PENDIENTE operacion=268
+.....FINALIZACION_ONLINE_PENDIENTE operacion=270
+....FINALIZACION_ONLINE_PENDIENTE operacion=276
+FINALIZACION_ONLINE_PENDIENTE operacion=276
+FINALIZACION_ONLINE_PENDIENTE operacion=276
+FINALIZACION_ONLINE_PENDIENTE operacion=276
+FINALIZACION_ONLINE_PENDIENTE operacion=276
+..............................................................................................................
+----------------------------------------------------------------------
+Ran 682 tests in 126.324s
+
+OK
+Destroying test database for alias 'default'...
+
+STAGING=/tmp/global-exchange-s6.QJs4EF
+IMAGE=sha256:caf3626839b58f87fa9fea010ca4c2eb1e864a0edeeecc2ab14e18e4217aca2b
