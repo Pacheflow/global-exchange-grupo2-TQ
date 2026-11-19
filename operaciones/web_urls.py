@@ -11,6 +11,12 @@ urlpatterns = [
         name="reporte_administrativo_transacciones",
     ),
     path(
+        "reportes/transacciones/exportar-pdf/",
+        reportes.reporte_administrativo_transacciones,
+        {"exportar": True},
+        name="exportar_transacciones_pdf",
+    ),
+    path(
         "reportes/transacciones/<int:transaccion_id>/",
         reportes.detalle_reporte_transaccion,
         name="detalle_reporte_transaccion",
