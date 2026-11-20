@@ -1,0 +1,32 @@
+/* Tablero administrativo: tokens vigentes, sin estilos fuera de su alcance. */
+.ge-admin-dashboard [hidden] { display: none !important; }
+.ge-dashboard-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; padding: 20px; margin-bottom: 16px; }
+.ge-dashboard-field { display: flex; flex-direction: column; gap: 7px; min-width: 140px; flex: 1 1 150px; }
+.ge-dashboard-field label { color: var(--text-2); font-size: 13px; }
+.ge-dashboard-field select, .ge-dashboard-field input { color-scheme: dark; width: 100%; box-sizing: border-box; min-height: 42px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 14px; }
+.ge-dashboard-field select:focus-visible, .ge-dashboard-field input:focus-visible, .ge-chart-data summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.ge-dashboard-filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ge-dashboard-context { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.ge-dashboard-context [role="status"] { color: var(--text-2); font-size: 13px; }
+.ge-dashboard-context .ge-dashboard-periodo { margin-bottom: 20px; }
+.ge-admin-dashboard [data-dashboard-results] { transition: opacity 160ms ease; }
+.ge-admin-dashboard [aria-busy="true"] { opacity: .65; }
+.ge-dashboard-charts { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 24px; margin-bottom: 24px; }
+.ge-chart-card { overflow: hidden; }
+.ge-chart-note { margin: 0; padding: 0 20px 16px; color: var(--text-2); font-size: 13px; line-height: 1.6; }
+.ge-chart-warning { color: var(--text); }
+.ge-chart-canvas { position: relative; height: 280px; margin: 0 20px 16px; min-width: 0; }
+.ge-chart-composition { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 0 20px 20px; }
+.ge-chart-donut-canvas { position: relative; height: 230px; width: min(100%, 230px); flex: 1 1 180px; min-width: 0; }
+.ge-chart-legend { list-style: none; padding: 0; margin: 0; flex: 1 1 140px; min-width: 0; }
+.ge-chart-legend li { display: flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ge-chart-legend li > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ge-chart-legend li > div span { display: block; color: var(--text-2); font-size: 12px; margin-top: 4px; }
+.ge-chart-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.ge-chart-empty { display: grid; place-content: center; text-align: center; min-height: 220px; padding: 24px; margin: 0; color: var(--text-2); line-height: 1.6; flex: 1; }
+.ge-chart-data { padding: 12px 20px 20px; color: var(--text-2); font-size: 13px; }
+.ge-chart-data summary { cursor: pointer; padding: 8px 0; }
+.ge-chart-data td, .ge-chart-data th { font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .ge-dashboard-charts { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .ge-dashboard-filters { padding: 16px; } .ge-dashboard-field { flex-basis: 100%; min-width: 0; } .ge-chart-composition { flex-direction: column; } .ge-chart-donut-canvas { width: 100%; flex-basis: auto; } .ge-chart-legend { width: 100%; flex-basis: auto; } .ge-chart-canvas { margin-inline: 12px; height: 250px; } }
+@media (prefers-reduced-motion: reduce) { .ge-admin-dashboard [data-dashboard-results] { transition: none; } }

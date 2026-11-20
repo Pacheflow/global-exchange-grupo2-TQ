@@ -1,6 +1,192 @@
 # Dashboard administrativo — Sprint 6, integración financiera
 
-## Alcance
+## Dashboard dinámico — implementación vigente (19/11/2026)
+
+La segunda solicitud de Axel reemplaza expresamente los conteos históricos y
+los tres KPI temporales por métricas coordinadas del período y divisa elegidos.
+Esta sección es vigente; las etapas siguientes se conservan como antecedentes.
+
+### Arquitectura y seguridad
+
+Django renderiza el panel inicial con el mismo contrato JSON que entrega
+`GET /api/operaciones/dashboard/metricas/` (`operaciones:dashboard_metricas`).
+`usuarios.dashboard` valida filtros y compone un reporte y cinco recientes.
+`operaciones.finanzas.operaciones_completadas` comparte estado, rango local y
+selección de divisa entre ambas lecturas. Se reutilizan `reporte_financiero` e
+`importes_pyg`: sin duplicar cálculos, sin tasas actuales, sin cambios de
+imputación (`fecha_creacion`, COMPLETADA). La API anterior
+`/api/operaciones/metricas-financieras/` mantiene parámetros y contrato.
+
+El endpoint usa el rol efectivo ADMINISTRADOR y sesión OIDC vigente: 401 para
+anónimo/expirada, 403 para otros roles, 405 para métodos distintos de GET,
+400 para filtros inválidos, 503 para error de base de datos. Respuestas
+`no-store`; sin escrituras de negocio. Dos consultas de transacciones,
+independientes de la cantidad de filas, más catálogo/sesión. No se promete una
+fotografía transaccional exacta entre las dos lecturas concurrentes.
+
+### Filtros
+
+- `periodo=hoy|semana|mes|3meses|6meses|12meses|personalizado`; defecto `mes`.
+  Hoy incluye el día local completo; semana, lunes a hoy; mes, día 1 a hoy;
+  N meses, primer día del mes de hace N−1 meses hasta hoy.
+- Personalizado: ambas fechas ISO inclusivas, hasta 366 días. Se infiere
+  `personalizado` si llegan desde/hasta sin período. Parámetros desconocidos,
+  duplicados, fechas incompletas y combinación de fechas no vacías con presets
+  se rechazan. No se impone un límite arbitrario de pasado/futuro.
+- `divisa=` o ausencia significa Todas. Opciones obtenidas del catálogo activo,
+  excluyendo PYG. El backend rechaza divisas desconocidas/inactivas; una URL
+  histórica puede dejar de ser válida si se desactiva su moneda.
+- Regla exacta: `moneda_origen.codigo == divisa OR moneda_destino.codigo == divisa`.
+  USD→PYG y PYG→USD pertenecen ambas a USD. El OR entre FK simples no duplica
+  filas. Cruces sin PYG también conservan conteos/actividad si contienen la
+  divisa elegida; se excluyen de importes sin conversión fiable.
+- Todos los KPI, evolución, distribución y actividad usan la misma selección.
+  Actividad: máximo cinco, orden creación DESC y PK DESC. El enlace al reporte
+  completo conserva su comportamiento previo; el reporte no fue modificado.
+- Evolución: días para hoy/semana/mes y personalizados de hasta 62 días; meses
+  para 3/6/12 meses y personalizados más amplios. Buckets vacíos cero, extremos
+  parciales identificados; como máximo 62 puntos diarios o 13 mensuales.
+
+### Contrato
+
+Respuesta: `version`, `filtros` (selección, fechas efectivas, granularidad y zona
+horaria), `resumen`, `evolucion`, `distribucion`, `actividad_reciente`,
+`advertencias`, `fecha_imputacion`.
+
+Resumen: `ganancia_pyg`, `volumen_pyg` como strings decimales, `operaciones`,
+`compras`, `ventas`, `excluidas`, `moneda=PYG`. Importes son subtotales de las
+operaciones convertibles y se rotulan cuando existen exclusiones; los conteos
+las incluyen. No disponible por error no se representa como cero.
+
+Distribución Todas: comisión PYG por divisa distinta de PYG del par, porcentajes
+sobre la suma convertible del rango; categorías cero omitidas. Divisa específica:
+Compras vs Ventas por cantidad de operaciones. Importes conservan precisión del
+servicio; presentación monetaria entera HALF_UP, puntos de miles, sufijo PYG.
+
+### Frontend
+
+Chart.js 4.5.1 UMD local con licencia MIT, origen/hash en
+`static/vendor/chartjs/README.md`. No requiere CDN en runtime. Se usa
+[actualización de instancias Chart.js](https://www.chartjs.org/docs/latest/developers/updates.html)
+y [contenedores responsive](https://www.chartjs.org/docs/latest/configuration/responsive.html).
+Los valores aproximados Number solo alimentan canvas/animación; textos finales,
+leyendas y tooltips formatean strings con BigInt, sin perder precisión financiera.
+
+- Fetch de la respuesta completa sin reload; cancelación y secuencia para
+  descartar respuestas/errores antiguos. Carga discreta con `aria-busy` y estado
+  anunciado. En error se conservan datos, títulos y controles de última consulta
+  exitosa; aviso y reintento con Aplicar filtros. No se exponen detalles internos.
+- Barras y dona persistentes actualizadas con transición de 800 ms easeOutQuart.
+  Entrada desde cero y dibujo progresivo de dona; contador KPI de 800 ms con
+  valor final exacto. `prefers-reduced-motion` desactiva animación, también cuando
+  la preferencia cambia con el panel abierto.
+- Tooltips de período/categoría, importe PYG o cantidad y porcentaje; tabla de
+  evolución y leyenda visible permiten consultar sin depender del hover/canvas.
+- Query params actualizados después de cada éxito; atrás/adelante consulta sin
+  agregar historial. Si falla, restaura la URL de los datos conservados.
+- Editar período, divisa o fechas solo prepara la selección. La consulta se
+  ejecuta al enviar Aplicar filtros (también con Enter). Limpiar restablece Este
+  mes/Todas y carga inmediatamente sus datos; personalizados habilitan
+  dos fechas. Desktop
+  dos gráficos; tablet/móvil apilados. Tablas con scroll local, sin overflow de
+  página por gráficos. Sin librería se mantienen tabla, leyenda y KPI disponibles.
+
+### Archivos de esta evolución
+
+`operaciones/finanzas.py`, `operaciones/dashboard_views.py`, `operaciones/urls.py`,
+`usuarios/dashboard.py`, `usuarios/graficos.py`, `usuarios/views.py`,
+`templates/frontend/dashboard_administrador.html`,
+`templates/frontend/partials/dashboard_graficos.html`,
+`static/css/dashboard-graficos.css`, `static/js/dashboard.js`,
+`static/js/tests/dashboard.test.cjs`, `static/vendor/chartjs/` (distribución,
+licencia y procedencia), `usuarios/test_dashboard.py`, `usuarios/test_graficos.py`
+y este documento. Se preservan los cambios previos de filtro/importes y tests.
+
+### Validación de esta evolución
+
+- 44/44 pruebas focales Django OK (3,332 s): dashboard, gráficos, importes y
+  finanzas. Subtests cubren todos los presets, personalizados/límites, USD/EUR/
+  Todas, ambas direcciones, exclusiones, actividad, permisos y parámetros.
+- JavaScript: 84/84 OK (1.427 ms); 16 son del tablero. Incluye transiciones y
+  tooltips con doble del motor Chart.js, counters, movimiento reducido, fetch
+  fuera de orden, errores, URL y cleanup. No equivale a render de canvas real.
+- Regresión amplia usuarios/operaciones: 309 ejecutadas, 308 exitosas y 1 falla
+  en descarga PDF existente por reportlab ausente (68,387 s). Requirements ya
+  declara reportlab 4.4.9; no se instaló ni se modificó facturación/reportes.
+- `manage.py check` sin incidencias; `git diff --check` correcto. Detector sin
+  hallazgos; resolución del enlace CSS static de Django limitada.
+- Runtime tras recargar solo web: nueve peticiones de prueba en memoria a API
+  con datos locales reales, todas 200; panel renderizado 200 con filtros,
+  referencias Chart.js y JSON inicial. CSS, JS y Chart.js servidos HTTP 200.
+- Inspección manual en navegador, canvas real, hover real, breakpoints y consola
+  pendientes: el host de navegador sigue indisponible. No se afirma que se
+  completó la lista de QA manual de la solicitud.
+- Sin commit, push, tag ni modificación de Jira. Rama conservada
+  `feature/admin-dashboard-graficos-pyg`, base `6dbe9f9`.
+
+---
+
+## Etapa previa — gráficos SSR del 19/11/2026
+
+Esta sección reemplaza el comportamiento de presentación descrito en las notas
+históricas del 16/11 cuando difieran. Base revisada: `develop` en `6dbe9f9`,
+árbol limpio; trabajo en `feature/admin-dashboard-graficos-pyg`, sin commit/push.
+
+- Se mantienen KPI, conteos históricos, actividad, enlaces y permisos. Ganancia
+  día/semana/mes muestra la suma de comisiones convertibles a PYG, con aviso de
+  subtotal y cantidad excluida por período si faltan conversiones. Volumen
+  conserva el criterio previo: no disponible si su cobertura es incompleta.
+- Barras: seis meses calendario, incluido el actual hasta hoy; períodos sin
+  comisiones se completan con cero. Tabla desplegable con mes/año, PYG y
+  exclusiones. Sin ganancias positivas se presenta estado vacío.
+- Dona: comisiones PYG agrupadas por divisa distinta de PYG del par, tanto
+  origen extranjero → PYG como PYG → destino extranjero. Porcentaje = comisión
+  PYG de la divisa / suma de comisiones PYG del mismo período. No se representan
+  categorías de comisión cero. Pares sin PYG se excluyen de ambos gráficos.
+- `operaciones.finanzas.reporte_financiero` agrega distribución solo con la
+  opción interna `incluir_distribucion=True`. La API actual conserva su
+  respuesta por defecto. Se reutiliza `importes_pyg`, tasa aplicada histórica y
+  `Decimal`; no se consultan tasas actuales ni se crean conversiones faltantes.
+- Imputación por `fecha_creacion`, estado COMPLETADA, zona horaria del sistema,
+  igual que el servicio previo. No se cambia a fecha de liquidación.
+- `usuarios.graficos` adapta los datos a SVG renderizado en servidor, sin JS ni
+  CDN nuevos. `usuarios.views.dashboard` consulta gráficos solo para ADMINISTRADOR
+  y aísla su error de base de datos de los KPI y la actividad.
+- Filtro dedicado `importe_pyg`: guaraníes enteros, miles con puntos y redondeo
+  visual HALF_UP. JSON y cálculos mantienen su precisión; `importe_legible`
+  conserva su comportamiento para actividad y reportes.
+
+Archivos: `operaciones/finanzas.py`, `usuarios/dashboard.py`, `usuarios/graficos.py`,
+`usuarios/views.py`, `usuarios/templatetags/importes.py`,
+`templates/frontend/dashboard_administrador.html`,
+`templates/frontend/partials/dashboard_graficos.html`,
+`static/css/dashboard-graficos.css`, `usuarios/test_dashboard.py`,
+`usuarios/test_graficos.py`, `usuarios/test_importes.py` y este documento.
+
+Verificación actual:
+
+- `docker compose exec -T web python manage.py test usuarios.test_dashboard usuarios.test_importes usuarios.test_graficos operaciones.test_finanzas --noinput`:
+  **50 ejecutadas / 50 exitosas**, 3,795 s.
+- Regresión `manage.py test usuarios operaciones --noinput`: **317 ejecutadas,
+  316 exitosas y 1 fallida**, 56,179 s. Fallo en descarga PDF existente por
+  `ModuleNotFoundError: reportlab` en el contenedor. Esta ejecución incluyó
+  pruebas importadas duplicadas en el primer borrador del archivo nuevo; luego
+  se corrigió el descubrimiento, ver ejecución focal final anterior. No se
+  suman las cantidades de ejecuciones distintas.
+- `manage.py check`: sin incidencias. `git diff --check`: correcto.
+- Detector Impeccable: sin hallazgos; no resuelve el enlace CSS mediante static
+  de Django, por lo que su comprobación de estilos es parcial.
+- QA visual pendiente: host de navegador no disponible; intento de acceso a
+  ventana nativa agotó el tiempo de autorización. Los tests HTML/SVG no
+  sustituyen inspección visual de escritorio y móvil.
+- Recargado únicamente web local. Render directo de vista con petición de prueba
+  en memoria y datos locales: 200, títulos de ambos gráficos presentes.
+- Jira no consultado ni modificado: el alcance proviene de la solicitud explícita
+  del usuario, sin afirmar estados de HU o Definition of Done.
+
+---
+
+## Alcance histórico
 
 `GET /panel/` conserva la selección de panel por rol efectivo. Únicamente
 ADMINISTRADOR recibe el dashboard administrativo y ejecuta su consulta.
@@ -161,3 +347,17 @@ del dashboard OK en 1,272 s. `git diff --check` sin errores.
 La inspección visual en navegador no pudo realizarse porque el host
 de acceso del navegador estaba indisponible. Los tests verifican HTML y
 comportamiento; no sustituyen la inspección visual.
+
+
+## Cierre técnico previo al PR — 19/11/2026
+
+Regresión final de la rama:415/415 pruebas Django (`usuarios tasas operaciones`)
+y98/98 JavaScript exitosas. Django check y diffcheck correctos. Incluye métricas
+administrativas, dashboard analista, tasas, histórico, filtros, permisos y PDF.
+La dependencia PDF faltante de la imagen local fue reparada; no requiere cambios
+adicionales al generador ni a requirements, donde ya estaba declarada.
+
+Los filtros se aplican al enviar el formulario; Limpiar consulta inmediatamente
+Este mes/Todas. Se conserva la animación inicial original: el intento posterior
+de posponerla por visibilidad fue retirado por solicitud del usuario. No se
+acredita QA visual en navegador. La documentación del analista detalla su alcance.

@@ -1,0 +1,2 @@
+{% load importes %}
+<article class="ge-card ge-analyst-kpi"><span class="ge-analyst-kpi-icon">{% include 'components/icon.html' with name=icon size=18 %}</span><div><h2>{{ label }}</h2><strong data-analyst-kpi="{{ key }}">{% if value or value == 0 %}{{ value }}{% else %}—{% endif %}</strong><span data-analyst-kpi-note="{{ key }}">{{ note }}</span></div></article>

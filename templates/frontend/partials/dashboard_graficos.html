@@ -1,0 +1,19 @@
+{% load importes %}
+<div class="ge-dashboard-charts">
+  <section class="ge-card ge-chart-card" aria-labelledby="ganancia-evolucion-title">
+    <div class="ge-card-head"><h2 class="ge-card-title" id="ganancia-evolucion-title" data-evolution-title>Evolución de ganancias · {{ datos_dashboard.filtros.divisa|default:'Todas las divisas' }}</h2></div>
+    <p class="ge-chart-note">Comisiones en PYG · <span data-dashboard-granularity>{{ datos_dashboard.filtros.agrupacion|default:'dia' }}</span> · Los extremos del rango pueden ser parciales.</p>
+    <div class="ge-chart-canvas" data-evolution-container hidden><canvas data-evolution-chart role="img" aria-label="Evolución de ganancias en PYG. Valores en la tabla Datos de evolución."></canvas></div>
+    <p class="ge-chart-empty" data-evolution-empty>{% if error_dashboard %}Los datos no están disponibles.{% elif not datos_dashboard.resumen.operaciones %}No hay datos disponibles para los filtros seleccionados.{% else %}Consultá los valores en Datos de evolución.{% endif %}</p>
+    <details class="ge-chart-data"><summary>Datos de evolución</summary><div class="ge-table-wrap"><table class="ge-table"><caption class="ge-dashboard-caption">Comisiones convertidas a PYG</caption><thead><tr><th scope="col">Período</th><th scope="col">Ganancia (PYG)</th><th scope="col">Excluidas</th></tr></thead><tbody data-evolution-table>{% for punto in datos_dashboard.evolucion %}<tr><th scope="row">{{ punto.etiqueta }}</th><td>{{ punto.ganancia_pyg|importe_pyg }} PYG</td><td>{{ punto.excluidas }}</td></tr>{% endfor %}</tbody></table></div></details>
+  </section>
+  <section class="ge-card ge-chart-card" aria-labelledby="ganancia-distribucion-title">
+    <div class="ge-card-head"><h2 class="ge-card-title" id="ganancia-distribucion-title" data-distribution-title>{{ datos_dashboard.distribucion.titulo|default:'Ganancia por divisa (%)' }}</h2></div>
+    <p class="ge-chart-note" data-distribution-note>{% if datos_dashboard.distribucion.modo == 'tipo' %}Cantidad de compras y ventas de la divisa seleccionada.{% else %}Comisiones en PYG por la divisa distinta de PYG del par.{% endif %}</p>
+    <div class="ge-chart-composition">
+      <div class="ge-chart-donut-canvas" data-distribution-container hidden><canvas data-distribution-chart role="img" aria-label="Distribución del período. Categorías e importes en la leyenda."></canvas></div>
+      <p class="ge-chart-empty" data-distribution-empty>{% if datos_dashboard.resumen.operaciones %}Consultá los valores en la leyenda.{% else %}No hay datos disponibles para los filtros seleccionados.{% endif %}</p>
+      <ul class="ge-chart-legend" data-distribution-legend aria-label="Datos de distribución">{% for item in datos_dashboard.distribucion.categorias %}<li><div><strong>{{ item.categoria }}</strong><span>{% if datos_dashboard.distribucion.modo == 'tipo' %}{{ item.cantidad }} operaciones{% else %}{{ item.ganancia_pyg|importe_pyg }} PYG{% endif %}</span></div><strong>{{ item.porcentaje|importe_legible }} %</strong></li>{% endfor %}</ul>
+    </div>
+  </section>
+</div>

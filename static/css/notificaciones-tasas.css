@@ -1,0 +1,34 @@
+.ge-rate-notifications { max-width: 1120px; }
+.ge-rate-notifications__heading { margin-bottom: 28px; }
+.ge-rate-notifications__heading > p { max-width: 65ch; margin-top: 10px; color: var(--text-2); font-size: 14px; line-height: 1.7; }
+.ge-rate-notifications__panel { display: grid; grid-template-columns: 1.1fr 1fr; overflow: hidden; }
+.ge-rate-notifications__form, .ge-rate-notifications__guide { min-width: 0; padding: 32px; }
+.ge-rate-notifications__panel h2 { font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 600; color: var(--text); }
+.ge-rate-notifications__form > p { margin-top: 8px; color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.ge-rate-notifications__field { margin: 28px 0; }
+.ge-rate-notifications__field label { color: var(--text-2); }
+.ge-rate-notifications__input { position: relative; max-width: 280px; }
+.ge-rate-notifications .ge-field input:not([type="checkbox"]):not([type="radio"]) { padding: 16px 48px 16px 18px; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 0; }
+.ge-rate-notifications__input > span { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); color: var(--text-2); font-size: 20px; pointer-events: none; }
+.ge-rate-notifications__field > small { color: var(--text-2); line-height: 1.6; margin-top: 10px; }
+.ge-rate-notifications__actions { padding-top: 24px; border-top: 1px solid var(--border); }
+.ge-rate-notifications__actions > p { margin-top: 12px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.ge-rate-notifications__guide { border-left: 1px solid var(--border); background: var(--bg-alt); }
+.ge-rate-notifications__icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 20px; border-radius: 12px; background: var(--primary-muted); color: var(--primary); }
+.ge-rate-notifications__icon svg { display: block; }
+.ge-rate-notifications__guide dl { margin: 24px 0 0; }
+.ge-rate-notifications__guide dl > div + div { margin-top: 20px; }
+.ge-rate-notifications__guide dt { color: var(--text); font-size: 13px; font-weight: 600; }
+.ge-rate-notifications__guide dd { margin: 6px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.ge-rate-notifications__errors { margin-top: 10px; color: var(--danger); font-size: 13px; line-height: 1.6; }
+.ge-rate-notifications__errors ul { list-style: none; margin: 0; padding: 0; }
+.ge-rate-notifications__feedback { padding: 14px 18px; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; line-height: 1.6; }
+@media (max-width: 1100px) {
+  .ge-rate-notifications__panel { grid-template-columns: 1fr; }
+  .ge-rate-notifications__guide { border-left: 0; border-top: 1px solid var(--border); }
+}
+@media (max-width: 600px) {
+  .ge-rate-notifications__form, .ge-rate-notifications__guide { padding: 24px 20px; }
+  .ge-rate-notifications__input { max-width: none; }
+  .ge-rate-notifications__actions button { width: 100%; justify-content: center; }
+}

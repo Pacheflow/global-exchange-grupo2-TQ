@@ -2,11 +2,13 @@ from django.urls import path
 
 from . import views
 from .historico import historico_api
+from .dashboard_analista import dashboard_analista_api
 
 
 app_name = "tasas"
 
 urlpatterns = [
+    path("dashboard-analista/", dashboard_analista_api, name="dashboard_analista"),
     path("historico/", historico_api, name="historico"),
     path(
         "",

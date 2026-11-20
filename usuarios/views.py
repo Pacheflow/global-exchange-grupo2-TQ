@@ -371,16 +371,21 @@ def dashboard(request):
     template = DASHBOARD_POR_ROL.get(rol_sesion, "frontend/dashboard_usuario.html")
     context = {"display_name": display_name}
     if rol_sesion == "ADMINISTRADOR":
-        from .dashboard import contrato_dashboard, consultar_dashboard_administrativo
+        from .dashboard import consultar_dashboard_administrativo, divisas_dashboard, validar_filtros, PERIODOS
 
-        context.update(resumen_dashboard=contrato_dashboard(), actividad_reciente=[],
-                       error_dashboard=False)
+        context.update(datos_dashboard=None, divisas_dashboard=[], periodos_dashboard=PERIODOS.items(),
+                       error_dashboard="")
         try:
-            resumen, recientes = consultar_dashboard_administrativo()
-            context.update(resumen_dashboard=resumen, actividad_reciente=recientes)
+            divisas = divisas_dashboard()
+            context["divisas_dashboard"] = divisas
+            filtros = validar_filtros(request.GET, divisas=divisas)
+            context["datos_dashboard"] = consultar_dashboard_administrativo(filtros)
+        except ValidationError as exc:
+            context["error_dashboard"] = " ".join(exc.messages)
+            return render(request, template, context, status=400)
         except DatabaseError:
             logging.getLogger(__name__).error("DASHBOARD_ADMIN_LECTURA_FALLIDA")
-            context["error_dashboard"] = True
+            context["error_dashboard"] = "No se pudieron cargar los datos. Intentá aplicar los filtros nuevamente."
     elif rol_sesion == "CAJERO":
         from cajas.models import PeriodoCaja
         from cajas.services import consultar_saldos_caja
@@ -423,30 +428,21 @@ def dashboard(request):
                 except ValidationError:
                     context["error_caja"] = "El período seleccionado ya no está disponible."
     elif rol_sesion == "ANALISTA_CAMBIARIO":
-        from monedas.models import Moneda
-        from tasas.models import TasaComercial
-        from tasas.simulador import simular_conversion
+        from tasas.dashboard_analista import consultar_dashboard_analista
+        from .dashboard import divisas_dashboard, validar_filtros, PERIODOS
 
-        context.update(
-            monedas_activas_count=Moneda.objects.activas().count(),
-            tasas_comerciales_vigentes_count=TasaComercial.objects.filter(
-                vigente=True
-            ).count(),
-        )
-        for codigo, context_key in (
-            ("USD", "tasa_usd_pyg"),
-            ("EUR", "tasa_eur_pyg"),
-        ):
-            try:
-                origen = Moneda.objects.get(codigo=codigo, estado="ACTIVA")
-                destino = Moneda.objects.get(codigo="PYG", estado="ACTIVA")
-                context[context_key] = simular_conversion(
-                    moneda_origen_id=origen.id,
-                    moneda_destino_id=destino.id,
-                    monto="1",
-                )
-            except (Moneda.DoesNotExist, ValidationError):
-                context[context_key] = None
+        context.update(datos_analista=None, divisas_analista=[], periodos_analista=PERIODOS.items(), error_analista="")
+        try:
+            divisas = divisas_dashboard()
+            context["divisas_analista"] = divisas
+            filtros = validar_filtros(request.GET, divisas=divisas)
+            context["datos_analista"] = consultar_dashboard_analista(filtros)
+        except ValidationError as exc:
+            context["error_analista"] = " ".join(exc.messages)
+            return render(request, template, context, status=400)
+        except DatabaseError:
+            logging.getLogger(__name__).error("DASHBOARD_ANALISTA_LECTURA_FALLIDA")
+            context["error_analista"] = "No se pudieron cargar los datos de mercado. Intentá nuevamente."
     return render(request, template, context)
 
 

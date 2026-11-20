@@ -5,7 +5,23 @@ from decimal import Decimal, localcontext
 from django.template import Context, Template
 from django.test import SimpleTestCase
 
-from usuarios.templatetags.importes import importe_legible
+from usuarios.templatetags.importes import importe_legible, importe_pyg
+
+
+class ImportesPYGTests(SimpleTestCase):
+    def test_redondeo_visual_entero_y_miles(self):
+        for valor, esperado in (("0", "0"), ("51660.000000", "51.660"),
+                                ("738000", "738.000"), ("1234.49", "1.234"),
+                                ("1234.50", "1.235"), (None, "")):
+            with self.subTest(valor=valor):
+                self.assertEqual(importe_pyg(valor), esperado)
+        self.assertEqual(importe_legible("1234.50"), "1.234,5")
+
+    def test_template_pyg_sin_modificar_decimal(self):
+        monto = Decimal("51660.750000")
+        self.assertEqual(Template('{% load importes %}{{ monto|importe_pyg }} PYG').render(
+            Context({"monto": monto})), "51.661 PYG")
+        self.assertEqual(monto, Decimal("51660.750000"))
 
 
 class ImportesLegiblesTests(SimpleTestCase):
