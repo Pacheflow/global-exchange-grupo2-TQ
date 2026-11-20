@@ -1,0 +1,66 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% block title %}Histórico de tasas · Global Exchange{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/tasas-historico.css' %}">{% endblock %}
+{% block sidebar %}{% if kc_user %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endif %}{% endblock %}
+{% block content %}
+<div class="ge-frontend-main-pad ge-rate-history">
+  <div class="ge-frontend-section-head">
+    <div><h2 class="ge-frontend-h2">Histórico de tasas</h2>
+      <p class="ge-frontend-note">Consultá cómo cambiaron las tasas comerciales de compra y venta para un par de monedas.</p></div>
+  </div>
+  <form method="get" class="ge-card ge-history-filters" aria-label="Filtrar histórico de tasas">
+    {% for field in form %}
+    <div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+      {% if field.errors %}<div class="ge-history-error" role="alert">{{ field.errors }}</div>{% endif %}</div>
+    {% endfor %}
+    {{ form.non_field_errors }}
+    <button class="ge-btn-primary" type="submit">Consultar</button>
+  </form>
+  <p class="ge-frontend-note">Cada fecha usa la zona {{ zona_horaria }}. Desde y Hasta incluyen el día completo; podés dejarlos vacíos para consultar todo el histórico.</p>
+  {% if grafico %}
+  <section class="ge-card ge-history-results" aria-labelledby="history-title">
+    <div class="ge-rates-history-heading">
+      <div><h3 id="history-title">Evolución de {{ par }}</h3><p class="ge-frontend-note">{{ total }} registro{{ total|pluralize }} en el período consultado. Valores por una unidad de la moneda de origen.</p></div>
+      <div class="ge-history-legend"><span class="ge-history-buy">● Compra</span><span class="ge-history-sell">◆ Venta</span></div>
+    </div>
+    <div class="ge-history-chart">
+      <svg viewBox="0 0 1080 320" role="img" aria-labelledby="chart-title chart-description">
+        <title id="chart-title">Tasas de compra y venta de {{ par }}</title>
+        <desc id="chart-description">Eje horizontal: fecha y hora de registro. Eje vertical: tasa en moneda de destino. Los puntos corresponden a registros reales; las líneas solo los unen. Los valores exactos están en la tabla inferior.</desc>
+        {% for eje in grafico.ejes %}
+        <line x1="100" x2="980" y1="{{ eje.y }}" y2="{{ eje.y }}" class="ge-history-grid"/>
+        <text x="90" y="{{ eje.y }}" text-anchor="end" dominant-baseline="middle">{{ eje.valor }}</text>
+        {% endfor %}
+        {% for fecha in grafico.fechas %}<text x="{{ fecha.x }}" y="293" text-anchor="middle">{{ fecha.valor }}</text>{% endfor %}
+        <polyline points="{{ grafico.compra }}" class="ge-history-buy-line"/>
+        <polyline points="{{ grafico.venta }}" class="ge-history-sell-line"/>
+        {% for punto in grafico.puntos %}
+        <circle cx="{{ punto.x }}" cy="{{ punto.y_compra }}" r="4" class="ge-history-buy-point"><title>{{ punto.fecha }} — Compra: {{ punto.compra }}</title></circle>
+        <rect x="{{ punto.x }}" y="{{ punto.y_venta }}" width="7" height="7" transform="translate(-3.5 -3.5)" class="ge-history-sell-point"><title>{{ punto.fecha }} — Venta: {{ punto.venta }}</title></rect>
+        {% endfor %}
+      </svg>
+    </div>
+    <p class="ge-frontend-note">Se muestran únicamente registros disponibles, incluidas versiones anteriores. Las líneas no representan cotizaciones adicionales entre registros.</p>
+  </section>
+  <section class="ge-card ge-history-results" aria-label="Registros históricos">
+    <div class="ge-history-table"><table class="ge-table">
+      <caption>Registros de {{ par }} · Fechas en {{ zona_horaria }}</caption>
+      <thead><tr><th scope="col">Fecha y hora</th><th scope="col">Compra</th><th scope="col">Venta</th></tr></thead>
+      <tbody>{% for registro in pagina %}<tr><td>{{ registro.fecha_registro|date:"d/m/Y H:i:s" }}</td><td>{{ registro.compra|floatformat:"-10g" }}</td><td>{{ registro.venta|floatformat:"-10g" }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if pagina.has_other_pages %}<nav class="ge-history-pagination" aria-label="Páginas de registros">
+      {% if pagina.has_previous %}<a href="?{{ parametros }}&amp;page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+      <span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+      {% if pagina.has_next %}<a href="?{{ parametros }}&amp;page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+    </nav>{% endif %}
+  </section>
+  {% elif not hay_monedas %}
+    <div class="ge-card ge-history-results" role="status">No hay información disponible: todavía no hay un par de monedas para consultar.</div>
+  {% elif not form.errors %}
+    <div class="ge-card ge-history-results" role="status">No hay información disponible para el par y período consultados. Probá con otras fechas o monedas.</div>
+  {% else %}
+    <p role="status">Revisá los filtros indicados para consultar el histórico.</p>
+  {% endif %}
+</div>
+{% endblock %}

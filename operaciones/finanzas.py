@@ -8,6 +8,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import Transaccion
@@ -44,6 +45,8 @@ def _inicio_periodo(fecha, agrupacion):
 
 def _siguiente(fecha, agrupacion):
     if agrupacion == "mes":
+        if fecha.year == 9999 and fecha.month == 12:
+            return fecha.max
         return (fecha.replace(day=28) + timedelta(days=4)).replace(day=1)
     return fecha + timedelta(days=7 if agrupacion == "semana" else 1)
 
@@ -73,7 +76,26 @@ def _serializar(valores):
     return resultado
 
 
-def reporte_financiero(*, desde, hasta, agrupacion="dia"):
+def operaciones_completadas(*, desde, hasta, divisa=None):
+    """Selección común por creación local y divisa en cualquiera de las dos patas.
+
+    El OR entre FK simples no multiplica filas. Los cruces sin PYG conservan
+    conteos/actividad y se excluyen de importes por importes_pyg, como siempre.
+    """
+    if desde > hasta or (hasta - desde).days >= MAX_DIAS or hasta == hasta.max:
+        raise ValidationError("El período debe estar ordenado y abarcar como máximo 366 días.")
+    tz = timezone.get_current_timezone()
+    inicio = timezone.make_aware(datetime.combine(desde, time.min), tz)
+    fin = timezone.make_aware(datetime.combine(hasta + timedelta(days=1), time.min), tz)
+    operaciones = Transaccion.objects.filter(
+        estado="COMPLETADA", fecha_creacion__gte=inicio, fecha_creacion__lt=fin,
+    )
+    if divisa:
+        operaciones = operaciones.filter(Q(moneda_origen__codigo=divisa) | Q(moneda_destino__codigo=divisa))
+    return operaciones
+
+
+def reporte_financiero(*, desde, hasta, agrupacion="dia", incluir_distribucion=False, divisa=None):
     """Agrega un rango inclusivo local de hasta 366 días; incluye períodos vacíos.
 
     Los buckets extremos pueden ser parciales: solo incluyen el rango solicitado.
@@ -81,14 +103,9 @@ def reporte_financiero(*, desde, hasta, agrupacion="dia"):
     """
     if agrupacion not in {"dia", "semana", "mes"}:
         raise ValidationError("Agrupación inválida: usá dia, semana o mes.")
-    if desde > hasta or (hasta - desde).days >= MAX_DIAS:
-        raise ValidationError("El período debe estar ordenado y abarcar como máximo 366 días.")
     tz = timezone.get_current_timezone()
-    inicio = timezone.make_aware(datetime.combine(desde, time.min), tz)
-    fin = timezone.make_aware(datetime.combine(hasta + timedelta(days=1), time.min), tz)
-    operaciones = Transaccion.objects.filter(
-        estado="COMPLETADA", fecha_creacion__gte=inicio, fecha_creacion__lt=fin,
-    ).select_related("moneda_origen", "moneda_destino").order_by("pk")
+    operaciones = operaciones_completadas(desde=desde, hasta=hasta, divisa=divisa).select_related(
+        "moneda_origen", "moneda_destino").order_by("pk")
     buckets = {}
     fecha = _inicio_periodo(desde, agrupacion)
     while fecha <= hasta:
@@ -96,6 +113,7 @@ def reporte_financiero(*, desde, hasta, agrupacion="dia"):
         fecha = _siguiente(fecha, agrupacion)
     total = _acumulador()
     sin_conversion = {}
+    por_divisa = {}
     with localcontext() as ctx:
         ctx.prec = 64
         for operacion in operaciones.iterator(chunk_size=1000):
@@ -103,6 +121,11 @@ def reporte_financiero(*, desde, hasta, agrupacion="dia"):
             importes = importes_pyg(operacion)
             _sumar(total, operacion, importes)
             _sumar(buckets[_inicio_periodo(fecha, agrupacion)], operacion, importes)
+            if incluir_distribucion and importes is not None:
+                # Segmentar por la divisa distinta de PYG, en ambos sentidos.
+                divisa = (operacion.moneda_origen.codigo if operacion.moneda_origen.codigo != MONEDA
+                          else operacion.moneda_destino.codigo)
+                por_divisa[divisa] = por_divisa.get(divisa, Decimal(0)) + importes[1]
             if importes is None:
                 par = f"{operacion.moneda_origen.codigo}/{operacion.moneda_destino.codigo}"
                 sin_conversion[par] = sin_conversion.get(par, 0) + 1
@@ -123,4 +146,11 @@ def reporte_financiero(*, desde, hasta, agrupacion="dia"):
         resultado["advertencias"].append(
             "Importes parciales: hay operaciones sin PYG en el par. Sus cantidades sí están incluidas."
         )
+    if incluir_distribucion:
+        with localcontext() as ctx:
+            ctx.prec = 64
+            resultado["distribucion"] = [
+                dict(divisa=divisa, ganancia=format(importe.quantize(PRECISION, rounding=ROUND_HALF_UP), "f"))
+                for divisa, importe in sorted(por_divisa.items())
+            ]
     return resultado

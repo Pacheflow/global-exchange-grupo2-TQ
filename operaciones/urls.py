@@ -2,10 +2,12 @@ from django.urls import path
 
 from . import views
 from .finanzas_views import metricas_financieras
+from .dashboard_views import metricas_dashboard
 
 app_name = "operaciones"
 
 urlpatterns = [
+    path("dashboard/metricas/", metricas_dashboard, name="dashboard_metricas"),
     path("metricas-financieras/", metricas_financieras, name="metricas_financieras"),
     path("presenciales/clientes/", views.clientes_presenciales, name="clientes_presenciales"),
     path("presenciales/metodos/", views.metodos_presenciales, name="metodos_presenciales"),

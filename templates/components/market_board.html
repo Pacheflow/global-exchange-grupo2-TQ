@@ -26,9 +26,12 @@
     </div>
   </div>
 
-  <div class="ge-market-board__chart ge-market-stage" data-market-stage>
-    <svg class="ge-sparkline" viewBox="0 0 560 82" preserveAspectRatio="none" role="img" aria-label="Histórico disponible próximamente" data-market-chart></svg>
-    <div><span>Histórico · Próximamente</span><span data-market-chart-pair>USD / PYG</span></div>
+  <div class="ge-market-guide ge-market-stage" data-market-stage>
+    <ol aria-label="Cómo empezar con Global Exchange">
+      <li><span class="ge-market-guide__icon">{% include 'components/icon.html' with name='search' size=18 %}</span><span>Consultá</span></li>
+      <li><span class="ge-market-guide__icon">{% include 'components/icon.html' with name='currencies' size=18 %}</span><span>Simulá</span></li>
+      <li><span class="ge-market-guide__icon">{% include 'components/icon.html' with name='transfer' size=18 %}</span><span>Operá</span></li>
+    </ol>
   </div>
 
   <div class="ge-market-board__market ge-market-stage" data-market-stage>

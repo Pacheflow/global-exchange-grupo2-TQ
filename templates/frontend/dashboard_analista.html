@@ -1,60 +1,53 @@
 {% extends 'frontend/base.html' %}
+{% load static importes %}
 {% block title %}Panel Analista Cambiario · Global Exchange{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/dashboard-analista.css' %}?v=20261119" up-asset>{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar.html' with rol='analista' rol_label='Analista cambiario' %}{% endblock %}
 {% block content %}
-  <div class="ge-frontend-pagehead">
-    <div>
-      <h1 class="ge-frontend-h1">Panel Analista Cambiario</h1>
-      <p class="ge-frontend-sub">Tasas y análisis de mercado</p>
+<div class="ge-analyst ge-frontend-main-pad" data-analyst-dashboard data-endpoint="{% url 'tasas:dashboard_analista' %}">
+  <header class="ge-analyst-heading">
+    <div><h1 class="ge-frontend-h1">Panel Analista Cambiario</h1><p class="ge-frontend-sub">Tasas vigentes, evolución y actividad del mercado</p></div>
+  </header>
+  <form method="get" class="ge-card ge-analyst-filters" data-analyst-form up-submit="false">
+    <div><label for="analyst-period">Período</label><select id="analyst-period" name="periodo" data-filter="periodo">{% for codigo, nombre in periodos_analista %}<option value="{{ codigo }}" {% if datos_analista.filtros.periodo == codigo or not datos_analista and codigo == 'mes' %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select></div>
+    <div><label for="analyst-currency">Divisa</label><select id="analyst-currency" name="divisa" data-filter="divisa"><option value="">Todas</option>{% for moneda in divisas_analista %}<option value="{{ moneda.codigo }}" {% if datos_analista.filtros.divisa == moneda.codigo %}selected{% endif %}>{{ moneda.codigo }} · {{ moneda.nombre }}</option>{% endfor %}</select></div>
+    <div data-custom-date {% if datos_analista.filtros.periodo != 'personalizado' %}hidden{% endif %}><label for="analyst-from">Desde</label><input id="analyst-from" type="date" name="desde" data-filter="desde" value="{{ datos_analista.filtros.desde }}" {% if datos_analista.filtros.periodo != 'personalizado' %}disabled{% endif %}></div>
+    <div data-custom-date {% if datos_analista.filtros.periodo != 'personalizado' %}hidden{% endif %}><label for="analyst-to">Hasta</label><input id="analyst-to" type="date" name="hasta" data-filter="hasta" value="{{ datos_analista.filtros.hasta }}" {% if datos_analista.filtros.periodo != 'personalizado' %}disabled{% endif %}></div>
+    <div class="ge-analyst-actions"><button class="ge-btn-primary" type="submit">Aplicar filtros</button><button class="ge-btn-ghost" type="button" data-analyst-reset>Limpiar filtros</button></div>
+  </form>
+  <p class="ge-analyst-error" role="alert" data-analyst-error {% if not error_analista %}hidden{% endif %}>{{ error_analista }}</p>
+  <div class="ge-analyst-context"><p data-analyst-context>{{ datos_analista.filtros.etiqueta }} · {{ datos_analista.filtros.divisa|default:'Todas las divisas' }} · {{ datos_analista.filtros.desde }} — {{ datos_analista.filtros.hasta }}</p><span role="status" aria-live="polite" data-analyst-status></span></div>
+  <div data-analyst-results aria-busy="false">
+    <section class="ge-analyst-kpis" aria-label="Indicadores de mercado">
+      {% include 'frontend/partials/analista_kpi.html' with label='USD/PYG referencia' icon='currencies' value=datos_analista.referencias.USD.valor key='usd' note='Referencia vigente · global' %}
+      {% include 'frontend/partials/analista_kpi.html' with label='EUR/PYG referencia' icon='euro' value=datos_analista.referencias.EUR.valor key='eur' note='Referencia vigente · global' %}
+      {% include 'frontend/partials/analista_kpi.html' with label='Mayor variación' icon='rates' value=datos_analista.resumen.mayor_variacion.porcentaje key='variation' note='Compra comercial · mayor cambio absoluto' %}
+      {% include 'frontend/partials/analista_kpi.html' with label='Divisa más operada' icon='transfer' value=datos_analista.resumen.divisa_mas_operada.divisa key='operated' note='Operaciones completadas del período' %}
+      {% include 'frontend/partials/analista_kpi.html' with label='Tasas vigentes' icon='commercial-rates' value=datos_analista.resumen.tasas_vigentes key='rates' note='Pares comerciales contra PYG · filtro de divisa' %}
+      {% include 'frontend/partials/analista_kpi.html' with label='Última actualización' icon='history' value=datos_analista.resumen.ultima_actualizacion key='updated' note='Última versión comercial vigente' %}
+    </section>
+    <div class="ge-analyst-charts">
+      <section class="ge-card ge-analyst-evolution" aria-labelledby="analyst-evolution-title">
+        <div class="ge-analyst-card-head"><h2 id="analyst-evolution-title">Evolución de tasas</h2><span data-analyst-pair>{{ datos_analista.evolucion.par }}</span></div>
+        <p class="ge-analyst-note">Compra y venta comerciales en PYG. Con Todas se muestra USD/PYG, o la primera divisa activa si no existe USD.</p>
+        <div class="ge-analyst-canvas" data-evolution-container hidden><canvas data-analyst-line role="img" aria-label="Evolución de compra y venta; datos disponibles en la tabla inferior"></canvas></div>
+        <p class="ge-analyst-empty" data-evolution-empty>Activá JavaScript para ver el gráfico. Los valores están en la tabla.</p>
+        <details class="ge-analyst-data"><summary>Ver datos de la evolución</summary><p class="ge-analyst-note">Última versión de cada día y primer registro del período. No se interpolan tasas.</p><div class="ge-table-wrap"><table class="ge-table"><caption class="ge-analyst-sr">Evolución comercial en PYG</caption><thead><tr><th scope="col">Fecha</th><th scope="col">Compra · PYG</th><th scope="col">Venta · PYG</th></tr></thead><tbody data-evolution-rows>{% for punto in datos_analista.evolucion.puntos %}<tr><td>{{ punto.fecha }}</td><td>{{ punto.compra|importe_legible }}</td><td>{{ punto.venta|importe_legible }}</td></tr>{% empty %}<tr><td colspan="3">No hay histórico disponible para los filtros seleccionados.</td></tr>{% endfor %}</tbody></table></div></details>
+      </section>
+      <section class="ge-card" aria-labelledby="analyst-distribution-title">
+        <div class="ge-analyst-card-head"><h2 id="analyst-distribution-title" data-distribution-title>{% if datos_analista.filtros.divisa %}Compras vs Ventas{% else %}Operaciones por divisa{% endif %}</h2></div>
+        <p class="ge-analyst-note" data-distribution-note>Operaciones completadas · fecha de creación. Cada divisa se cuenta una vez por operación; los cruces participan en ambas divisas.</p>
+        <div class="ge-analyst-donut" data-distribution-container hidden><canvas data-analyst-donut role="img" aria-label="Distribución de operaciones; cantidades y porcentajes en la leyenda"></canvas></div>
+        <p class="ge-analyst-empty" data-distribution-empty>No hay operaciones completadas para los filtros seleccionados.</p>
+        <ul class="ge-analyst-legend" data-distribution-legend>{% for categoria in datos_analista.distribucion.categorias %}<li>{{ categoria.nombre }} · {{ categoria.cantidad }} operaciones · {{ categoria.porcentaje|floatformat:2 }} %</li>{% endfor %}</ul>
+        <p class="ge-analyst-note" data-operation-counts>{{ datos_analista.resumen.operaciones }} operaciones · {{ datos_analista.resumen.compras }} compras · {{ datos_analista.resumen.ventas }} ventas</p>
+      </section>
     </div>
+    <section class="ge-card ge-analyst-variations" aria-labelledby="analyst-variation-title"><div class="ge-analyst-card-head"><h2 id="analyst-variation-title">Variación por divisa</h2><span>Compra comercial</span></div><p class="ge-analyst-note">Se comparan el primer y el último registro real dentro del período. Se necesitan al menos dos versiones; no se mezcla con referencia ni venta.</p><div class="ge-analyst-variation-list" data-variation-list>{% for item in datos_analista.variaciones %}<div><strong>{{ item.par }}</strong><span>{% if item.variacion %}{{ item.variacion.porcentaje|floatformat:2 }} %{% else %}Sin histórico suficiente{% endif %}</span></div>{% empty %}<p class="ge-analyst-note">No hay divisas activas disponibles.</p>{% endfor %}</div></section>
+    <section class="ge-card" aria-labelledby="analyst-market-title"><div class="ge-analyst-card-head"><h2 id="analyst-market-title">Mercado actual</h2><span>Últimas tasas comerciales vigentes</span></div><p class="ge-analyst-note">Valores en PYG por unidad de divisa. Spread = venta − compra. Esta fotografía vigente no depende del período histórico.</p><div class="ge-table-wrap"><table class="ge-table"><caption class="ge-analyst-sr">Mercado comercial actual por divisa</caption><thead><tr><th scope="col">Divisa</th><th scope="col">Compra</th><th scope="col">Venta</th><th scope="col">Spread</th><th scope="col">Variación · compra</th><th scope="col">Última actualización</th></tr></thead><tbody data-market-rows>{% for row in datos_analista.mercado %}<tr><td>{{ row.par }}</td><td>{{ row.compra|importe_legible }}</td><td>{{ row.venta|importe_legible }}</td><td>{{ row.spread|importe_legible }}</td><td>{% if row.variacion %}{{ row.variacion.porcentaje|floatformat:2 }} %{% else %}Sin histórico suficiente{% endif %}</td><td>{{ row.fecha }}</td></tr>{% empty %}<tr><td colspan="6">No hay tasas comerciales vigentes para esta selección.</td></tr>{% endfor %}</tbody></table></div></section>
   </div>
-
-  <div class="ge-frontend-main-pad">
-    <!-- KPIs -->
-    <div class="ge-frontend-kpis">
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='currencies' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">USD/PYG REFERENCIA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_usd_pyg %}{{ tasa_usd_pyg.tasa|floatformat:"-10" }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_usd_pyg %}Referencia de mercado vigente{% else %}Sin tasa disponible{% endif %}</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='euro' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">EUR/PYG REFERENCIA</span><span class="ge-kpi--simple-value" style="color:var(--success)">{% if tasa_eur_pyg %}{{ tasa_eur_pyg.tasa|floatformat:"-10" }}{% else %}—{% endif %}</span><span class="ge-kpi--simple-sub">{% if tasa_eur_pyg %}Referencia de mercado vigente{% else %}Sin tasa disponible{% endif %}</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">GANANCIA HOY</span><span class="ge-kpi--simple-value" style="color:var(--primary)">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
-      </article>
-      <article class="ge-card ge-kpi--icon">
-        <span class="ge-kpi-icon-circle">{% include 'components/icon.html' with name='commercial-rates' size=18 %}</span>
-        <div><span class="ge-kpi--simple-label">GANANCIA MES</span><span class="ge-kpi--simple-value" style="color:var(--primary)">—</span><span class="ge-kpi--simple-sub">Próximamente</span></div>
-      </article>
-    </div>
-
-    <div class="ge-frontend-grid2">
-      <!-- Histórico de tasas -->
-      <article class="ge-card" style="padding:24px">
-        <div class="ge-card-head-chart">
-          <span class="ge-card-title">Histórico de tasas <span class="ge-chip">Próximamente</span></span>
-          <div class="ge-legend">
-            <span><em style="background:#3B5BFF"></em>USD</span>
-            <span><em style="background:#22C55E"></em>EUR</span>
-          </div>
-        </div>
-        <div class="ge-chart-box" aria-label="Histórico de tasas disponible próximamente"></div>
-      </article>
-
-      <!-- Ganancia diaria -->
-      <article class="ge-card" style="padding:24px">
-        <div class="ge-card-head-chart">
-          <span class="ge-card-title">Ganancia diaria · PYG <span class="ge-chip">Próximamente</span></span>
-          <div class="ge-switch">
-            <button type="button" class="is-active" disabled>Semana</button>
-            <button type="button" disabled>Mes</button>
-            <button type="button" disabled>Año</button>
-          </div>
-        </div>
-        <div class="ge-chart-box" aria-label="Ganancias disponibles próximamente"></div>
-      </article>
-    </div>
-  </div>
+  {{ datos_analista|json_script:'analista-inicial' }}
+  <noscript><p class="ge-analyst-note">Activá JavaScript para los gráficos y filtros sin recarga. Podés consultar las tablas y enviar el formulario.</p></noscript>
+</div>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'vendor/chartjs/chart.umd.min.js' %}" defer></script><script src="{% static 'js/dashboard-analista.js' %}?v=20261119-aplicar-filtros" defer></script>{% endblock %}

@@ -71,7 +71,6 @@
       board.querySelector('[data-market-buy]').textContent = rateNumber(rate.compra);
       board.querySelector('[data-market-sell]').textContent = rateNumber(rate.venta);
       board.querySelector('[data-market-change]').textContent = 'Vigente';
-      board.querySelector('[data-market-chart-pair]').textContent = rate.par;
       board.querySelector('[data-market-updated]').textContent = 'Actualizado · ' + localDate(rate.fecha_hora);
     }
 
@@ -85,7 +84,7 @@
     board.querySelectorAll('[data-market-stage]').forEach(function (stage, index) {
       window.setTimeout(function () { stage.classList.add('is-visible'); }, [260, 560, 800, 1000][index]);
     });
-    render(byCode('USD') || rates[0]);
+    render(rates.find(function (rate) { return rate.moneda_origen === 'USD' && rate.moneda_destino === 'PYG'; }) || byCode('USD') || rates[0]);
   }
 
   function renderRates(landing, data) {

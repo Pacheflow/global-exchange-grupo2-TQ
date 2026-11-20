@@ -1,0 +1,8 @@
+/* Franja visual estática de Global Market, sin datos ni controles. */
+.ge-market-guide { margin-top: 24px; padding: 0 8px; }
+.ge-market-guide ol { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+.ge-market-guide ol::before { content: ''; position: absolute; top: 17px; left: 16.666%; right: 16.666%; height: 1px; background: rgb(107 138 255 / 24%); }
+.ge-market-guide li { display: grid; justify-items: center; gap: 8px; min-width: 0; color: #8ba5d1; font-size: 11px; line-height: 1.4; }
+.ge-market-guide__icon { position: relative; display: grid; place-items: center; width: 34px; height: 34px; box-sizing: border-box; border: 1px solid rgb(107 138 255 / 30%); border-radius: 10px; background: #0c1836; color: #9db3ff; }
+.ge-market-guide__icon svg { display: block; width: 18px; height: 18px; }
+@media (max-width: 560px) { .ge-market-guide { padding-inline: 0; margin-top: 20px; } .ge-market-guide ol { gap: 8px; } }
