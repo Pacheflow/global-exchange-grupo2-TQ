@@ -22,7 +22,6 @@
         <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
         <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
       {% endif %}
-      <a href="{% url 'tasas_web:historico' %}" {% if request.resolver_match.namespace == 'tasas_web' and request.resolver_match.url_name == 'historico' %}class="is-active" aria-current="page"{% endif %}>Histórico</a>
     </div>
 
     <div class="ge-navbar__actions">
@@ -73,7 +72,6 @@
         <a href="{% url 'usuarios:home' %}#conversor" data-nav-section="conversor">Conversor</a>
         <a href="{% url 'usuarios:home' %}#seguridad" data-nav-section="seguridad">Seguridad</a>
       {% endif %}
-      <a href="{% url 'tasas_web:historico' %}" {% if request.resolver_match.namespace == 'tasas_web' and request.resolver_match.url_name == 'historico' %}class="is-active" aria-current="page"{% endif %}>Histórico</a>
     </div>
     {% if kc_user %}
       <div class="ge-navbar__mobile-account">

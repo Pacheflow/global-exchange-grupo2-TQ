@@ -1,6 +1,6 @@
 # HU-18 / IS2TQ2026-22 — Histórico de tasas
 
-La consulta está disponible en `/tasas/historico/`, desde Histórico en la navegación pública, el menú lateral y Ver histórico en Tasas. No requiere iniciar sesión. El panel del analista también enlaza a la consulta.
+La consulta está disponible en `/tasas/historico/`, desde el menú lateral y Ver histórico en Tasas; también admite acceso público directo. No requiere iniciar sesión. El panel del analista también enlaza a la consulta.
 
 ## Alcance y datos
 
@@ -32,3 +32,28 @@ No depende del cálculo de ganancias, del dashboard financiero ni del reporte ad
 - Revisión con Chromium en 1440 px y 390 px: consulta, gráfico, estado vacío, sin errores JavaScript ni desbordamiento del ancho de página. Datos de prueba locales, no datos productivos.
 
 La ejecución Docker utilizó un contenedor temporal con la imagen `global-exchange-web:latest`, el código de esta rama montado en solo lectura y PostgreSQL 17 de Compose. Se ejecutó `python manage.py test --noinput`; se conservó la aplicación activa. El integrante verificó en la vista previa los tres registros reales de septiembre y el mensaje sin información para octubre. Quedan pendientes la aceptación del equipo y la validación en producción. Publicar la rama o abrir un Pull Request no implica aceptación, despliegue productivo ni cierre en Jira.
+
+
+## Página de inicio — franja visual (19/11/2026)
+
+Global Market muestra una franja estática «Consultá · Simulá · Operá», con íconos
+y un conector discreto. No presenta histórico, variaciones, gráfico, selector de
+períodos ni enlace adicional. No realiza consultas de histórico al ingresar ni
+incorpora cotizaciones ficticias. Las cotizaciones actuales de la tarjeta siguen
+usando la lógica previa; se prioriza el par USD/PYG existente.
+
+Se retiraron la integración temporal del resumen, su extensión opcional de API,
+estilos y tests exclusivos. `tasas/historico.py` y `tasas/views.py` conservan el
+código previo a ese experimento. El histórico completo mantiene su pantalla,
+API, datos y accesos existentes de sidebar/Tasas. Histórico no aparece en el
+navbar superior, por solicitud explícita del usuario.
+
+Presentación: `templates/components/market_board.html`, CSS aislado
+`static/css/market-guide.css`, cargado desde `templates/usuarios/home.html`.
+`static/js/landing.js` ya no busca nodos ni solicita datos del bloque retirado.
+La franja usa tres columnas flexibles y ajuste de separación para móvil.
+
+Validación: 28/28 tests del histórico/cotizaciones OK (5,118 s); 85/85 JavaScript
+OK (1.268 ms). Check y diff correctos. Inicio/CSS HTTP200, HTML con franja y sin
+resumen/selector histórico. Detector sin hallazgos. QA visual en navegador no
+verificada por el host de acceso indisponible durante la sesión. Sin commit/push.

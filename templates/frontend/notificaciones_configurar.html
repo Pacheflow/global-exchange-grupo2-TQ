@@ -1,15 +1,48 @@
 {% extends 'frontend/base.html' %}
+{% load static %}
 {% block title %}Notificaciones de tasas · Global Exchange{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/notificaciones-tasas.css' %}?v=20261119">{% endblock %}
 {% block sidebar %}{% include 'frontend/partials/sidebar_for_role.html' %}{% endblock %}
 {% block content %}
-<div class="ge-frontend-main-pad">
-  <h2 class="ge-frontend-h2">Notificaciones de tasas</h2>
-  <p>Se envía un correo individual por cambios de compra o venta que alcancen este porcentaje,
-     acumulados desde la última notificación exitosa. Se incluyen subidas y bajadas.</p>
-  <p>El nuevo umbral se aplica a futuras actualizaciones; guardarlo no envía correos.</p>
-  <form method="post" class="ge-card" up-submit="false">{% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="ge-btn-primary">Guardar umbral</button>
-  </form>
+<div class="ge-frontend-main-pad ge-rate-notifications">
+  <header class="ge-rate-notifications__heading">
+    <h1 class="ge-frontend-h2">Notificaciones de tasas</h1>
+    <p>Configurá la variación mínima para enviar avisos por correo ante cambios en las tasas de compra o venta.</p>
+  </header>
+  {% for message in messages %}
+    <div class="ge-rate-notifications__feedback" role="status">{{ message }}</div>
+  {% endfor %}
+  <div class="ge-card ge-rate-notifications__panel">
+    <form method="post" class="ge-rate-notifications__form" up-submit="false">
+      {% csrf_token %}
+      <h2>Umbral de variación</h2>
+      <p>Definí a partir de qué porcentaje se envía una notificación.</p>
+      {% if form.non_field_errors %}<div class="ge-rate-notifications__errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="ge-field ge-rate-notifications__field">
+        <label for="{{ form.umbral_porcentaje.id_for_label }}">Variación mínima</label>
+        <div class="ge-rate-notifications__input">
+          {{ form.umbral_porcentaje }}
+          <span aria-hidden="true">%</span>
+        </div>
+        <small id="threshold-help">Porcentaje mayor que cero. Podés usar decimales.</small>
+        {% if form.umbral_porcentaje.errors %}
+          <div id="threshold-errors" class="ge-rate-notifications__errors" role="alert">{{ form.umbral_porcentaje.errors }}</div>
+        {% endif %}
+      </div>
+      <div class="ge-rate-notifications__actions">
+        <button type="submit" class="ge-btn-primary">Guardar umbral</button>
+        <p>Guardar no envía correos.</p>
+      </div>
+    </form>
+    <aside class="ge-rate-notifications__guide" aria-labelledby="notification-guide-title">
+      <span class="ge-rate-notifications__icon" aria-hidden="true">{% include 'components/icon.html' with name='notifications' size=22 %}</span>
+      <h2 id="notification-guide-title">Cómo se aplican los avisos</h2>
+      <dl>
+        <div><dt>Compra y venta</dt><dd>Se incluyen tanto las subidas como las bajadas de las tasas.</dd></div>
+        <div><dt>Variación acumulada</dt><dd>Los cambios se acumulan desde la última notificación exitosa. Al alcanzar el umbral, se envía un correo individual.</dd></div>
+        <div><dt>Próximas actualizaciones</dt><dd>El nuevo umbral se aplica a futuras actualizaciones de tasas.</dd></div>
+      </dl>
+    </aside>
+  </div>
 </div>
 {% endblock %}

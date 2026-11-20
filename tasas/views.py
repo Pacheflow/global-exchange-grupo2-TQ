@@ -29,7 +29,7 @@ def configurar_notificaciones(request):
     configuracion = ConfiguracionNotificacionTasa.objects.get(pk=1)
     formulario = UmbralNotificacionForm(
         request.POST if request.method == "POST" else None,
-        initial={"umbral_porcentaje": format(configuracion.umbral_porcentaje, "f")},
+        initial={"umbral_porcentaje": format(configuracion.umbral_porcentaje.normalize(), "f")},
     )
     if request.method == "POST":
         if formulario.is_valid():
